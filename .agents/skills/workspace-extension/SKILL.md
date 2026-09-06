@@ -64,6 +64,7 @@ apply 会同时更新 `.workspace/workspace.json`、`.workspace/extensions/.stat
 
 - 一个 capability 的默认绑定和单个仓级覆盖各只能指向一个 Provider。当前 Core capability 只有 `branch.naming` 和 `context.term-router`。
 - manifest v2 可以声明任意命名 Action；Action 不绑定 capability，也不会生成全局 `local-*` Adapter。通过 `workspace-feature-workflow` 在对应 Stage 按需读取它。
+- 需要输出 feature 相关文件的 Extension，在其 `SKILL.md` 声明具体位置、文件归属及重跑方式；不定义统一的扩展文档目录。只有交接需要时，需求主文档保留该产物入口链接。
 - 不手工修改受管 `local-*` Adapter。内容、管理标记或符号链接失配时，先运行 doctor；系统会拒绝删除或覆盖未受管路径。
 - 停用 Extension 前，若 `.workspace/workspace.local.json` 的 `extensions` 仍包含该 Extension 配置，preview 会拒绝。先显式移除该本地配置；系统不自动删除本地配置。
 - 不将凭据写入 manifest、desired state、workspace 配置或 lock。凭据由运行环境在需要调用 Provider 时单独提供。

@@ -26,20 +26,23 @@ python3 scripts/kit.py registry branch service \
 
 ## 标准需求
 
-需求目录包含：
+需求确认后先创建：
 
 ```text
 .workspace/docs/features/payments-retry/
 ├── README.md
-├── requirements/requirements.md
-├── design/design.md
-├── plans/implementation.md
-└── testing/verification.md
+└── requirements/requirements.md
 ```
 
-先完成需求、设计、实施计划和验证策略，并取得一次实现确认。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选，验证记录只写实际运行的命令、退出状态和结果。
+随后按讨论结果按需增加：
 
-需要临时 SQL、DDL、DML 或交付 fixture 时，将其放在当前需求的 `artifacts/`，SQL 使用 `artifacts/sql/`。业务正式数据库迁移和自动化测试必需 fixture 必须随业务仓版本化。
+- 方案确认后创建 `design/design.md` 并从 README 链接。默认用该文件的章节记录接口、数据库和上线策略；确需独立讨论或维护时才拆分专题文件。
+- 实施计划和验证策略确认后创建 `plans/implementation.md`，保留一个任务复选框清单，从 README 链接，并将状态更新为 `development`。
+- 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态和结果，不使用占位内容。
+
+每个阶段先讨论结论、假设和待决项，用户明确确认后才写入对应文档；未回复不是确认。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
+
+需要临时 SQL、DDL、DML 或交付 fixture 时，将其放在当前需求的 `artifacts/`，SQL 使用 `artifacts/sql/`。数据模型、迁移顺序、兼容和回退策略默认写在主设计文档的数据库章节；业务正式数据库迁移和自动化测试必需 fixture 必须随业务仓版本化。
 
 ## 验证、续接与完成
 

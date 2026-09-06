@@ -286,6 +286,8 @@ class HappyPathTest(unittest.TestCase):
                 status["features"][0]["artifacts"],
             )
 
+            (feature / "plans").mkdir()
+            (feature / "testing").mkdir()
             (feature / "plans/implementation.md").write_text(
                 "# 实施计划\n\n- [x] 完成实现\n- [x] 完成验证\n",
                 encoding="utf-8",

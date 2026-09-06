@@ -47,6 +47,9 @@ from workspace_workflow import status_result as workflow_status  # noqa: E402
 
 
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[([ xX])\]")
+EXECUTION_RECORD_RE = re.compile(r"^## 执行记录 \d{4}-\d{2}-\d{2}\s*$", re.MULTILINE)
+SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
+VERIFICATION_FIELDS = ("工作目录：", "命令：", "退出状态：", "结果：")
 STATUS_SCHEMA_VERSION = 1
 
 
@@ -90,6 +93,37 @@ def plan_progress(path: Path) -> dict[str, int]:
     return {"completed": sum(checked), "total": len(checked)}
 
 
+def verification_record(feature: Path) -> str | None:
+    """Read the latest execution record without falling back to an older success."""
+    path = feature / "testing/verification.md"
+    if not path.is_file() or path.is_symlink():
+        return None
+    text = path.read_text(encoding="utf-8")
+    records = list(EXECUTION_RECORD_RE.finditer(text))
+    if not records:
+        return None
+    latest = records[-1]
+    next_section = SECTION_RE.search(text, latest.end())
+    end = next_section.start() if next_section is not None else len(text)
+    record = text[latest.start():end].strip()
+    lines = record.splitlines()
+    if not all(
+        any(line.startswith(f"- {field}") and line[len(field) + 2:].strip() for line in lines)
+        for field in VERIFICATION_FIELDS
+    ):
+        return None
+    return record
+
+
+def verification_passed(record: str | None) -> bool:
+    if record is None:
+        return False
+    for line in record.splitlines():
+        if line.startswith("- 退出状态："):
+            return line.partition("：")[2].strip() == "0"
+    return False
+
+
 def current_branch(path: Path) -> str | None:
     result = subprocess.run(
         ["git", "-C", str(path), "branch", "--show-current"],
@@ -104,15 +138,21 @@ def current_branch(path: Path) -> str | None:
 
 
 def _tracking(feature: Path) -> dict[str, object]:
-    for directory in (feature / "plans", feature / "testing"):
+    for directory in (feature / "design", feature / "plans", feature / "testing"):
         if directory.is_symlink():
             raise ValueError(f"需求记录目录不允许符号链接：{directory}")
+    design = feature / "design" / "design.md"
+    if design.is_symlink():
+        raise ValueError(f"设计文档不允许符号链接：{design}")
     verification = feature / "testing" / "verification.md"
     if verification.is_symlink():
         raise ValueError(f"验证记录不允许符号链接：{verification}")
+    record = verification_record(feature)
     return {
+        "designExists": design.is_file(),
         "progress": plan_progress(feature / "plans" / "implementation.md"),
         "verificationExists": verification.is_file(),
+        "verificationPassed": verification_passed(record),
         "artifacts": artifact_summary(feature),
     }
 
@@ -151,7 +191,9 @@ def _confirmation(category: str) -> dict[str, object]:
     return {"category": category, "required": category in {"network", "remote", "semantic"}}
 
 
-def _single_feature_progress(feature: dict[str, object]) -> dict[str, object]:
+def _single_feature_progress(
+    feature: dict[str, object], *, mode: str = "workspace"
+) -> dict[str, object]:
     if feature["status"] == "paused":
         return {
             "currentStage": None,
@@ -168,18 +210,31 @@ def _single_feature_progress(feature: dict[str, object]) -> dict[str, object]:
     progress = feature["progress"]
     assert isinstance(progress, dict)
     if feature["status"] == "planning":
+        if not feature["designExists"]:
+            reason = f"需求 {feature['featureSlug']} 已确认，讨论方案设计后再写入设计文档"
+        elif progress["total"] == 0:
+            reason = f"方案已确认，讨论实施计划并写入可执行任务"
+        else:
+            reason = f"实施计划已记录；确认进入实现后将需求 {feature['featureSlug']} 更新为 development"
         stage = "feature.design"
+    elif progress["total"] == 0:
+        stage = "feature.design"
+        reason = f"需求 {feature['featureSlug']} 缺少已确认的实施计划"
     elif progress["completed"] < progress["total"]:
         stage = "feature.implement"
-    elif not feature["verificationExists"]:
+        reason = f"继续需求 {feature['featureSlug']}"
+    elif not feature["verificationPassed"]:
         stage = "feature.verify"
-    elif feature["status"] == "testing":
+        reason = f"继续需求 {feature['featureSlug']}"
+    elif mode == "maintenance" or feature["status"] == "testing":
         stage = "feature.complete"
+        reason = f"继续需求 {feature['featureSlug']}"
     else:
         stage = "feature.submit-test"
+        reason = f"继续需求 {feature['featureSlug']}"
     return {
         "currentStage": stage,
-        "nextActions": [_stage_action(stage, f"继续需求 {feature['featureSlug']}")],
+        "nextActions": [_stage_action(stage, reason)],
         "blockers": [],
         "confirmation": _confirmation(str(_stage_action(stage, "")["confirmation"])),
     }
@@ -195,7 +250,7 @@ def _progress_state(
         by_slug = {str(item["featureSlug"]): item for item in features}
         if mode == "workspace" and active_feature is not None:
             if active_feature in by_slug:
-                result = _single_feature_progress(by_slug[active_feature])
+                result = _single_feature_progress(by_slug[active_feature], mode=mode)
                 result["otherActiveFeatures"] = sorted(
                     slug for slug in by_slug if slug != active_feature
                 )
@@ -229,23 +284,7 @@ def _progress_state(
         }
     if not registry_exists:
         if len(features) == 1:
-            feature = features[0]
-            progress = feature["progress"]
-            assert isinstance(progress, dict)
-            if feature["status"] == "planning":
-                stage = "feature.design"
-            elif progress["completed"] < progress["total"]:
-                stage = "feature.implement"
-            elif not feature["verificationExists"]:
-                stage = "feature.verify"
-            else:
-                stage = "feature.complete"
-            return {
-                "currentStage": stage,
-                "nextActions": [_stage_action(stage, f"继续需求 {feature['featureSlug']}")],
-                "blockers": [],
-                "confirmation": _confirmation(str(_stage_action(stage, "")["confirmation"])),
-            }
+            return _single_feature_progress(features[0], mode=mode)
         return {
             "currentStage": "workspace.init",
             "nextActions": [_stage_action("workspace.init", "工作区尚未初始化")],
@@ -259,7 +298,7 @@ def _progress_state(
             "blockers": [],
             "confirmation": _confirmation("local"),
         }
-    return _single_feature_progress(features[0])
+    return _single_feature_progress(features[0], mode=mode)
 
 
 def _maintenance_features(root: Path) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
@@ -521,7 +560,7 @@ def _render_text(result: dict[str, object]) -> None:
         print(
             f"- {feature['featureSlug']} [{feature['status']}] "
             f"{progress['completed']}/{progress['total']}，"
-            f"验证记录 {'有' if feature['verificationExists'] else '无'}"
+            f"验证 {'通过' if feature['verificationPassed'] else '未通过或未执行'}"
         )
     if not features:
         print("- （无）")

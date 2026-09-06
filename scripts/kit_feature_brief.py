@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -31,10 +30,11 @@ from workspace_status import (  # noqa: E402
     plan_progress,
     plan_tasks,
     status_result,
+    verification_record,
 )
 
 
-FIVE_FILES = {
+FEATURE_FILES = {
     "readme": "README.md",
     "requirements": "requirements/requirements.md",
     "design": "design/design.md",
@@ -43,9 +43,6 @@ FIVE_FILES = {
 }
 PENDING_TASK_LIMIT = 10
 VERIFICATION_SUMMARY_LIMIT = 1200
-EXECUTION_RECORD_RE = re.compile(r"^## 执行记录 \d{4}-\d{2}-\d{2}\s*$", re.MULTILINE)
-SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
-VERIFICATION_FIELDS = ("工作目录：", "命令：", "退出状态：", "结果：")
 
 
 def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> str:
@@ -70,7 +67,7 @@ def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> st
 
 def _file_report(feature_dir: Path) -> dict[str, dict[str, object]]:
     report = {}
-    for key, relative in FIVE_FILES.items():
+    for key, relative in FEATURE_FILES.items():
         path = feature_dir / relative
         exists = path.is_file() and not path.is_symlink()
         report[key] = {
@@ -86,28 +83,6 @@ def _verification_tail(feature_dir: Path, limit: int = 10) -> list[str]:
     if not path.is_file() or path.is_symlink():
         return []
     return path.read_text(encoding="utf-8").splitlines()[-limit:]
-
-
-def _verification_summary(feature_dir: Path) -> tuple[str | None, bool]:
-    path = feature_dir / "testing/verification.md"
-    if not path.is_file() or path.is_symlink():
-        return None, False
-    text = path.read_text(encoding="utf-8")
-    records = list(EXECUTION_RECORD_RE.finditer(text))
-    for index in range(len(records) - 1, -1, -1):
-        start = records[index].start()
-        next_section = SECTION_RE.search(text, records[index].end())
-        end = next_section.start() if next_section is not None else len(text)
-        record = text[start:end].strip()
-        lines = record.splitlines()
-        if not all(
-            any(line.startswith(f"- {field}") and line[len(field) + 2 :].strip() for line in lines)
-            for field in VERIFICATION_FIELDS
-        ):
-            continue
-        truncated = len(record) > VERIFICATION_SUMMARY_LIMIT
-        return record[:VERIFICATION_SUMMARY_LIMIT], truncated
-    return None, False
 
 
 def _recent_commits(
@@ -144,10 +119,12 @@ def brief_result(root: Path, slug: str | None = None) -> dict[str, object]:
     resolved = _resolve_slug(root, status, slug)
     feature = next(item for item in status["features"] if item["featureSlug"] == resolved)
     feature_dir = root / feature["path"]
-    stage = _single_feature_progress(feature)
+    stage = _single_feature_progress(feature, mode=str(status["mode"]))
     workspace_model = load_workspace(root) if status["mode"] == "workspace" else None
-    pending = [task for completed, task in plan_tasks(feature_dir / FIVE_FILES["plan"]) if not completed]
-    verification_summary, verification_truncated = _verification_summary(feature_dir)
+    pending = [task for completed, task in plan_tasks(feature_dir / FEATURE_FILES["plan"]) if not completed]
+    record = verification_record(feature_dir)
+    verification_summary = record[:VERIFICATION_SUMMARY_LIMIT] if record is not None else None
+    verification_truncated = record is not None and len(record) > VERIFICATION_SUMMARY_LIMIT
     return {
         "featureSlug": resolved,
         "status": feature["status"],
@@ -159,7 +136,7 @@ def brief_result(root: Path, slug: str | None = None) -> dict[str, object]:
         "artifacts": feature["artifacts"],
         "verificationTail": _verification_tail(feature_dir),
         "blockers": list(status["blockers"]),
-        "progress": plan_progress(feature_dir / FIVE_FILES["plan"]),
+        "progress": plan_progress(feature_dir / FEATURE_FILES["plan"]),
         "pendingTasks": pending[:PENDING_TASK_LIMIT],
         "verificationSummary": verification_summary,
         "summaryTruncated": {
@@ -201,9 +178,9 @@ def _render_text(result: dict[str, object]) -> None:
     flags = " ".join(
         f"{key}={'有' if info['exists'] else '缺'}" for key, info in files.items()
     )
-    print(f"五文件：{flags}")
+    print(f"文档：{flags}")
     print(f"artifacts：{len(result['artifacts'])} 个")
-    print("正文：requirements/requirements.md、design/design.md、plans/implementation.md、testing/verification.md")
+    print("按阶段生成：requirements/requirements.md、design/design.md、plans/implementation.md、testing/verification.md")
     for action in result["nextActions"]:
         print(f"下一步：{action['runbook']}（{action['reason']}）")
     for entry in result["recentCommits"]:

@@ -118,6 +118,8 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("`templates/feature/README.md`", design)
         self.assertIn("python3 scripts/feature_context.py create <slug>", design)
         self.assertIn("`artifacts/sql/`", design)
+        self.assertIn("只创建", design)
+        self.assertIn("用户确认后才创建", design)
         for path in (
             "`.workspace/docs/features/<slug>/README.md`",
             "`requirements/requirements.md`",
@@ -156,6 +158,7 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("`testing/api-integration.md`", api)
         self.assertIn("`docs/development/features/<slug>/`", api)
         self.assertIn("OpenAPI", api)
+        self.assertIn("默认在 `design/design.md`", api)
         self.assertIn("事实、推断和待确认", api)
         self.assertIn("不自动启动服务", api)
         self.assertIn("不自动 curl 真实环境", api)

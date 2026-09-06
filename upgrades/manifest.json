@@ -1,10 +1,16 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "1.0.0",
+  "kitVersion": "1.1.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": ["confirmation.title", "confirmation.summary"],
     "migration": null
   },
-  "manualSteps": []
+  "manualSteps": [
+    {
+      "sinceVersion": "1.1.0",
+      "summary": "若本地 Extension 会写入需求相关文件，请审阅其 SKILL.md 的输出位置、文件归属和重复运行处理。",
+      "runbook": "docs/guides/local-extensions.md"
+    }
+  ]
 }

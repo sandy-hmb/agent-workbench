@@ -29,6 +29,10 @@ python3 scripts/kit.py doctor --root .
 - [自定义工作流](docs/guides/custom-workflows.md)：为已确认的本地 Action 配置 Stage Overlay。
 - [Agent 兼容性](docs/reference/agent-compatibility.md)：读取入口和兄弟仓访问范围。
 
+## 架构阅读
+
+[架构说明](docs/architecture.md)面向人工阅读，介绍组件职责、开发协作、状态与扩展机制；不属于 Agent 日常流程的读取清单。
+
 ## Core Skill
 
 日常开发：`workspace-init`、`workspace-repo-onboarding`、`workspace-feature-design`、`workspace-verify`、`workspace-sync-base`、`workspace-submit-test`。

@@ -21,7 +21,7 @@ python3 scripts/workspace_status.py --root . --json
 python3 scripts/workspace_workflow.py start --root . --feature <slug> --json
 ```
 
-轻量改动不创建需求目录；只传仓库和分支即可。一个 Run 只服务当前一次流程续接。
+轻量改动不创建需求目录；只传仓库和分支即可。标准需求只要求已有 README，验证记录尚未生成时也可以启动 Run；一个 Run 只服务当前一次流程续接。
 
 ## 到达 Stage
 
@@ -52,5 +52,7 @@ python3 scripts/workspace_workflow.py run \
 ## 上下文和边界
 
 每次只读取当前 Core Skill 和当前 Action Skill；同一任务中已授权且未变化的 Action 可连续执行。Action、参数、effects 或目标改变后重新核对实际影响。详细日志留在本地路径，Agent 只接收结构化摘要。不要手工修改 `.workspace/workflow.json`、`.workspace/runs/`、Extension lock 或受管 Adapter。
+
+Action 如需写 feature 相关文件，必须由自身 SKILL.md 说明精确输出位置、文件归属和重复运行时的追加或覆盖方式；不预设扩展专用目录。它不得改写需求、设计或实施计划正文，除非用户已在当前阶段确认该内容变更。已有 `testing/verification.md` 时，Runner 只追加 Action 状态；文件尚不存在时不代建占位记录。
 
 本 Skill 不自动部署、不创建代码审查请求、不提交或推送业务仓；这些行为必须由使用者定义 Action 并按本轮授权执行。

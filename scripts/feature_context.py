@@ -399,9 +399,6 @@ def create_feature(
         feature / "requirements/requirements.md": (
             "# Requirements\n\n" + (summary.strip() + "\n" if summary.strip() else "")
         ),
-        feature / "design/design.md": "# Design\n",
-        feature / "plans/implementation.md": "- [ ] 实现需求\n- [ ] 完成验证\n",
-        feature / "testing/verification.md": "# Verification\n\n尚未执行验证。\n",
     }
     feature.mkdir()
     for path in outputs:
@@ -414,15 +411,10 @@ def create_feature(
                 path.unlink()
             except OSError:
                 pass
-        for path in sorted(
-            (feature / name for name in ("requirements", "design", "plans", "testing")),
-            key=lambda item: len(item.parts),
-            reverse=True,
-        ):
-            try:
-                path.rmdir()
-            except OSError:
-                pass
+        try:
+            (feature / "requirements").rmdir()
+        except OSError:
+            pass
         try:
             feature.rmdir()
         except OSError:
@@ -472,7 +464,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="治理仓目录（默认脚本所在项目目录）",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    create = commands.add_parser("create", help="创建标准需求骨架")
+    create = commands.add_parser("create", help="创建已确认需求的最小骨架")
     create.add_argument("slug")
     create.add_argument("--repo", action="append", dest="repositories", required=True)
     create.add_argument("--type", choices=("feature", "fix", "hotfix", "refactor", "docs", "chore"), default="feature")

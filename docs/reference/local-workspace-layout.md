@@ -54,7 +54,7 @@
 | `workspace.local.json` | 本机使用者的分支 owner、角色、本地 Extension 配置和活跃需求指针。 |
 | `CONTEXT.md` | 跨仓上下文的生成内容。 |
 | `docs/repositories/` | 每个已登记仓的生成 profile。 |
-| `docs/features/` | 用户工作区的需求、设计、计划和验证记录。 |
+| `docs/features/` | 用户工作区的需求记录；设计、计划和验证文件按已确认阶段出现。 |
 | `docs/features/<slug>/artifacts/` | 需求绑定的 SQL、DDL、DML、fixture 和其他交付物；按需创建，不是业务仓代码目录。 |
 | `extensions/` | 本地 Extension 源目录；`.state/` 收纳其输入、锁、可移植来源摘要和缓存。 |
 | `workspace.local.json` | 还保存本机绝对 Extension 来源路径；复制状态时不携带到其他机器。 |

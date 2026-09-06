@@ -366,10 +366,17 @@ def _ensure_runs_root(root: Path) -> Path:
 def _verification_file(root: Path, feature_slug: str | None) -> Path | None:
     if feature_slug is None:
         return None
-    path = features_root(root) / feature_slug / "testing" / "verification.md"
+    feature = features_root(root) / feature_slug
+    readme = feature / "README.md"
+    _safe_path(root, readme)
+    if not readme.is_file():
+        raise _command("WORKFLOW_FEATURE_MISSING", f"标准需求缺少 README：{readme}")
+    path = feature / "testing" / "verification.md"
     _safe_path(root, path)
-    if path.is_symlink() or not path.is_file():
-        raise _command("WORKFLOW_FEATURE_MISSING", f"标准需求缺少验证记录：{path}")
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise _command("WORKFLOW_FEATURE_MISSING", f"验证记录不是普通文件：{path}")
     return path
 
 

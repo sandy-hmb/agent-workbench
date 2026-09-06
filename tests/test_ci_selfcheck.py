@@ -61,7 +61,7 @@ class PrePushHookExecutionTest(unittest.TestCase):
             self.copy,
             symlinks=True,
             ignore=shutil.ignore_patterns(
-                ".git", "tests", "__pycache__", ".workspace", "*.pyc"
+                ".git", "tests", "docs", "README.md", "__pycache__", ".workspace", "*.pyc"
             ),
         )
         (self.copy / "tests").mkdir()

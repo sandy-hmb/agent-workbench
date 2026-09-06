@@ -21,7 +21,7 @@ description: Create or update API integration notes for workspace features that 
 
 ## 设计期文档
 
-用户治理模式使用 `.workspace/docs/features/<slug>/`；公共 Kit 维护模式使用 `docs/development/features/<slug>/`。在当前模式对应的标准需求目录写入或更新 `design/api-integration.md`。内容保持短而可执行，包含：
+用户治理模式使用 `.workspace/docs/features/<slug>/`；公共 Kit 维护模式使用 `docs/development/features/<slug>/`。默认在 `design/design.md` 的接口契约章节写入或更新内容；只有接口内容需要独立讨论、维护或按需读取，且用户确认后才创建 `design/api-integration.md` 并从主设计链接。内容保持短而可执行，包含：
 
 - 变更摘要：说明本次接口或契约变化。
 - 参与仓库：列出提供方、消费方和只读对照方。
@@ -34,7 +34,7 @@ description: Create or update API integration notes for workspace features that 
 
 ## 测试期文档
 
-开发自测、正式提测或修复联调问题时，在当前模式对应的需求目录写入或更新 `testing/api-integration.md`。内容包含：
+开发自测、正式提测或修复联调问题时，默认在 `testing/verification.md` 记录联调证据；只有联调记录需要独立维护时才创建 `testing/api-integration.md`。内容包含：
 
 - 验证范围：关联页面、接口、主要场景和反向兼容场景。
 - 执行记录：只记录已获授权并实际执行的命令、请求或人工检查。

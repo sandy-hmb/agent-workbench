@@ -521,13 +521,13 @@ class FeatureContextTest(unittest.TestCase):
 
             self.assertEqual(root.resolve() / ".workspace/docs/features/payment-feature", feature)
             self.assertTrue((feature / "requirements/requirements.md").is_file())
-            self.assertTrue((feature / "design/design.md").is_file())
-            self.assertTrue((feature / "plans/implementation.md").is_file())
-            self.assertTrue((feature / "testing/verification.md").is_file())
-            self.assertFalse((feature / "artifacts").exists())
+            for directory in ("design", "plans", "testing", "artifacts"):
+                self.assertFalse((feature / directory).exists())
             readme = (feature / "README.md").read_text(encoding="utf-8")
             self.assertIn("owner/feature/payment-feature", readme)
             self.assertIn("Store payment records.", readme)
+            for directory in ("design", "plans", "testing"):
+                self.assertNotIn(f"]({directory}/", readme)
 
             sql = feature / "artifacts/sql/001-create-payment.sql"
             sql.parent.mkdir(parents=True)

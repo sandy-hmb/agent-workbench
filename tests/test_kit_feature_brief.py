@@ -105,6 +105,73 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertEqual(0, result["files"]["design"]["bytes"])
         self.assertTrue(result["files"]["readme"]["exists"])
 
+    def test_status_and_brief_agree_on_deferred_documents_and_verification(self) -> None:
+        import kit_feature_brief
+        import workspace_status
+
+        feature = self.write_feature("demo-feature")
+        plan = feature / "plans/implementation.md"
+        verification = feature / "testing/verification.md"
+        completed = "- [x] 实现\n- [x] 验证\n"
+        success = (
+            "## 执行记录 2026-09-07\n"
+            "- 工作目录：`/tmp/demo`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n"
+        )
+        cases = (
+            (None, success, "feature.design"),
+            ("# 实施计划\n", success, "feature.design"),
+            (completed, None, "feature.verify"),
+            (completed, "# 验证记录\n\n尚未执行验证。\n", "feature.verify"),
+            (completed, "- Workflow Action `review`：succeeded\n", "feature.verify"),
+            (completed, success, "feature.complete"),
+            (completed, success + success.replace("退出状态：0", "退出状态：1"), "feature.verify"),
+            (completed, success + "\n## 执行记录 2026-09-07\n- 命令：待完成\n", "feature.verify"),
+        )
+        for plan_text, verification_text, expected in cases:
+            with self.subTest(plan=plan_text, verification=verification_text):
+                for path, content in ((plan, plan_text), (verification, verification_text)):
+                    if content is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        path.write_text(content, encoding="utf-8")
+                status = workspace_status.status_result(self.root)
+                brief = kit_feature_brief.brief_result(self.root, "demo-feature")
+                self.assertEqual(expected, status["currentStage"])
+                self.assertEqual(status["currentStage"], brief["currentStage"])
+                self.assertEqual(status["nextActions"], brief["nextActions"])
+
+    def test_planning_feature_guides_design_then_plan(self) -> None:
+        import kit_feature_brief
+        import workspace_status
+
+        feature = self.write_feature("demo-feature")
+        readme = feature / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace("状态：development", "状态：planning"),
+            encoding="utf-8",
+        )
+        design = feature / "design/design.md"
+        plan = feature / "plans/implementation.md"
+
+        design.unlink()
+        status = workspace_status.status_result(self.root)
+        self.assertEqual("feature.design", status["currentStage"])
+        self.assertIn("方案设计", status["nextActions"][0]["reason"])
+
+        design.write_text("# 设计\n", encoding="utf-8")
+        plan.unlink()
+        brief = kit_feature_brief.brief_result(self.root, "demo-feature")
+        self.assertEqual("feature.design", brief["currentStage"])
+        self.assertIn("实施计划", brief["nextActions"][0]["reason"])
+
+        plan.write_text("- [ ] 实现\n", encoding="utf-8")
+        status = workspace_status.status_result(self.root)
+        self.assertEqual("feature.design", status["currentStage"])
+        self.assertIn("development", status["nextActions"][0]["reason"])
+
     def test_brief_errors_when_slug_ambiguous(self) -> None:
         import kit_feature_brief
 
@@ -305,6 +372,18 @@ class MaintenanceBriefTest(unittest.TestCase):
             code = kit_feature_brief.main(["--root", str(self.root), "demo-feature", "--json"])
         self.assertEqual(0, code)
         json.loads(output.getvalue())
+
+    def test_text_output_marks_later_documents_as_stage_based(self) -> None:
+        import kit_feature_brief
+
+        self.write_feature("demo-feature")
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(0, kit_feature_brief.main(["--root", str(self.root), "demo-feature"]))
+
+        self.assertIn("文档：", output.getvalue())
+        self.assertIn("按阶段生成：", output.getvalue())
 
 
 if __name__ == "__main__":

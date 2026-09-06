@@ -186,6 +186,12 @@ Action 的插入、计划和执行见[自定义工作流](custom-workflows.md)�
 
 ## 维护和停用
 
+### Feature 相关输出
+
+公共 Kit 更新不会修改本地 Extension。若 Extension 会写入需求、设计、计划、验证或交付物，先审阅其 `SKILL.md`：它必须说明具体输出位置、文件归属，以及重复运行时追加还是覆盖。不要为了统一格式创建额外目录；只有交接需要时，在 feature README 中保留产物入口链接。
+
+Extension 不得改写需求、设计或实施计划正文，除非用户已经确认当前阶段的内容变更。升级后重新 preview/apply，使 lock 的 digest 与已审阅内容一致。
+
 修改已激活 Extension 会造成 digest 漂移。先检查，再重新 preview/apply：
 
 ```bash

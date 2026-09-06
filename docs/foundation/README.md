@@ -25,7 +25,7 @@ python3 scripts/kit.py status --root . --json
 
 稳定阶段依次为：`feature.context`、`feature.classify`、`feature.analyze`、`feature.design`、`feature.prepare-branch`、`feature.implement`、`feature.verify`、`feature.submit-test`、`feature.complete`。
 
-需求状态是 `planning`、`development`、`testing`、`done` 或 `paused`，不等同于 Stage。轻量改动不创建需求目录；标准需求的需求、设计和计划确认一次后，范围内实现与离线验证持续执行。详情见[第一个需求](../guides/first-feature.md)。
+需求状态是 `planning`、`development`、`testing`、`done` 或 `paused`，不等同于 Stage。轻量改动不创建需求目录；标准需求先确认需求、再确认设计、再确认计划，分别生成对应文件。`feature.design` 承载设计与计划的两轮讨论，避免增加新的公共 Stage 锚点。计划确认并更新为 `development` 后，范围内实现与离线验证持续执行。详情见[第一个需求](../guides/first-feature.md)。
 
 ## 验证与结束
 

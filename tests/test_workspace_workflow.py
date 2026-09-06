@@ -145,7 +145,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             plan["pending"][0]["confirmation"],
         )
 
-    def test_standard_run_requires_and_updates_its_verification_record(self) -> None:
+    def test_standard_run_defers_verification_and_preserves_existing_records(self) -> None:
         self.write_overlay(
             [
                 {
@@ -159,12 +159,14 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "WORKFLOW_FEATURE_MISSING"):
             workspace_workflow.start_run(self.root, run_id="feature-run", feature_slug="feature")
 
-        verification = self.root / ".workspace/docs/features/feature/testing/verification.md"
-        verification.parent.mkdir(parents=True)
-        verification.write_text("# 验证记录\n", encoding="utf-8")
+        feature = self.root / ".workspace/docs/features/feature"
+        feature.mkdir()
+        (feature / "README.md").write_text("# Feature\n", encoding="utf-8")
+        verification = feature / "testing/verification.md"
         run = workspace_workflow.start_run(self.root, feature_slug="feature")
         self.assertEqual("feature", run["id"])
         self.assertEqual(run, workspace_workflow.start_run(self.root, feature_slug="feature"))
+        self.assertFalse(verification.parent.exists())
         plan = workspace_workflow.plan_result(self.root, "feature", after="feature.implement")
         workspace_workflow.finish(
             self.root,
@@ -174,7 +176,19 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             status="succeeded",
             summary="completed",
         )
+        self.assertFalse(verification.parent.exists())
+        verification.parent.mkdir()
+        verification.write_text("# 验证记录\n\n已有人工记录。\n", encoding="utf-8")
+        workspace_workflow.finish(
+            self.root,
+            "feature",
+            "team-delivery.integration-test",
+            plan["pending"][0]["planHash"],
+            status="succeeded",
+            summary="completed",
+        )
         evidence = verification.read_text(encoding="utf-8")
+        self.assertIn("已有人工记录。", evidence)
         self.assertIn("Workflow Action `team-delivery.integration-test`", evidence)
 
         with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "显式提供 run id"):

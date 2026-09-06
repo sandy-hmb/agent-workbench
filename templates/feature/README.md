@@ -12,7 +12,7 @@
 
 ## 验收
 
-验收标准见[需求](requirements/requirements.md)，验证证据见[验证记录](testing/verification.md)。
+验收标准见[需求](requirements/requirements.md)。实际验证产生后再记录证据。
 
 ## 交付物
 
@@ -21,6 +21,5 @@
 ## 文档
 
 - [需求](requirements/requirements.md)
-- [设计](design/design.md)
-- [实施计划](plans/implementation.md)
-- [验证记录](testing/verification.md)
+
+设计、实施计划待分别讨论确认；验证记录由实际验证产生。文件生成后在此补充入口链接。
