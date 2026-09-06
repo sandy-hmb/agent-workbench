@@ -1,0 +1,10 @@
+{
+  "repositories": [
+    {
+      "path": "frontend",
+      "remote": "https://github.com/example/frontend.git",
+      "category": "frontend",
+      "description": "Frontend application"
+    }
+  ]
+}

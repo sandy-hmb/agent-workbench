@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9]+(?:-[a-z0-9]+)*)+$"
+    },
+    "actionRef": {
+      "type": "string",
+      "minLength": 3,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "stage": {
+      "type": "object",
+      "required": ["id", "uses"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "before": {"$ref": "#/$defs/id"},
+        "after": {"$ref": "#/$defs/id"},
+        "uses": {"$ref": "#/$defs/actionRef"},
+        "trigger": {"type": "string", "enum": ["manual", "auto"]},
+        "with": {"type": "object"}
+      }
+    },
+    "skipHint": {
+      "type": "object",
+      "required": ["stage", "when", "reason"],
+      "additionalProperties": true,
+      "properties": {
+        "stage": {"$ref": "#/$defs/id"},
+        "reason": {"type": "string", "minLength": 1},
+        "when": {
+          "type": "object",
+          "required": ["repositoryCount"],
+          "additionalProperties": true,
+          "properties": {
+            "repositoryCount": {
+              "type": "object",
+              "required": ["max"],
+              "additionalProperties": true,
+              "properties": {"max": {"type": "integer"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "type": "object",
+  "required": ["schemaVersion", "workflow", "stages"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"const": 1}, "minor": {"type": "integer"}}},
+    "workflow": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "stages": {"type": "array", "items": {"$ref": "#/$defs/stage"}},
+    "skipHints": {"type": "array", "items": {"$ref": "#/$defs/skipHint"}}
+  }
+}

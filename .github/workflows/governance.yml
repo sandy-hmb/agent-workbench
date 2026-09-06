@@ -1,0 +1,39 @@
+name: governance
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.x"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: schemas
+        run: |
+          python -m json.tool schemas/workspace.schema.json
+          python -m json.tool schemas/workspace-input.schema.json
+          python -m json.tool schemas/workspace-init-input.schema.json
+          python -m json.tool schemas/workspace-extension.schema.json
+          python -m json.tool schemas/extensions-lock.schema.json
+          python -m json.tool schemas/provider-result.schema.json
+          python -m json.tool schemas/workspace-workflow.schema.json
+          python -m json.tool upgrades/manifest.json
+          python -m json.tool workflows/feature-development.json
+      - name: py_compile
+        run: python -m py_compile scripts/*.py migrations/*.py
+      - name: unittest
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: doctor and link checks
+        run: python scripts/workspace_doctor.py --root .

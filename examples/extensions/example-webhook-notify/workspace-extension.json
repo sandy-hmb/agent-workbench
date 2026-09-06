@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "example-webhook-notify",
+  "version": "0.1.0",
+  "kitApi": 1,
+  "provides": [],
+  "actions": [
+    {
+      "id": "notify",
+      "apiVersion": 1,
+      "skill": "notify",
+      "confirmation": {
+        "title": "发送 Webhook 通知",
+        "summary": "把当前阶段信息 POST 到已配置的 Webhook URL。"
+      },
+      "command": ["python3", "commands/notify.py"],
+      "environment": ["WEBHOOK_URL"],
+      "effects": ["network", "process.exec"]
+    }
+  ],
+  "requires": [],
+  "effects": ["network", "process.exec"]
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "example-branch-naming",
+  "version": "0.1.0",
+  "kitApi": 1,
+  "provides": [
+    {
+      "capability": "branch.naming",
+      "provider": "naming",
+      "apiVersion": 1,
+      "skill": "naming",
+      "command": ["python3", "commands/naming.py"]
+    }
+  ],
+  "actions": [],
+  "requires": [],
+  "effects": []
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "feature-development",
+  "stages": [
+    {"id": "feature.context"},
+    {"id": "feature.classify", "after": "feature.context"},
+    {"id": "feature.analyze", "after": "feature.classify", "optional": true},
+    {"id": "feature.design", "after": "feature.analyze"},
+    {"id": "feature.prepare-branch", "after": "feature.design"},
+    {"id": "feature.implement", "after": "feature.prepare-branch"},
+    {"id": "feature.verify", "after": "feature.implement"},
+    {"id": "feature.submit-test", "after": "feature.verify", "optional": true},
+    {"id": "feature.complete", "after": "feature.submit-test"}
+  ]
+}

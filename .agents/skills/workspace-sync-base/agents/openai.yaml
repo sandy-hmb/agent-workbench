@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Sync Base"
+  short_description: "Fetch and merge an explicitly chosen base"
+  default_prompt: "Use $workspace-sync-base to merge the recorded base into a selected repository branch."

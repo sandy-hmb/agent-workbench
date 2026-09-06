@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Init"
+  short_description: "Plan and safely register sibling repositories"
+  default_prompt: "Use $workspace-init to initialize or add a repository with confirmations."

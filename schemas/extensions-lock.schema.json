@@ -1,0 +1,16 @@
+{
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "capability": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9]+(?:-[a-z0-9]+)*)+$"},
+    "provider": {"type": "object", "required": ["capability", "provider", "apiVersion"], "additionalProperties": true, "properties": {"capability": {"$ref": "#/$defs/capability"}, "provider": {"$ref": "#/$defs/id"}, "apiVersion": {"type": "integer", "const": 1}}},
+    "confirmation": {"type": "object", "required": ["title", "summary"], "additionalProperties": true, "properties": {"title": {"type": "string", "minLength": 1, "pattern": "^(?!.*[\\r\\n])(?!.*\\x00)(?!\\s*$).+$"}, "summary": {"type": "string", "minLength": 1, "pattern": "^(?!.*[\\r\\n])(?!.*\\x00)(?!\\s*$).+$"}}},
+    "action": {"type": "object", "required": ["id", "apiVersion", "skill", "confirmation"], "additionalProperties": true, "properties": {"id": {"$ref": "#/$defs/id"}, "apiVersion": {"type": "integer", "const": 1}, "skill": {"$ref": "#/$defs/id"}, "confirmation": {"$ref": "#/$defs/confirmation"}}},
+    "adapter": {"type": "object", "required": ["agentPath", "claudePath", "skill", "installedDigest"], "additionalProperties": true, "properties": {"agentPath": {"type": "string", "pattern": "^(?!.*\\x00)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*\\s).+$"}, "claudePath": {"type": "string", "pattern": "^(?!.*\\x00)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*\\s).+$"}, "skill": {"$ref": "#/$defs/id"}, "installedDigest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}}
+  },
+  "type": "object", "required": ["lockVersion", "kitApi", "extensions", "providers"], "additionalProperties": true,
+  "properties": {
+    "lockVersion": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"const": 1}, "minor": {"type": "integer"}}}, "kitApi": {"type": "integer", "const": 1},
+    "extensions": {"type": "array", "items": {"type": "object", "required": ["id", "version", "path", "digest", "providers", "adapters"], "additionalProperties": true, "properties": {"id": {"$ref": "#/$defs/id"}, "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"}, "path": {"type": "string", "pattern": "^extensions/[a-z0-9]+(?:-[a-z0-9]+)*$"}, "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "providers": {"type": "array", "items": {"$ref": "#/$defs/provider"}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}, "adapters": {"type": "array", "items": {"$ref": "#/$defs/adapter"}}}}},
+    "providers": {"type": "object", "propertyNames": {"$ref": "#/$defs/capability"}, "additionalProperties": {"type": "object", "required": ["default", "repositories"], "additionalProperties": true, "properties": {"default": {"type": ["string", "null"], "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$"}, "repositories": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$"}}}}}
+  }
+}

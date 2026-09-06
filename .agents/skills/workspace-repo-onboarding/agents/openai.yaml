@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Onboarding"
+  short_description: "Register or draft repo-local AGENTS.md"
+  default_prompt: "Use $workspace-repo-onboarding to inspect cloned repositories and register or draft their AGENTS.md before preview/apply."

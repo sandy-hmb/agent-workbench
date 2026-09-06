@@ -1,0 +1,22 @@
+#!/bin/sh
+# 可选本地 pre-push 检查：与 CONTRIBUTING.md「验证改动」的命令逐条一致。
+# 启用：git config core.hooksPath scripts/hooks
+# 不启用时对 Kit 的任何行为没有影响；任意一步失败即以非零退出码阻止本次 push，不做任何自动修复。
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile scripts/*.py migrations/*.py
+python3 -m json.tool schemas/workspace.schema.json >/dev/null
+python3 -m json.tool schemas/workspace-input.schema.json >/dev/null
+python3 -m json.tool schemas/workspace-init-input.schema.json >/dev/null
+python3 -m json.tool schemas/workspace-extension.schema.json >/dev/null
+python3 -m json.tool schemas/extensions-lock.schema.json >/dev/null
+python3 -m json.tool schemas/provider-result.schema.json >/dev/null
+python3 -m json.tool schemas/workspace-workflow.schema.json >/dev/null
+python3 -m json.tool upgrades/manifest.json >/dev/null
+python3 -m json.tool workflows/feature-development.json >/dev/null
+python3 scripts/workspace_doctor.py --root .
+git diff --check

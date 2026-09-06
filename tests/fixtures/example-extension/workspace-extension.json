@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "example-extension",
+  "version": "1.0.0",
+  "kitApi": 1,
+  "provides": [
+    {
+      "capability": "branch.naming",
+      "provider": "team",
+      "apiVersion": 1,
+      "skill": "example-branching"
+    }
+  ],
+  "actions": [],
+  "requires": [],
+  "effects": []
+}

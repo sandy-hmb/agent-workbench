@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cross-Repo Analysis"
+  short_description: "Map repository roles and contract dependencies"
+  default_prompt: "Use $workspace-cross-repo-analysis to map affected repositories and change order."

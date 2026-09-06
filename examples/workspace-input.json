@@ -1,0 +1,15 @@
+{
+  "workspace": {
+    "name": "Example Workspace"
+  },
+  "local": {
+    "branchOwner": "alice"
+  },
+  "repositories": [
+    {
+      "path": "backend",
+      "remote": "https://github.com/example/backend.git",
+      "category": "service"
+    }
+  ]
+}

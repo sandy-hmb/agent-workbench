@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Extension"
+  short_description: "Preview and activate local workspace extensions"
+  default_prompt: "Use $workspace-extension to inspect, preview, or activate local extensions after explicit confirmation."

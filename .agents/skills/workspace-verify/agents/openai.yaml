@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Verify"
+  short_description: "Run validation and record feature evidence"
+  default_prompt: "Use $workspace-verify to run the current feature's authorized validation and record progress for handoff."

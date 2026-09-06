@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Submit Test"
+  short_description: "Deliver a selected branch to its test target"
+  default_prompt: "Use $workspace-submit-test to deliver an authorized repository in the requested test mode."

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+/.workspace/
+/.workspace.migrate-stage/
+/.agents/skills/local-*
+/.claude/skills/local-*
+/docs/development/
+/workspace-input.json
+/new-repo.json
+.idea/
+/docs/development/*-AUTO*.md

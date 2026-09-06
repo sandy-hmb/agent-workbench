@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Update"
+  short_description: "Plan compatible agent-workbench updates"
+  default_prompt: "Use $workspace-update to inspect Extension compatibility and, after confirmation, apply a public update."

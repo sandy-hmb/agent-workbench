@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Workflow"
+  short_description: "Run custom actions at feature workflow stages"
+  default_prompt: "Use $workspace-feature-workflow to inspect the current feature stage and run approved local actions."

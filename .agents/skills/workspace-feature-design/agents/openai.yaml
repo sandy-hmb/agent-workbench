@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Tech Design"
+  short_description: "Classify changes and record implementation plans"
+  default_prompt: "Use $workspace-feature-design to classify a change and draft its scoped design."

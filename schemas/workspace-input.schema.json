@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workspace-input.schema.json",
+  "type": "object",
+  "additionalProperties": true,
+  "description": "Temporary setup input. Omitted derived and shared fields are completed by workspace_setup.py.",
+  "required": ["workspace", "repositories"],
+  "properties": {
+    "version": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"const": 1}, "minor": {"type": "integer"}}},
+    "workspace": {"type": "object", "description": "Human-readable workspace identity.", "additionalProperties": false, "required": ["name"], "properties": {"name": {"type": "string", "minLength": 1, "description": "Workspace name shown in generated context."}}},
+    "context": {"type": "object", "properties": {"termRouter": {"$ref": "#/$defs/termRouter"}}},
+    "branchPolicy": {"$ref": "#/$defs/branchPolicy"},
+    "extensions": {"type": "object", "additionalProperties": false, "required": ["providers", "config"], "properties": {"providers": {"type": "object"}, "config": {"type": "object"}}},
+    "repositories": {"type": "array", "items": {"$ref": "#/$defs/repository"}},
+    "local": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional local settings; omitted fields use safe defaults.",
+      "required": [],
+      "properties": {
+        "branchOwner": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "primaryRole": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "extensions": {"type": "object", "propertyNames": {"pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}, "additionalProperties": {"type": "object"}}
+      }
+    }
+  },
+  "$defs": {
+    "term": {"type": "string", "minLength": 1, "pattern": "^(?=.*\\S)[^\\r\\n]+$"},
+    "termRouter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["products", "capabilities", "actions", "repositories"],
+      "properties": {
+        "products": {"type": "array", "items": {"$ref": "#/$defs/productTerm"}},
+        "capabilities": {"type": "array", "items": {"$ref": "#/$defs/capabilityTerm"}},
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/actionTerm"}},
+        "repositories": {"type": "array", "items": {"$ref": "#/$defs/repositoryTerm"}}
+      }
+    },
+    "productTerm": {"type": "object", "additionalProperties": false, "required": ["term", "repository"], "properties": {"term": {"$ref": "#/$defs/term"}, "repository": {"$ref": "#/$defs/term"}}},
+    "capabilityTerm": {"type": "object", "additionalProperties": false, "required": ["term", "capability"], "properties": {"term": {"$ref": "#/$defs/term"}, "capability": {"$ref": "#/$defs/term"}}},
+    "actionTerm": {"type": "object", "additionalProperties": false, "required": ["term", "action"], "properties": {"term": {"$ref": "#/$defs/term"}, "action": {"$ref": "#/$defs/term"}}},
+    "repositoryTerm": {"type": "object", "additionalProperties": false, "required": ["term", "repository"], "properties": {"term": {"$ref": "#/$defs/term"}, "repository": {"$ref": "#/$defs/term"}}},
+    "branchPolicy": {"type": "object", "additionalProperties": false, "properties": {"workBase": {"type": "string", "minLength": 1, "pattern": "^(?!.*[\\r\\n])(?!-)(?!/)(?!.*//)(?!.*\\.\\.)(?!.*(?:^|/)\\.)(?!.*(?:^|/)[^/]*\\.lock(?:/|$))(?!.*\\/$)(?!.*\\.$)(?!.*[~^:?*\\[\\\\])(?!.*@\\{)[^\\s\\x00-\\x1f\\x7f]+$"}, "testTarget": {"type": ["string", "null"], "minLength": 1, "pattern": "^(?!.*[\\r\\n])(?!-)(?!/)(?!.*//)(?!.*\\.\\.)(?!.*(?:^|/)\\.)(?!.*(?:^|/)[^/]*\\.lock(?:/|$))(?!.*\\/$)(?!.*\\.$)(?!.*[~^:?*\\[\\\\])(?!.*@\\{)[^\\s\\x00-\\x1f\\x7f]+$"}, "hotfixBase": {"type": ["string", "null"], "minLength": 1, "pattern": "^(?!.*[\\r\\n])(?!-)(?!/)(?!.*//)(?!.*\\.\\.)(?!.*(?:^|/)\\.)(?!.*(?:^|/)[^/]*\\.lock(?:/|$))(?!.*\\/$)(?!.*\\.$)(?!.*[~^:?*\\[\\\\])(?!.*@\\{)[^\\s\\x00-\\x1f\\x7f]+$"}, "namePattern": {"type": "string", "minLength": 1}}},
+    "repository": {"type": "object", "description": "A sibling repository to register; path is the only mandatory input field.", "additionalProperties": false, "required": ["path"], "properties": {"path": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}, "aliases": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}}, "remote": {"type": ["string", "null"], "pattern": "^(?!.*[\\r\\n])(?:[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\\s]+|ssh://(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9.-]+(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?/[^\\s?#]+|https://[A-Za-z0-9.-]+(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?/[^\\s?#]+)$"}, "category": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "instruction": {"type": "string"}, "branchPolicy": {"$ref": "#/$defs/branchPolicy"}, "sourceInstruction": {"type": ["string", "null"]}, "stack": {"type": "array", "items": {"type": "string", "minLength": 1}}, "validation": {"type": "array", "items": {"type": "string", "minLength": 1}}}}
+  }
+}

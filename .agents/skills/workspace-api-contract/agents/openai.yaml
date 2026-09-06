@@ -1,0 +1,4 @@
+interface:
+  display_name: "API Integration"
+  short_description: "Document API contracts and integration checks"
+  default_prompt: "Use $workspace-api-contract when a workspace feature changes front-end/back-end API contracts or integration behavior."

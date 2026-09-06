@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "action-extension",
+  "version": "1.0.0",
+  "kitApi": 1,
+  "provides": [],
+  "actions": [
+    {
+      "id": "integration-test",
+      "apiVersion": 1,
+      "skill": "integration-test",
+      "confirmation": {
+        "title": "Run integration tests",
+        "summary": "Run the integration tests for the current change."
+      },
+      "effects": ["process.exec"]
+    },
+    {
+      "id": "deploy-test",
+      "apiVersion": 1,
+      "skill": "deploy-test",
+      "confirmation": {
+        "title": "Deploy to test",
+        "summary": "Deploy the current change to the test environment."
+      },
+      "command": ["python3", "commands/deploy.py"],
+      "environment": ["DEPLOY_TOKEN"],
+      "effects": ["network", "process.exec"]
+    }
+  ],
+  "requires": [],
+  "effects": ["network", "process.exec"]
+}
