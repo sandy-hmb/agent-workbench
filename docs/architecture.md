@@ -43,7 +43,7 @@ flowchart TB
 
 ### 协作与命令入口
 
-**Agent 和 Core Skill** 负责把用户目标转成阶段讨论、实施和验证动作。Skill 是按需读取的 runbook；讨论是否充分、结论是否得到用户确认，需要 Agent 遵守协作约定。脚本不会解释整段对话并证明用户已同意。需求、设计和计划分别在本阶段确认后记录，详见[需求设计 Skill](../.agents/skills/workspace-feature-design/SKILL.md)。
+**Agent 和 Core Skill** 负责把用户目标转成阶段讨论、实施和验证动作。Skill 是按需读取的 runbook；讨论是否充分、结论是否得到用户确认，需要 Agent 遵守协作约定。脚本不会解释整段对话并证明用户已同意。需求与书面设计由[需求设计 Skill](../.agents/skills/workspace-feature-design/SKILL.md)记录，书面计划由[计划 Skill](../.agents/skills/workspace-writing-plan/SKILL.md)生成并经人工批准。
 
 **CLI 入口** [kit.py](../scripts/kit.py)只把子命令转发到对应脚本的 `main()`，不另存状态或重写业务逻辑。直接运行脚本与通过统一入口调用使用同一实现。[kit_describe.py](../scripts/kit_describe.py)提供命令与 runbook 的可读清单；它用于发现能力，不是另一个流程调度器。
 
@@ -87,9 +87,11 @@ sequenceDiagram
     U->>A: 讨论并确认需求范围与验收
     A->>K: 创建 README 和需求记录
     U->>A: 讨论并确认方案
-    Note over A: 写入设计正文
-    U->>A: 讨论并确认计划与验证策略
-    Note over A: 写入计划，将状态更新为 development
+    Note over A: 写入并自审设计正文
+    U->>A: 审阅并确认书面设计
+    Note over A: 写入并自审计划草案
+    U->>A: 审阅计划、基线、分支和执行方式
+    Note over A: 确认后更新为 development
     A->>K: 解析基线与候选分支
     K-->>A: 仓库、基线、完整分支名
     U->>A: 确认需要创建的分支
@@ -116,7 +118,7 @@ Core Workflow 的公共锚点定义在 [feature-development.json](../workflows/f
 | 3 | `feature.analyze` | 按需分析跨仓职责与契约，可选。 |
 | 4 | `feature.design` | 方案与实施计划分别讨论、分别确认；它们共享一个公共锚点。 |
 | 5 | `feature.prepare-branch` | 核对现场、基线、分支及相应确认。 |
-| 6 | `feature.implement` | 按已确认计划实现。 |
+| 6 | `feature.implement` | 由 `workspace-execute-plan` 按已确认计划实现、任务级验证和自审。 |
 | 7 | `feature.verify` | 运行已授权检查并记录证据。 |
 | 8 | `feature.submit-test` | 向配置测试目标交付，可选。 |
 | 9 | `feature.complete` | 核对验收并确认结束。 |
@@ -162,7 +164,7 @@ stateDiagram-v2
 | 任务完成且验证通过，当前为维护模式或需求已是 `testing` | 建议 `feature.complete`。 |
 | 其余开发中需求 | 建议 `feature.submit-test`；实际执行仍由提测流程检查目标与授权。 |
 
-验证通过的机器判断读取最新的 `## 执行记录 YYYY-MM-DD`，要求工作目录、命令、退出状态和结果均非空，且退出状态为 `0`。占位文件、最新失败或不完整记录不能用更早的成功覆盖。这个判断不验证记录是否伪造，也不证明测试覆盖全部验收标准，证据的真实性与充分性仍需核对。
+验证通过的机器判断读取最新的 `## 验证批次`，要求总体结果、审查结论、代码状态和至少一项检查完整；全部退出状态必须为 `0`，且记录的仓库状态与当前 Git 状态完全匹配。旧 `执行记录`、占位文件、最新失败、不完整或过期批次都不能用更早成功覆盖。这个判断不证明测试覆盖全部验收标准，证据的真实性与充分性仍需核对。
 
 多需求并行时，当前会话可以明确指定需求；用户治理模式还可用本机 `activeFeature` 指针帮助新会话选择。没有唯一选择时，status 报告阻塞。显式指定 slug 的 brief 可以返回目标需求摘要，但仍保留工作区级阻塞供调用方判断，不会静默清除其他需求。
 

@@ -33,6 +33,7 @@ COMMANDS = {
     "context-measure": ("context_measure", "测量典型路径的上下文消耗基线"),
     "describe": ("kit_describe", "生成脚本→子命令→runbook 的机器可读能力清单"),
     "brief": ("kit_feature_brief", "接手进行中需求的最小上下文包（--json/文本）"),
+    "verify": ("workspace_verification", "读取需求当前 Git 代码状态指纹"),
 }
 
 

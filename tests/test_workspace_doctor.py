@@ -24,6 +24,8 @@ SKILLS = (
     "workspace-repo-onboarding",
     "workspace-cross-repo-analysis",
     "workspace-feature-design",
+    "workspace-writing-plan",
+    "workspace-execute-plan",
     "workspace-api-contract",
     "workspace-feature-workflow",
     "workspace-verify",

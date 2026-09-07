@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "1.1.0",
+  "kitVersion": "1.2.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": ["confirmation.title", "confirmation.summary"],
@@ -11,6 +11,11 @@
       "sinceVersion": "1.1.0",
       "summary": "若本地 Extension 会写入需求相关文件，请审阅其 SKILL.md 的输出位置、文件归属和重复运行处理。",
       "runbook": "docs/guides/local-extensions.md"
+    },
+    {
+      "sinceVersion": "1.2.0",
+      "summary": "继续进行中的需求前，使用 workspace-verify 重新生成包含当前代码状态的完整验证批次；旧执行记录不能推进完成。",
+      "runbook": "docs/guides/first-feature.md"
     }
   ]
 }

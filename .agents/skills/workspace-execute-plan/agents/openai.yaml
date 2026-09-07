@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Execute Plan"
+  short_description: "Execute an approved feature plan task by task"
+  default_prompt: "Use $workspace-execute-plan to implement the approved current feature plan and record verified progress."

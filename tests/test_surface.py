@@ -21,6 +21,8 @@ SKILLS = (
     "workspace-repo-onboarding",
     "workspace-cross-repo-analysis",
     "workspace-feature-design",
+    "workspace-writing-plan",
+    "workspace-execute-plan",
     "workspace-api-contract",
     "workspace-feature-workflow",
     "workspace-verify",
@@ -105,14 +107,6 @@ class SurfaceTest(unittest.TestCase):
         design = (
             ROOT / ".agents/skills/workspace-feature-design/SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn(
-            "python3 scripts/workspace_registry.py branch <repo> --type <type> --slug <slug> --json",
-            design,
-        )
-        self.assertIn("--owner <owner>", design)
-        self.assertIn("`baseBranch`", design)
-        self.assertIn("`branch`", design)
-        self.assertIn("不要由 Agent 手工替换", design)
         self.assertIn("`docs/development/features/<slug>/`", design)
         self.assertIn("不调用依赖 workspace registry", design)
         self.assertIn("`templates/feature/README.md`", design)
@@ -129,6 +123,29 @@ class SurfaceTest(unittest.TestCase):
         ):
             self.assertIn(path, design)
         self.assertIn("python3 scripts/feature_context.py list --json", design)
+        self.assertIn("workspace-writing-plan", design)
+        self.assertIn("书面设计", design)
+        self.assertNotIn("实施计划和验证策略，说明修改范围", design)
+
+        writing_plan = (
+            ROOT / ".agents/skills/workspace-writing-plan/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("独立、可验证的交付单元", writing_plan)
+        self.assertIn("书面计划", writing_plan)
+        self.assertIn("需求覆盖", writing_plan)
+        self.assertIn(
+            "python3 scripts/workspace_registry.py branch <repo> --type <type> --slug <slug> --json",
+            writing_plan,
+        )
+        self.assertIn("`baseBranch`", writing_plan)
+        self.assertIn("`branch`", writing_plan)
+
+        execute = (
+            ROOT / ".agents/skills/workspace-execute-plan/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("根因", execute)
+        self.assertIn("实际 diff", execute)
+        self.assertIn("重要问题", execute)
 
         onboarding = (
             ROOT / ".agents/skills/workspace-repo-onboarding/SKILL.md"
@@ -179,6 +196,10 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("轻量路径", verify)
         self.assertIn("不调用 feature resolve", verify)
         self.assertIn("## 执行记录 YYYY-MM-DD", verify)
+        self.assertIn("## 验证批次", verify)
+        self.assertIn("代码状态", verify)
+        self.assertIn("审查结论", verify)
+        self.assertIn("kit.py verify snapshot", verify)
 
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("没有 Skill 发现能力时", agents)

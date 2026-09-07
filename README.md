@@ -35,7 +35,7 @@ python3 scripts/kit.py doctor --root .
 
 ## Core Skill
 
-日常开发：`workspace-init`、`workspace-repo-onboarding`、`workspace-feature-design`、`workspace-verify`、`workspace-sync-base`、`workspace-submit-test`。
+日常开发：`workspace-init`、`workspace-repo-onboarding`、`workspace-feature-design`、`workspace-writing-plan`、`workspace-execute-plan`、`workspace-verify`、`workspace-sync-base`、`workspace-submit-test`。
 
 按需分析：`workspace-cross-repo-analysis`、`workspace-api-contract`、`workspace-feature-workflow`。
 

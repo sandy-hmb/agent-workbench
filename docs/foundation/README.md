@@ -25,7 +25,7 @@ python3 scripts/kit.py status --root . --json
 
 稳定阶段依次为：`feature.context`、`feature.classify`、`feature.analyze`、`feature.design`、`feature.prepare-branch`、`feature.implement`、`feature.verify`、`feature.submit-test`、`feature.complete`。
 
-需求状态是 `planning`、`development`、`testing`、`done` 或 `paused`，不等同于 Stage。轻量改动不创建需求目录；标准需求先确认需求、再确认设计、再确认计划，分别生成对应文件。`feature.design` 承载设计与计划的两轮讨论，避免增加新的公共 Stage 锚点。计划确认并更新为 `development` 后，范围内实现与离线验证持续执行。详情见[第一个需求](../guides/first-feature.md)。
+需求状态是 `planning`、`development`、`testing`、`done` 或 `paused`，不等同于 Stage。轻量改动不创建需求目录；标准需求先确认需求、生成并审阅书面设计，再由 `workspace-writing-plan` 生成并审阅书面计划。`feature.design` 承载设计与计划的两轮讨论，避免增加新的公共 Stage 锚点。书面计划、基线、分支和执行方式确认并更新为 `development` 后，范围内实现与离线验证持续执行。详情见[第一个需求](../guides/first-feature.md)。
 
 ## 验证与结束
 
@@ -39,6 +39,8 @@ python3 scripts/kit.py status --root . --json
 | [`workspace-repo-onboarding`](../../.agents/skills/workspace-repo-onboarding/SKILL.md) | 读取业务仓规范。 |
 | [`workspace-cross-repo-analysis`](../../.agents/skills/workspace-cross-repo-analysis/SKILL.md) | 分析跨仓所有权和顺序。 |
 | [`workspace-feature-design`](../../.agents/skills/workspace-feature-design/SKILL.md) | 编写或审查标准需求。 |
+| [`workspace-writing-plan`](../../.agents/skills/workspace-writing-plan/SKILL.md) | 把已确认设计拆成可执行计划。 |
+| [`workspace-execute-plan`](../../.agents/skills/workspace-execute-plan/SKILL.md) | 逐项执行已确认计划并复核实际 diff。 |
 | [`workspace-api-contract`](../../.agents/skills/workspace-api-contract/SKILL.md) | 记录接口契约变化。 |
 | [`workspace-feature-workflow`](../../.agents/skills/workspace-feature-workflow/SKILL.md) | 调度已确认的本地 Action。 |
 | [`workspace-verify`](../../.agents/skills/workspace-verify/SKILL.md) | 运行并记录验证。 |

@@ -1,11 +1,11 @@
 ---
 name: workspace-feature-design
-description: Classify a workspace change as lightweight or standard and create or review its scoped requirements, design, plan, and testing records.
+description: Classify a workspace change and create or review its scoped requirements and written design before plan drafting.
 ---
 
 # Workspace Feature Design
 
-用于技术方案、需求整理和进入开发前的设计门禁。
+用于需求澄清、技术方案和书面设计门禁。书面设计获批后转交 `workspace-writing-plan`，不在本 Skill 中生成实施计划。
 
 ## 验证策略
 
@@ -31,9 +31,9 @@ description: Classify a workspace change as lightweight or standard and create o
    ```
 
    每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md`，只创建 `.workspace/docs/features/<slug>/README.md` 和 `requirements/requirements.md`，并写入 registry 计算的分支与基线。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 校验元数据。
-4. 再讨论方案设计，明确复用的现有能力、关键取舍、风险和待确认项。用户确认后才创建 `design/design.md` 并从 README 链接。默认只维护这一份设计文档，接口、数据库和上线策略使用章节记录；只有某部分需要独立讨论、维护或按需读取，且用户确认后才新增专题文件并从主设计链接。正式数据库迁移和自动化测试必需 fixture 仍随业务仓版本化，不复制到 feature。
-5. 再讨论实施计划和验证策略，说明修改范围、任务顺序、最小验证和回退风险。用户确认后才创建 `plans/implementation.md`，其中保留一个任务复选框清单；更新 README 链接，并将需求状态更新为 `development`。用户治理模式下，每个仓调用 `python3 scripts/workspace_registry.py branch <repo> --type <type> --slug <slug> --json` 计算候选分支；owner 默认取工作区配置，仅在用户明确覆盖时追加 `--owner <owner>`。直接使用返回的 `baseBranch` 和 `branch`，不要由 Agent 手工替换 `namePattern` 模板。公共 Kit 维护模式按治理仓规范和实际 Git 状态记录基线与候选分支。
-6. 创建分支前检查工作树并展示工作类型、实际基线和完整候选分支名，等待确认。计划确认后，同一范围内实现、进度记录和离线验证连续执行；发现影响范围、验收标准或关键方案的新事实时，回到对应讨论阶段。`testing/verification.md` 只在首次实际验证时创建，记录真实命令、退出状态和结果。需求目录中的实际基线以当次 Git 检查结果为准，不把策略默认值追溯成历史事实。
+4. 再讨论方案设计，明确复用能力、关键取舍、风险和待确认项。用户确认后才创建 `design/design.md` 并从 README 链接。默认只维护这一份设计文档，接口、数据库和上线策略使用章节记录；专题文件仅在用户确认需要独立维护时新增。写入后自审需求覆盖、矛盾、占位内容和范围，再请用户审阅实际设计文件。书面设计未获确认，不得生成实施计划或开始实现。
+5. 书面设计获确认后，读取 `workspace-writing-plan`，由它生成和自审 `plans/implementation.md` 草案。计划、基线、分支和执行方式的书面确认属于计划 Skill；计划获批前需求保持 `planning`。
+6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到需求或设计讨论。`testing/verification.md` 只在首次实际验证时创建，记录真实命令、退出状态和结果。
 
 ## 边界
 

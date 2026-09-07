@@ -261,6 +261,24 @@ class HappyPathTest(unittest.TestCase):
             self.assertEqual("smoke/feature/clone-flow", branch["branch"])
             self.assertEqual("main", branch["baseBranch"])
 
+            service = parent / "service"
+            (service / "README.md").write_text("# service\n", encoding="utf-8")
+            run_command(["git", "-C", str(service), "add", "README.md"])
+            run_command(
+                [
+                    "git",
+                    "-C",
+                    str(service),
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.test",
+                    "commit",
+                    "-qm",
+                    "initial service",
+                ]
+            )
+
             feature = feature_context.create_feature(
                 kit,
                 "clone-flow",
@@ -292,9 +310,25 @@ class HappyPathTest(unittest.TestCase):
                 "# 实施计划\n\n- [x] 完成实现\n- [x] 完成验证\n",
                 encoding="utf-8",
             )
+            snapshot = json.loads(
+                run_script(
+                    kit,
+                    "kit.py",
+                    "verify",
+                    "snapshot",
+                    "clone-flow",
+                    "--root",
+                    str(kit),
+                    "--json",
+                ).stdout
+            )
             (feature / "testing/verification.md").write_text(
                 "# 验证记录\n\n"
-                "## 执行记录 2026-09-06\n\n"
+                "## 验证批次 2026-09-06T12:00:00+08:00\n"
+                "- 总体结果：通过\n"
+                "- 审查结论：通过\n"
+                f"- 代码状态：{json.dumps(snapshot['codeState'], separators=(',', ':'))}\n\n"
+                "### 检查 1\n"
                 f"- 工作目录：`{parent / 'service'}`\n"
                 "- 命令：`python3 -m unittest`\n"
                 "- 退出状态：0\n"

@@ -108,6 +108,7 @@ class MaintenanceBriefTest(unittest.TestCase):
     def test_status_and_brief_agree_on_deferred_documents_and_verification(self) -> None:
         import kit_feature_brief
         import workspace_status
+        import workspace_verification
 
         feature = self.write_feature("demo-feature")
         plan = feature / "plans/implementation.md"
@@ -120,13 +121,31 @@ class MaintenanceBriefTest(unittest.TestCase):
             "- 退出状态：0\n"
             "- 结果：通过\n"
         )
+        excluded = (
+            "docs/development/features/demo-feature/README.md",
+            "docs/development/features/demo-feature/plans/implementation.md",
+            "docs/development/features/demo-feature/testing/verification.md",
+        )
+        states = {"kit": workspace_verification.git_fingerprint(self.root, excluded)}
+        batch = (
+            "## 验证批次 2026-09-07T16:00:00+08:00\n"
+            "- 总体结果：通过\n"
+            "- 审查结论：通过\n"
+            f"- 代码状态：{workspace_verification.encode_code_state(states)}\n\n"
+            "### 检查 1\n"
+            "- 工作目录：`/tmp/demo`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n"
+        )
         cases = (
             (None, success, "feature.design"),
             ("# 实施计划\n", success, "feature.design"),
             (completed, None, "feature.verify"),
             (completed, "# 验证记录\n\n尚未执行验证。\n", "feature.verify"),
             (completed, "- Workflow Action `review`：succeeded\n", "feature.verify"),
-            (completed, success, "feature.complete"),
+            (completed, success, "feature.verify"),
+            (completed, batch, "feature.complete"),
             (completed, success + success.replace("退出状态：0", "退出状态：1"), "feature.verify"),
             (completed, success + "\n## 执行记录 2026-09-07\n- 命令：待完成\n", "feature.verify"),
         )

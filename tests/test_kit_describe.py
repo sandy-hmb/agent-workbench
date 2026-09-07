@@ -43,6 +43,8 @@ class KitDescribeTest(unittest.TestCase):
         self.assertIn("add-repo", setup["parameters"]["subcommands"])
         status = by_name["status"]
         self.assertIn("--json", status["parameters"]["options"])
+        verify = by_name["verify"]
+        self.assertIn("snapshot", verify["parameters"]["subcommands"])
 
     def test_describe_reports_empty_extension_actions_without_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

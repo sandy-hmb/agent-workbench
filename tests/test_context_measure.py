@@ -60,6 +60,12 @@ class ComponentsAndPathsTest(unittest.TestCase):
         )
         self.assertIn("lightweight", context_measure.PATHS)
         self.assertIn("standard", context_measure.PATHS)
+        self.assertEqual(
+            ["status_json", "skill_writing_plan"], context_measure.PATHS["plan"]
+        )
+        self.assertEqual(
+            ["status_json", "skill_execute_plan"], context_measure.PATHS["implement"]
+        )
         self.assertIn("resume", context_measure.PATHS)
 
     def test_file_components_exist(self):

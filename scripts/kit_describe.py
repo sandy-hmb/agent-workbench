@@ -37,6 +37,7 @@ COMMAND_RUNBOOKS = {
     "context-measure": "",
     "describe": "AGENTS.md",
     "brief": "docs/guides/first-feature.md",
+    "verify": ".agents/skills/workspace-verify/SKILL.md",
 }
 
 EXEMPT = {

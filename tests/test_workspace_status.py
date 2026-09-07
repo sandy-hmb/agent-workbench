@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import workspace_setup  # noqa: E402
 import workspace_status  # noqa: E402
 import feature_context  # noqa: E402
+import workspace_verification  # noqa: E402
 
 
 def snapshot(path: Path) -> dict[str, str]:
@@ -188,6 +189,39 @@ class WorkspaceStatusTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "符号链接"):
             workspace_status.status_result(self.root)
 
+    def test_current_batch_passes_until_maintenance_code_changes(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        (feature / "plans/implementation.md").write_text("- [x] complete\n", encoding="utf-8")
+        excluded = (
+            "docs/development/features/demo-feature/README.md",
+            "docs/development/features/demo-feature/plans/implementation.md",
+            "docs/development/features/demo-feature/testing/verification.md",
+        )
+        states = {"kit": workspace_verification.git_fingerprint(self.root, excluded)}
+        (feature / "testing/verification.md").write_text(
+            "## 验证批次 2026-09-07T16:00:00+08:00\n"
+            "- 总体结果：通过\n"
+            "- 审查结论：通过\n"
+            f"- 代码状态：{workspace_verification.encode_code_state(states)}\n\n"
+            "### 检查 1\n"
+            "- 工作目录：`/tmp/kit`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n",
+            encoding="utf-8",
+        )
+
+        current = workspace_status.status_result(self.root)
+        self.assertTrue(current["features"][0]["verificationPassed"])
+        self.assertEqual("feature.complete", current["currentStage"])
+
+        (self.root / "source.txt").write_text("changed\n", encoding="utf-8")
+        stale = workspace_status.status_result(self.root)
+        self.assertFalse(stale["features"][0]["verificationPassed"])
+        self.assertEqual("feature.verify", stale["currentStage"])
+
     def test_dangling_artifact_directory_is_rejected(self):
         feature = self.write_feature(
             self.root / "docs/development/features", maintenance=True
@@ -238,6 +272,12 @@ class WorkspaceStatusTest(unittest.TestCase):
             with self.subTest(stage=stage):
                 runbook = ROOT / workspace_status.STAGE_RUNBOOKS[stage]
                 self.assertTrue(runbook.is_file(), f"runbook 缺失：{runbook}")
+
+    def test_implementation_stage_uses_dedicated_execution_skill(self):
+        self.assertEqual(
+            ".agents/skills/workspace-execute-plan/SKILL.md",
+            workspace_status.STAGE_RUNBOOKS["feature.implement"],
+        )
 
     def test_workspace_multiple_features_without_pointer_still_blocks(self):
         self.initialize_workspace()

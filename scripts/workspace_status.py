@@ -44,12 +44,18 @@ from workspace_paths import state_root, workspace_file  # noqa: E402
 from workspace_extension import extension_status  # noqa: E402
 from workspace_local import load_local_settings  # noqa: E402
 from workspace_workflow import status_result as workflow_status  # noqa: E402
+from workspace_verification import (  # noqa: E402
+    feature_code_state,
+    verification_passed as batch_verification_passed,
+)
 
 
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[([ xX])\]")
-EXECUTION_RECORD_RE = re.compile(r"^## 执行记录 \d{4}-\d{2}-\d{2}\s*$", re.MULTILINE)
+VERIFICATION_RECORD_RE = re.compile(
+    r"^## (?:执行记录 \d{4}-\d{2}-\d{2}|验证批次 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}))\s*$",
+    re.MULTILINE,
+)
 SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
-VERIFICATION_FIELDS = ("工作目录：", "命令：", "退出状态：", "结果：")
 STATUS_SCHEMA_VERSION = 1
 
 
@@ -94,34 +100,19 @@ def plan_progress(path: Path) -> dict[str, int]:
 
 
 def verification_record(feature: Path) -> str | None:
-    """Read the latest execution record without falling back to an older success."""
+    """Read the latest legacy record or verification batch without fallback."""
     path = feature / "testing/verification.md"
     if not path.is_file() or path.is_symlink():
         return None
     text = path.read_text(encoding="utf-8")
-    records = list(EXECUTION_RECORD_RE.finditer(text))
+    records = list(VERIFICATION_RECORD_RE.finditer(text))
     if not records:
         return None
     latest = records[-1]
     next_section = SECTION_RE.search(text, latest.end())
     end = next_section.start() if next_section is not None else len(text)
     record = text[latest.start():end].strip()
-    lines = record.splitlines()
-    if not all(
-        any(line.startswith(f"- {field}") and line[len(field) + 2:].strip() for line in lines)
-        for field in VERIFICATION_FIELDS
-    ):
-        return None
     return record
-
-
-def verification_passed(record: str | None) -> bool:
-    if record is None:
-        return False
-    for line in record.splitlines():
-        if line.startswith("- 退出状态："):
-            return line.partition("：")[2].strip() == "0"
-    return False
 
 
 def current_branch(path: Path) -> str | None:
@@ -137,7 +128,7 @@ def current_branch(path: Path) -> str | None:
     return result.stdout.strip() or None if result.returncode == 0 else None
 
 
-def _tracking(feature: Path) -> dict[str, object]:
+def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> dict[str, object]:
     for directory in (feature / "design", feature / "plans", feature / "testing"):
         if directory.is_symlink():
             raise ValueError(f"需求记录目录不允许符号链接：{directory}")
@@ -148,11 +139,17 @@ def _tracking(feature: Path) -> dict[str, object]:
     if verification.is_symlink():
         raise ValueError(f"验证记录不允许符号链接：{verification}")
     record = verification_record(feature)
+    current_states = None
+    if record is not None and record.startswith("## 验证批次 "):
+        try:
+            current_states = feature_code_state(root, mode, item)
+        except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError):
+            current_states = None
     return {
         "designExists": design.is_file(),
         "progress": plan_progress(feature / "plans" / "implementation.md"),
         "verificationExists": verification.is_file(),
-        "verificationPassed": verification_passed(record),
+        "verificationPassed": batch_verification_passed(record, current_states),
         "artifacts": artifact_summary(feature),
     }
 
@@ -161,7 +158,7 @@ STAGE_RUNBOOKS = {
     "workspace.init": ".agents/skills/workspace-init/SKILL.md",
     "feature.context": ".agents/skills/workspace-feature-design/SKILL.md",
     "feature.design": ".agents/skills/workspace-feature-design/SKILL.md",
-    "feature.implement": "AGENTS.md",
+    "feature.implement": ".agents/skills/workspace-execute-plan/SKILL.md",
     "feature.verify": ".agents/skills/workspace-verify/SKILL.md",
     "feature.submit-test": ".agents/skills/workspace-submit-test/SKILL.md",
     "feature.complete": "docs/foundation/README.md",
@@ -356,7 +353,7 @@ def _maintenance_features(root: Path) -> tuple[list[dict[str, object]], list[dic
             "baseBranches": [[root.name, base]],
             "lastUpdated": updated,
         }
-        item.update(_tracking(feature))
+        item.update(_tracking(root, "maintenance", feature, item))
         result.append(item)
     return result, degraded
 
@@ -369,7 +366,7 @@ def _workspace_features(root: Path) -> tuple[list[dict[str, object]], list[dict[
             continue
         item = summary_payload(feature)
         item["path"] = feature.path.relative_to(root).as_posix()
-        item.update(_tracking(feature.path))
+        item.update(_tracking(root, "workspace", feature.path, item))
         result.append(item)
     return result, degraded
 

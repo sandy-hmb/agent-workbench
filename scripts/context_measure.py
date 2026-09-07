@@ -35,6 +35,14 @@ COMPONENTS: dict[str, dict[str, object]] = {
         "kind": "file",
         "path": ".agents/skills/workspace-feature-design/SKILL.md",
     },
+    "skill_writing_plan": {
+        "kind": "file",
+        "path": ".agents/skills/workspace-writing-plan/SKILL.md",
+    },
+    "skill_execute_plan": {
+        "kind": "file",
+        "path": ".agents/skills/workspace-execute-plan/SKILL.md",
+    },
     "skill_verify": {"kind": "file", "path": ".agents/skills/workspace-verify/SKILL.md"},
     "status_json": {
         "kind": "command",
@@ -54,6 +62,8 @@ PATHS: dict[str, list[str]] = {
     "new_feature": ["status_json", "skill_feature_design"],
     "lightweight": ["agents_md", "status_json"],
     "standard": ["status_json", "skill_feature_design"],
+    "plan": ["status_json", "skill_writing_plan"],
+    "implement": ["status_json", "skill_execute_plan"],
     "verify": ["skill_verify", "status_json"],
     "resume": ["status_json", "brief_text"],
 }
@@ -63,6 +73,8 @@ PATH_LABELS = {
     "new_feature": "开始一个新需求",
     "lightweight": "轻量改动",
     "standard": "标准需求",
+    "plan": "实施计划",
+    "implement": "执行计划",
     "verify": "验证",
     "resume": "续接需求",
 }

@@ -36,11 +36,13 @@ python3 scripts/kit.py registry branch service \
 
 随后按讨论结果按需增加：
 
-- 方案确认后创建 `design/design.md` 并从 README 链接。默认用该文件的章节记录接口、数据库和上线策略；确需独立讨论或维护时才拆分专题文件。
-- 实施计划和验证策略确认后创建 `plans/implementation.md`，保留一个任务复选框清单，从 README 链接，并将状态更新为 `development`。
+- 方案确认后创建并自审 `design/design.md`，再由使用者审阅实际文件。默认用该文件的章节记录接口、数据库和上线策略；确需独立讨论或维护时才拆分专题文件。
+- 书面设计获批后，`workspace-writing-plan` 创建并自审 `plans/implementation.md` 草案，保留一个任务复选框清单，从 README 链接。使用者审阅实际计划、基线、分支和执行方式并明确批准后，才更新为 `development`。
 - 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态和结果，不使用占位内容。
 
 每个阶段先讨论结论、假设和待决项，用户明确确认后才写入对应文档；未回复不是确认。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
+
+计划获批后由 `workspace-execute-plan` 逐项执行：先预检计划，再完成任务级验证和实际 diff 自审。失败先定位根因；范围、验收、契约或关键方案变化时回到对应讨论阶段。所有任务完成后先复核需求符合性和代码质量，再进入验证。
 
 需要临时 SQL、DDL、DML 或交付 fixture 时，将其放在当前需求的 `artifacts/`，SQL 使用 `artifacts/sql/`。数据模型、迁移顺序、兼容和回退策略默认写在主设计文档的数据库章节；业务正式数据库迁移和自动化测试必需 fixture 必须随业务仓版本化。
 
@@ -53,7 +55,7 @@ python3 scripts/kit.py status --root . --json
 python3 scripts/kit.py doctor --root .
 ```
 
-`workspace-verify` 会把已授权的离线验证证据记录到 `testing/verification.md`。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
+`workspace-verify` 会把已授权的离线验证写成完整批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果都记录在 `testing/verification.md`。旧记录仍可阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
 
 新会话通过 `status` 和 `brief payments-retry --json` 恢复。验证通过且确认结束后才执行：
 

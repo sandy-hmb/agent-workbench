@@ -16,15 +16,22 @@ description: Run authorized repository validation for the current workspace feat
 1. 在治理根运行 `python3 scripts/workspace_status.py --root . --json`，按用户本轮明确指定、有效活跃指针、唯一未完成需求的顺序定位当前需求及其仓库、工作分支、基线、计划进度和验证记录。无法确定时停止询问，不猜测需求。
 2. 用户治理模式从 `.workspace/docs/features/<slug>/` 读取当前需求；公共 Kit 维护模式从 `docs/development/features/<slug>/` 读取当前需求。默认只读取 README、验收标准、未完成计划项和最近验证摘要；需要追溯时才定向读取设计或历史验证正文。用户模式再读取 `.workspace/docs/repositories/<repo>.md`、仓内 `AGENTS.md` 或登记的 `sourceInstruction`。不要加载无关历史需求。
 3. 只采用仓 profile 的 `validation` 或仓内规范明确声明的验证命令。已获授权的同范围离线验证直接执行；外部环境、部署、真实接口和未声明命令仍需单独确认。没有声明时先询问，不自行发明命令。
-4. 执行获批命令。首次实际验证时创建 `testing/verification.md`；无论成功、失败或阻塞，都记录日期、工作目录、精确命令、退出状态和关键结果，不把计划中的预期当作实际证据。新记录使用下列可识别格式：
+4. 执行获批命令并复核执行 Skill 的整体审查结论。所有检查结束后运行 `python3 scripts/kit.py verify snapshot <slug> --root . --json`，取得当前需求涉及仓库的代码状态。首次实际验证时创建 `testing/verification.md`；无论成功、失败或阻塞，都追加一个批次，不把计划中的预期当作实际证据：
 
    ```markdown
-   ## 执行记录 YYYY-MM-DD
+   ## 验证批次 YYYY-MM-DDTHH:MM:SS+08:00
+   - 总体结果：通过
+   - 审查结论：通过
+   - 代码状态：{"service":"sha256:<digest>"}
+
+   ### 检查 1
    - 工作目录：`<path>`
    - 命令：`<command>`
-   - 退出状态：<code>
+   - 退出状态：0
    - 结果：<actual result>
    ```
+
+   只有总体结果和审查结论均为“通过”、至少一项检查存在、全部退出状态为 `0` 且代码状态仍与当前仓匹配时，status 才会把批次视为通过。失败或阻塞也记录实际结论和检查结果，但不得伪装为通过。旧 `## 执行记录 YYYY-MM-DD` 保留可读，不能作为新完成证据。
 5. 仅对已有证据支持的工作在 `plans/implementation.md` 勾选完成；失败或未执行的步骤保持未完成。检查证据是否覆盖本次行为和风险，不以新增测试数量或覆盖率数字判断完成。更新需求 README 的最后更新日期。
 6. 再运行 status，向用户汇报剩余步骤、失败项和 doctor 摘要。`testing` 由成功提测动作更新；`done` 仍需业务完成确认。
 

@@ -21,7 +21,7 @@
 
 ## 需求门禁
 
-局部单仓实现、没有外部契约或核心状态变化、无需新增依赖且可定向验证的改动可走轻量流程。其他改动使用当前模式的标准需求目录。标准需求先讨论并取得每个阶段的明确结论：确认需求后才创建 README 和需求文件；确认方案后才创建设计；确认实施计划和验证策略后才创建计划、更新为 `development` 并进入实现。未回复不视为确认，不要预写后续阶段的占位文档。
+局部单仓实现、没有外部契约或核心状态变化、无需新增依赖且可定向验证的改动可走轻量路径。其他改动使用标准需求目录。需求、书面设计和书面计划依次确认；书面计划、基线、分支和执行方式获批后才更新为 `development`。未回复不视为确认，不预写占位文档。
 
 默认只有 `design/design.md`；在其中用章节说明接口、数据库或上线等内容。只有用户确认某部分需要独立讨论、维护或按需读取时才拆分文件，并从主设计链接。实施计划保留一个包含任务复选框的主文件，避免状态续接依赖多个计划文件。
 
@@ -31,7 +31,7 @@
 
 ## Skill 路由
 
-初始化或接入仓使用 `workspace-init`；业务仓规范使用 `workspace-repo-onboarding`；跨仓分析使用 `workspace-cross-repo-analysis`；需求与设计使用 `workspace-feature-design`；接口契约使用 `workspace-api-contract`；功能阶段扩展使用 `workspace-feature-workflow`；验证使用 `workspace-verify`；同步基线使用 `workspace-sync-base`；测试交付使用 `workspace-submit-test`；本地 Extension 使用 `workspace-extension`；公共更新使用 `workspace-update`。
+初始化或接入仓使用 `workspace-init`；业务仓规范使用 `workspace-repo-onboarding`；跨仓分析使用 `workspace-cross-repo-analysis`；需求与书面设计使用 `workspace-feature-design`；实施计划使用 `workspace-writing-plan`；计划执行使用 `workspace-execute-plan`；接口契约使用 `workspace-api-contract`；功能阶段扩展使用 `workspace-feature-workflow`；验证使用 `workspace-verify`；同步基线使用 `workspace-sync-base`；测试交付使用 `workspace-submit-test`；本地 Extension 使用 `workspace-extension`；公共更新使用 `workspace-update`。
 
 每个 Skill 只拥有其说明中列出的副作用。没有 Skill 发现能力时，把对应 `.agents/skills/<name>/SKILL.md` 当普通 runbook 读取；Provider 必须来自当前作用域唯一、已锁定的绑定。配置和 manifest 不得包含密码、令牌、私钥或带凭据地址。
 
