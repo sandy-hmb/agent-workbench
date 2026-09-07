@@ -125,6 +125,21 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("python3 scripts/feature_context.py list --json", design)
         self.assertIn("workspace-writing-plan", design)
         self.assertIn("书面设计", design)
+        for rule in (
+            "每轮最多提出三个问题",
+            "二至三个互斥选项",
+            "原生交互工具可用",
+            "结束当前轮次并等待用户回复",
+            "确认生成",
+            "审阅实际文件",
+            "用户场景",
+            "边界情况",
+            "关键实体",
+            "成功标准",
+            "`design/data-model.md`",
+            "`design/api-integration.md`",
+        ):
+            self.assertIn(rule, design)
         self.assertNotIn("实施计划和验证策略，说明修改范围", design)
 
         writing_plan = (
@@ -133,6 +148,10 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("独立、可验证的交付单元", writing_plan)
         self.assertIn("书面计划", writing_plan)
         self.assertIn("需求覆盖", writing_plan)
+        self.assertIn("书面设计获批后直接", writing_plan)
+        self.assertIn("不依赖历史对话", writing_plan)
+        self.assertIn("启动读取清单", writing_plan)
+        self.assertIn("实际计划文件", writing_plan)
         self.assertIn(
             "python3 scripts/workspace_registry.py branch <repo> --type <type> --slug <slug> --json",
             writing_plan,
@@ -146,6 +165,9 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("根因", execute)
         self.assertIn("实际 diff", execute)
         self.assertIn("重要问题", execute)
+        self.assertIn("显式指定", execute)
+        self.assertIn("读取清单", execute)
+        self.assertIn("历史对话", execute)
 
         onboarding = (
             ROOT / ".agents/skills/workspace-repo-onboarding/SKILL.md"
@@ -206,6 +228,10 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("artifacts/sql/", agents)
         self.assertIn("同一任务内已授权", agents)
         self.assertIn("未知命令或参数", agents)
+        self.assertIn("requirements/requirements.md", agents)
+        self.assertIn("design/data-model.md", agents)
+        self.assertIn("plans/implementation.md", agents)
+        self.assertIn("历史对话", agents)
 
     def test_add_repo_apply_regenerates_generated_context_safely(self):
         content = (ROOT / ".agents/skills/workspace-init/SKILL.md").read_text(

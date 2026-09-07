@@ -208,15 +208,15 @@ def _single_feature_progress(
     assert isinstance(progress, dict)
     if feature["status"] == "planning":
         if not feature["designExists"]:
-            reason = f"需求 {feature['featureSlug']} 已确认，讨论方案设计后再写入设计文档"
+            reason = f"需求 {feature['featureSlug']} 的需求记录已存在；讨论并确认方案后生成设计文档"
         elif progress["total"] == 0:
-            reason = f"方案已确认，讨论实施计划并写入可执行任务"
+            reason = f"需求 {feature['featureSlug']} 的设计文档已存在；审阅确认后生成实施计划"
         else:
-            reason = f"实施计划已记录；确认进入实现后将需求 {feature['featureSlug']} 更新为 development"
+            reason = f"需求 {feature['featureSlug']} 的实施计划已存在；审阅并批准计划、基线、分支和执行方式后更新为 development"
         stage = "feature.design"
     elif progress["total"] == 0:
         stage = "feature.design"
-        reason = f"需求 {feature['featureSlug']} 缺少已确认的实施计划"
+        reason = f"需求 {feature['featureSlug']} 缺少可执行的实施计划"
     elif progress["completed"] < progress["total"]:
         stage = "feature.implement"
         reason = f"继续需求 {feature['featureSlug']}"

@@ -26,7 +26,7 @@ python3 scripts/kit.py registry branch service \
 
 ## 标准需求
 
-需求确认后先创建：
+需求目标、场景、范围、边界、验收和假设收敛并明确确认生成后，先创建：
 
 ```text
 .workspace/docs/features/payments-retry/
@@ -34,13 +34,15 @@ python3 scripts/kit.py registry branch service \
 └── requirements/requirements.md
 ```
 
+`requirements/requirements.md` 记录做什么、为什么和如何验收。只保留当前需求需要的用户场景、功能需求、边界情况、关键实体、非目标、假设与成功标准，不生成空章节或占位内容。写入并自审后先由使用者批准实际需求文件，再讨论设计。
+
 随后按讨论结果按需增加：
 
-- 方案确认后创建并自审 `design/design.md`，再由使用者审阅实际文件。默认用该文件的章节记录接口、数据库和上线策略；确需独立讨论或维护时才拆分专题文件。
-- 书面设计获批后，`workspace-writing-plan` 创建并自审 `plans/implementation.md` 草案，保留一个任务复选框清单，从 README 链接。使用者审阅实际计划、基线、分支和执行方式并明确批准后，才更新为 `development`。
+- `design/design.md` 记录怎么做，包括现状、候选方案与取舍、组件和数据流、错误处理、兼容、回退与验证。方案确认生成后创建并自审，再由使用者批准实际文件。复杂数据模型或迁移经确认可拆为 `design/data-model.md`；复杂接口契约经确认可拆为 `design/api-integration.md`。其他内容默认留在主设计，不建立固定专题文档树。
+- 书面设计获批后，`workspace-writing-plan` 直接创建并自审 `plans/implementation.md` 草案，不重复确认计划摘要。该文件记录可执行任务和跨会话读取清单，不新增 `plan.md` 或 `tasks.md`。使用者审阅实际计划、基线、分支和执行方式并明确批准后，才更新为 `development`。
 - 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态和结果，不使用占位内容。
 
-每个阶段先讨论结论、假设和待决项，用户明确确认后才写入对应文档；未回复不是确认。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
+Requirements 和 Design 只询问会实质改变结果的问题，每轮最多三个；原生交互可用时提供推荐、备选和自定义输入，否则一次提出一个文字问题并等待回复。结论收敛后单独确认生成，未回复不是确认。Plan 只在存在关键阻塞时提问，设计获批后直接生成草案，批准实际文件后才执行。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
 
 计划获批后由 `workspace-execute-plan` 逐项执行：先预检计划，再完成任务级验证和实际 diff 自审。失败先定位根因；范围、验收、契约或关键方案变化时回到对应讨论阶段。所有任务完成后先复核需求符合性和代码质量，再进入验证。
 
@@ -57,7 +59,7 @@ python3 scripts/kit.py doctor --root .
 
 `workspace-verify` 会把已授权的离线验证写成完整批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果都记录在 `testing/verification.md`。旧记录仍可阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
 
-新会话通过 `status` 和 `brief payments-retry --json` 恢复。验证通过且确认结束后才执行：
+新会话通过 `status` 和显式 slug 的 `brief payments-retry --json` 恢复，再按 `plans/implementation.md` 的读取清单加载需求、设计附件和目标仓规范；计划不得依赖历史对话。验证通过且确认结束后才执行：
 
 ```bash
 python3 scripts/kit.py feature set-status payments-retry done

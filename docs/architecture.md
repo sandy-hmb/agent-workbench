@@ -43,7 +43,7 @@ flowchart TB
 
 ### 协作与命令入口
 
-**Agent 和 Core Skill** 负责把用户目标转成阶段讨论、实施和验证动作。Skill 是按需读取的 runbook；讨论是否充分、结论是否得到用户确认，需要 Agent 遵守协作约定。脚本不会解释整段对话并证明用户已同意。需求与书面设计由[需求设计 Skill](../.agents/skills/workspace-feature-design/SKILL.md)记录，书面计划由[计划 Skill](../.agents/skills/workspace-writing-plan/SKILL.md)生成并经人工批准。
+**Agent 和 Core Skill** 负责把用户目标转成阶段讨论、实施和验证动作。Skill 是按需读取的 runbook；讨论是否充分、结论是否得到用户确认，需要 Agent 遵守协作约定。脚本不会解释整段对话并证明用户已同意。需求与书面设计由[需求设计 Skill](../.agents/skills/workspace-feature-design/SKILL.md)在生成确认后记录；设计获批后，[计划 Skill](../.agents/skills/workspace-writing-plan/SKILL.md)直接生成可执行任务草案，再由使用者批准实际文件和执行条件。
 
 **CLI 入口** [kit.py](../scripts/kit.py)只把子命令转发到对应脚本的 `main()`，不另存状态或重写业务逻辑。直接运行脚本与通过统一入口调用使用同一实现。[kit_describe.py](../scripts/kit_describe.py)提供命令与 runbook 的可读清单；它用于发现能力，不是另一个流程调度器。
 
@@ -74,7 +74,7 @@ flowchart TB
 
 ## 3. 一个需求如何推进
 
-以下以修改 `service` 仓中的支付重试逻辑为例。流程先确认目标场景和验收标准，再确定复用方案与实施步骤。泳道中的“确认”是人的决定；脚本只处理被调用的具体操作。
+以下以修改 `service` 仓中的支付重试逻辑为例。流程先确认目标场景和验收标准，再确定复用方案；设计获批后直接形成实施任务。泳道中的“确认”是人的决定；脚本只处理被调用的具体操作。
 
 ```mermaid
 sequenceDiagram
@@ -86,10 +86,11 @@ sequenceDiagram
     K-->>A: 模式、阶段建议、阻塞
     U->>A: 讨论并确认需求范围与验收
     A->>K: 创建 README 和需求记录
+    U->>A: 审阅并批准书面需求
     U->>A: 讨论并确认方案
     Note over A: 写入并自审设计正文
     U->>A: 审阅并确认书面设计
-    Note over A: 写入并自审计划草案
+    Note over A: 直接写入并自审任务草案
     U->>A: 审阅计划、基线、分支和执行方式
     Note over A: 确认后更新为 development
     A->>K: 解析基线与候选分支
@@ -116,7 +117,7 @@ Core Workflow 的公共锚点定义在 [feature-development.json](../workflows/f
 | 1 | `feature.context` | 读取约定与上下文，定位当前需求。 |
 | 2 | `feature.classify` | 判断轻量或标准路径。 |
 | 3 | `feature.analyze` | 按需分析跨仓职责与契约，可选。 |
-| 4 | `feature.design` | 方案与实施计划分别讨论、分别确认；它们共享一个公共锚点。 |
+| 4 | `feature.design` | 需求与设计先确认生成并审阅；设计获批后直接生成任务草案，再批准实际计划和执行条件。 |
 | 5 | `feature.prepare-branch` | 核对现场、基线、分支及相应确认。 |
 | 6 | `feature.implement` | 由 `workspace-execute-plan` 按已确认计划实现、任务级验证和自审。 |
 | 7 | `feature.verify` | 运行已授权检查并记录证据。 |
@@ -135,7 +136,7 @@ Stage 提供相对顺序和扩展插入点。它们并不包含一套自动执�
 stateDiagram-v2
     direction LR
     [*] --> planning: 需求确认后建立记录
-    planning --> development: 方案与计划确认
+    planning --> development: 设计与任务文档批准
     development --> testing: 正式提测成功
     testing --> done: 验收并确认完成
     development --> done: 无需提测且确认完成
@@ -158,7 +159,7 @@ stateDiagram-v2
 | --- | --- |
 | `paused` | 暂停推进，明确恢复或改选需求。 |
 | `planning` | 继续 `feature.design`；依据设计是否存在、计划是否有任务，提示讨论方案、计划或确认进入实现。 |
-| 计划任务数为零 | 返回设计阶段，补齐已确认的实施计划。 |
+| 计划任务数为零 | 返回设计阶段，补齐可执行任务文档。 |
 | 尚有未完成任务 | 继续 `feature.implement`。 |
 | 任务完成，但最新验证未通过 | 继续 `feature.verify`。 |
 | 任务完成且验证通过，当前为维护模式或需求已是 `testing` | 建议 `feature.complete`。 |
@@ -249,7 +250,7 @@ sequenceDiagram
 | Core Skill、脚本、Schema、模板和公开文档 | 公共 Kit Git；由 Kit 维护者修改。 | 公共更新按已确认目标快进，不更新业务仓代码。本文在此类中，但不进入 Agent 日常读取清单。 |
 | `workspace.json`、`workspace.local.json` | `.workspace/`；登记、配置或相关管理命令写入。 | 共享登记与本机偏好分别存放；都属于本地状态，不随公共 Git 同步。 |
 | 工作区 AGENTS、CONTEXT 与仓 profile | 初始化或登记流程生成；CONTEXT 保存业务事实，AGENTS 保存约定。 | 公共模板更新不会自动重写已有生成文件；相应 preview/apply 只更新其声明的范围。 |
-| 需求、设计、计划与验证 | 当前 feature；Agent 在相应阶段确认后记录，验证保存实际执行证据。 | 默认一份主设计、一份含任务清单的主计划；不预建后续占位文件，不随公共更新覆盖。 |
+| 需求、设计、计划与验证 | 当前 feature；需求和设计在生成确认后记录，设计获批后直接生成计划草案，验证保存实际执行证据。 | `requirements.md` 记录需求，`design.md` 记录技术方案，`implementation.md` 记录可执行任务。复杂数据模型或接口经确认才拆附件；计划通过读取清单脱离历史对话续接。 |
 | Extension、lock、Overlay 与 Run | `.workspace/`；扩展与 Workflow 命令管理。 | 修改后需要重新检查漂移和计划；详细日志与业务产物由扩展按授权保存。 |
 | `local-*` Adapter | 本地激活流程生成，Git 忽略。 | 不手工维护，不作为公共更新覆盖的内容。 |
 | 需求附属 SQL、临时 fixture 等 | feature 的 `artifacts/`，SQL 使用 `artifacts/sql/`。 | 只保存与本需求绑定的交付物；扩展产物不预设统一专用目录。 |

@@ -189,6 +189,55 @@ class WorkspaceStatusTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "符号链接"):
             workspace_status.status_result(self.root)
 
+    def test_feature_progress_reports_files_without_inferring_approval(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        readme = feature / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "状态：development", "状态：planning"
+            ),
+            encoding="utf-8",
+        )
+        plan = feature / "plans/implementation.md"
+        plan.unlink()
+
+        result = workspace_status.status_result(self.root)
+        self.assertEqual(
+            "需求 demo-feature 的需求记录已存在；讨论并确认方案后生成设计文档",
+            result["nextActions"][0]["reason"],
+        )
+
+        design = feature / "design/design.md"
+        design.parent.mkdir()
+        design.write_text("# 设计\n", encoding="utf-8")
+        result = workspace_status.status_result(self.root)
+        self.assertEqual(
+            "需求 demo-feature 的设计文档已存在；审阅确认后生成实施计划",
+            result["nextActions"][0]["reason"],
+        )
+
+        plan.write_text("- [ ] 实现\n", encoding="utf-8")
+        result = workspace_status.status_result(self.root)
+        self.assertEqual(
+            "需求 demo-feature 的实施计划已存在；审阅并批准计划、基线、分支和执行方式后更新为 development",
+            result["nextActions"][0]["reason"],
+        )
+
+        plan.unlink()
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "状态：planning", "状态：development"
+            ),
+            encoding="utf-8",
+        )
+        result = workspace_status.status_result(self.root)
+        self.assertEqual(
+            "需求 demo-feature 缺少可执行的实施计划",
+            result["nextActions"][0]["reason"],
+        )
+
     def test_current_batch_passes_until_maintenance_code_changes(self):
         feature = self.write_feature(
             self.root / "docs/development/features", maintenance=True

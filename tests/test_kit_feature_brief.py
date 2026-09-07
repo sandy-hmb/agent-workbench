@@ -178,7 +178,7 @@ class MaintenanceBriefTest(unittest.TestCase):
         design.unlink()
         status = workspace_status.status_result(self.root)
         self.assertEqual("feature.design", status["currentStage"])
-        self.assertIn("方案设计", status["nextActions"][0]["reason"])
+        self.assertIn("设计文档", status["nextActions"][0]["reason"])
 
         design.write_text("# 设计\n", encoding="utf-8")
         plan.unlink()
