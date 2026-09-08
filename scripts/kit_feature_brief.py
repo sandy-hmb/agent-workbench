@@ -48,6 +48,9 @@ MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 EXPLICIT_ANCHOR_RE = re.compile(r"\bid=[\"']([^\"']+)[\"']")
 HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$")
+DECISION_HEADING_RE = re.compile(r"^#{1,6}\s+(D\d+)\b", re.IGNORECASE)
+DECISION_ANCHOR_RE = re.compile(r"\bid=[\"'](d\d+)[\"']", re.IGNORECASE)
+DECISION_REFERENCE_RE = re.compile(r"\bD\d+\b", re.IGNORECASE)
 
 
 def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> str:
@@ -126,11 +129,42 @@ def _document_diagnostic(
     }
 
 
+def _design_attachments(feature_dir: Path) -> list[Path]:
+    design_dir = feature_dir / "design"
+    if design_dir.is_symlink() or not design_dir.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(design_dir.glob("*.md"))
+        if path.name != "design.md"
+    ]
+
+
+def _document_sources(feature_dir: Path) -> list[Path]:
+    return [
+        *(feature_dir / relative for relative in FEATURE_FILES.values()),
+        *_design_attachments(feature_dir),
+    ]
+
+
+def _decision_id(value: str) -> str:
+    return f"D{int(value[1:])}"
+
+
+def _main_decisions(path: Path) -> set[str]:
+    decisions = set()
+    for _, line in _markdown_lines(path):
+        if heading := DECISION_HEADING_RE.match(line):
+            decisions.add(_decision_id(heading.group(1)))
+        decisions.update(_decision_id(value) for value in DECISION_ANCHOR_RE.findall(line))
+    return decisions
+
+
 def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
     diagnostics = []
     features_root = feature_dir.parent.resolve()
-    for relative in FEATURE_FILES.values():
-        source = feature_dir / relative
+    linked_paths: dict[Path, set[Path]] = {}
+    for source in _document_sources(feature_dir):
         if not source.exists():
             continue
         if source.is_symlink() or not source.is_file():
@@ -145,6 +179,7 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
                 )
             )
             continue
+        linked_paths[source.resolve()] = set()
         for line_number, line in _markdown_lines(source):
             for target in MARKDOWN_LINK_RE.findall(line):
                 target = target.strip().strip("<>")
@@ -180,6 +215,7 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
                         )
                     )
                     continue
+                linked_paths[source.resolve()].add(resolved)
                 if not separator or not anchor:
                     continue
                 target_text = candidate.read_text(encoding="utf-8")
@@ -213,6 +249,63 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
                         f"本地链接锚点不存在：{target}",
                     )
                 )
+    design = feature_dir / "design/design.md"
+    attachments = _design_attachments(feature_dir)
+    if design.is_file() and not design.is_symlink():
+        design_path = design.resolve()
+        for attachment in attachments:
+            if attachment.is_symlink() or not attachment.is_file():
+                continue
+            attachment_path = attachment.resolve()
+            if attachment_path not in linked_paths.get(design_path, set()):
+                diagnostics.append(
+                    _document_diagnostic(
+                        "DESIGN_ATTACHMENT_MISSING_MAIN_LINK",
+                        "error",
+                        design,
+                        feature_dir,
+                        1,
+                        f"主设计必须链接设计附件：{attachment.name}",
+                    )
+                )
+            if design_path not in linked_paths.get(attachment_path, set()):
+                diagnostics.append(
+                    _document_diagnostic(
+                        "DESIGN_ATTACHMENT_MISSING_BACKLINK",
+                        "error",
+                        attachment,
+                        feature_dir,
+                        1,
+                        "设计附件必须链接回 design.md",
+                    )
+                )
+        decisions = _main_decisions(design)
+        if attachments and not decisions:
+            diagnostics.append(
+                _document_diagnostic(
+                    "DESIGN_MAIN_DECISION_MISSING",
+                    "error",
+                    design,
+                    feature_dir,
+                    1,
+                    "存在设计附件，但主设计没有可解析的 D 决策定义",
+                )
+            )
+        plan = feature_dir / FEATURE_FILES["plan"]
+        if plan.is_file() and not plan.is_symlink():
+            for line_number, line in _markdown_lines(plan):
+                for reference in DECISION_REFERENCE_RE.findall(line):
+                    if _decision_id(reference) not in decisions:
+                        diagnostics.append(
+                            _document_diagnostic(
+                                "PLAN_UNKNOWN_DESIGN_DECISION",
+                                "error",
+                                plan,
+                                feature_dir,
+                                line_number,
+                                f"计划引用的设计决策不在主设计中：{reference}",
+                            )
+                        )
     return diagnostics
 
 

@@ -5,7 +5,7 @@ description: Execute an approved implementation plan task by task with risk-base
 
 # Workspace Execute Plan
 
-用于已获批准的 `development` 需求。新会话先运行 status 和显式指定 feature slug 的 brief；用 `brief <slug> --task T01 --json` 展开当前任务，按计划的共同必读和任务引用读取需求、设计附件、目标仓规范和直接依赖，不默认全文加载历史记录；不得依赖历史对话。轻量改动不使用本 Skill。
+用于已获批准的 `development` 需求。新会话先运行 status 和显式指定 feature slug 的 brief；用 `brief <slug> --task T01 --json` 展开当前任务，按计划的共同必读和任务引用读取需求、完整主设计、任务需要的设计附件、目标仓规范和直接依赖，不默认全文加载历史记录；不得依赖历史对话。轻量改动不使用本 Skill。
 
 ## 执行
 

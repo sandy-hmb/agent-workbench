@@ -441,6 +441,20 @@ def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, obje
                     f"{field} 为未生成，但 {DOCUMENT_PATHS[key]} 已存在",
                 )
             )
+    if reviews["design"] == "待审阅" and reviews["plan"] == "已批准":
+        diagnostics.append(
+            _diagnostic(
+                "DOCUMENT_REVIEW_PLAN_STALE",
+                "error",
+                readme,
+                next(
+                    index
+                    for index, line in enumerate(readme.read_text(encoding="utf-8").splitlines(), start=1)
+                    if line.startswith("- 计划审阅：")
+                ),
+                "设计审阅为待审阅时，已有实施计划也必须改为待审阅",
+            )
+        )
     return reviews, diagnostics, recorded
 
 
@@ -573,6 +587,19 @@ def _single_feature_progress(
             return {
                 "currentStage": "feature.design",
                 "nextActions": [_stage_action("feature.design", reason)],
+                "blockers": [],
+                "confirmation": _confirmation("semantic"),
+            }
+        if design_review not in {"已批准", "未记录"}:
+            return {
+                "currentStage": "feature.design",
+                "nextActions": [
+                    _stage_action(
+                        "feature.design",
+                        f"需求 {feature['featureSlug']} 的 Design 审阅包尚未获批准；"
+                        "审阅主设计和附件，并将已有实施计划改为待审阅后继续",
+                    )
+                ],
                 "blockers": [],
                 "confirmation": _confirmation("semantic"),
             }

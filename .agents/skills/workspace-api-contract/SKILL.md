@@ -21,16 +21,16 @@ description: Create or update API integration notes for workspace features that 
 
 ## 设计期文档
 
-用户治理模式使用 `.workspace/docs/features/<slug>/`；公共 Kit 维护模式使用 `docs/development/features/<slug>/`。默认在 `design/design.md` 的接口契约章节写入或更新内容；主设计保留整体关系、共享约束和附件导航。只有接口内容需要独立讨论、维护或按需读取，且用户确认后才创建 `design/api-integration.md` 并从主设计链接。内容保持短而可执行，包含：
+用户治理模式使用 `.workspace/docs/features/<slug>/`；公共 Kit 维护模式使用 `docs/development/features/<slug>/`。默认在 `design/design.md` 的接口契约章节写入或更新内容；主设计必须保留接口清单、提供/消费方向、主要字段或状态映射、兼容策略和联调依赖，并以 D01-DNN 定义规范决策。只有接口内容需要跨团队独立审阅、维护或按需读取，且用户确认后才创建 `design/api-integration.md` 并从主设计链接。该附件开头链接回 `design.md`、声明扩展的 D 编号，只展开接口细节，不替代主设计的接口结论，也不重复总体方案、数据模型或需求正文。内容按需包含：
 
 - 变更摘要：说明本次接口或契约变化。
 - 参与仓库：列出提供方、消费方和只读对照方。
 - 契约来源：优先引用 OpenAPI、Swagger、已有接口文档、路由、测试或代码位置。
-- 接口清单：只列本次变化涉及的接口、字段、错误和兼容策略。
-- 联调计划：说明 Mock、真实环境、数据准备、顺序和负责人。
+- 接口清单：提供方、消费方、端点或事件、请求响应字段、鉴权、错误码、状态映射、幂等和版本兼容。
+- 联调计划：Mock、真实环境、数据准备、顺序、发布依赖和待确认项。
 - 未决问题：按事实、推断、待确认标注，不把推断写成事实。
 
-已有 OpenAPI/Swagger/接口文档是事实来源；不要复制接口大全，只记录本次变更和差异。
+已有 OpenAPI/Swagger/接口文档是事实来源；主设计保留本次接口的可审阅摘要，附件只记录本次变更的完整字段、样例和联调细节。
 
 ## 测试期文档
 

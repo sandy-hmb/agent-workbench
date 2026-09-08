@@ -9,7 +9,7 @@ description: Turn an approved feature design into a reviewable, executable imple
 
 ## 前置条件
 
-读取当前需求、已批准的 `design/design.md`、已确认的按需设计附件、仓内约定和相关代码。书面设计未获用户批准时停止并回到 `workspace-feature-design`；轻量改动不使用本 Skill。
+读取当前需求、已批准的 `design/design.md`、已确认的按需设计附件、仓内约定和相关代码。主设计是每项计划的必读来源；附件只在任务需要其细节时追加读取。书面设计未获用户批准时停止并回到 `workspace-feature-design`；轻量改动不使用本 Skill。
 
 ## 生成计划
 
@@ -19,7 +19,7 @@ description: Turn an approved feature design into a reviewable, executable imple
 
 每个任务是独立、可验证的交付单元，使用顶层 `- [ ] T01 任务标题`，只有审查者可能独立接受或拒绝时才拆分。测试、实现、配置和必要文档归入服务同一结果的任务，不按技术层横向分批。每项至少写明：
 
-- 依据的 R/D 编号或链接；
+- 主设计的 R/D 编号或链接；需要实现细节时，再附加设计附件的稳定章节链接；
 - 修改的仓、文件或符号；
 - 提供或消费的接口与前置依赖，或“无”；
 - 精确验证命令及预期结果；

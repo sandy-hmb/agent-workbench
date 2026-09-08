@@ -1,14 +1,16 @@
 # {title} 实施计划
 
-依据：[需求](../requirements/requirements.md)、[设计](../design/design.md)。
+依据：[需求](../requirements/requirements.md)、[设计](../design/design.md)。每项任务先引用主设计 D 编号；只有需要实现细节时才追加附件章节链接。
 
 ## 启动与续接
+
+读取需求、完整主设计和本任务引用的附件；附件不代替主设计。
 
 ## 任务
 
 - [ ] T01 交付任务
 
-  依据：R1、D1
+  依据：R1、[D01](../design/design.md#d01)；字段细节（如适用）：[D01 扩展](../design/data-model.md#d01-字段设计)
   落点：实际文件或符号
   依赖：无
   验证：实际工作目录、命令与通过条件

@@ -67,6 +67,24 @@ class MaintenanceBriefTest(unittest.TestCase):
         (artifacts / "001-init.sql").write_text("select 1;\n", encoding="utf-8")
         return feature
 
+    def set_reviews(self, feature: Path, design: str, plan: str) -> None:
+        readme = feature / "README.md"
+        content = "".join(
+            line
+            for line in readme.read_text(encoding="utf-8").splitlines(keepends=True)
+            if not line.startswith(("- 需求审阅：", "- 设计审阅：", "- 计划审阅："))
+        )
+        readme.write_text(
+            content.replace(
+                "- 最后更新：2026-09-01\n",
+                "- 需求审阅：已批准\n"
+                f"- 设计审阅：{design}\n"
+                f"- 计划审阅：{plan}\n"
+                "- 最后更新：2026-09-01\n",
+            ),
+            encoding="utf-8",
+        )
+
     def test_brief_reports_full_feature(self) -> None:
         import kit_feature_brief
 
@@ -105,6 +123,204 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertFalse(result["files"]["design"]["exists"])
         self.assertEqual(0, result["files"]["design"]["bytes"])
         self.assertTrue(result["files"]["readme"]["exists"])
+
+    def test_check_accepts_complete_main_design_without_attachments(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "design/design.md").write_text(
+            "# 设计\n\n<a id=\"d01\"></a>\n## D01 写入策略\n", encoding="utf-8"
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- [ ] T01 实现写入\n\n"
+            "  依据：R1、[D01](../design/design.md#d01)\n"
+            "  依赖：无\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature", "T01")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        self.assertEqual(0, code)
+        self.assertEqual("T01", result["selectedTask"]["id"])
+        self.assertEqual(["../design/design.md#d01"], result["selectedTask"]["references"])
+
+    def test_check_accepts_linked_design_attachments(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        design = feature / "design/design.md"
+        design.write_text(
+            "# 设计\n\n"
+            "[字段设计](data-model.md#d01-fields)\n"
+            "[接口契约](api-integration.md#d02-contract)\n\n"
+            "<a id=\"d01\"></a>\n## D01 数据写入\n"
+            "<a id=\"d02\"></a>\n## D02 对外接口\n",
+            encoding="utf-8",
+        )
+        (feature / "design/data-model.md").write_text(
+            "[D01](design.md#d01)\n\n<a id=\"d01-fields\"></a>\n## D01 扩展：字段设计\n",
+            encoding="utf-8",
+        )
+        (feature / "design/api-integration.md").write_text(
+            "[D02](design.md#d02)\n\n<a id=\"d02-contract\"></a>\n## D02 扩展：接口契约\n",
+            encoding="utf-8",
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- [ ] T01 交付接口\n\n"
+            "  依据：[D02](../design/design.md#d02)；"
+            "[接口细节](../design/api-integration.md#d02-contract)\n"
+            "  依赖：无\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature", "T01")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        self.assertEqual(0, code)
+        self.assertEqual(
+            ["../design/design.md#d02", "../design/api-integration.md#d02-contract"],
+            result["selectedTask"]["references"],
+        )
+
+    def test_check_rejects_missing_design_attachment_link_target(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "design/design.md").write_text(
+            "[字段设计](data-model.md#d01-fields)\n\n"
+            "<a id=\"d01\"></a>\n## D01 数据写入\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            "DOCUMENT_MISSING_LINK_TARGET",
+            {item["code"] for item in result["documentDiagnostics"]},
+        )
+
+    def test_check_rejects_missing_attachment_anchor_from_plan(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "design/design.md").write_text(
+            "[字段设计](data-model.md#d01-fields)\n\n"
+            "<a id=\"d01\"></a>\n## D01 数据写入\n",
+            encoding="utf-8",
+        )
+        (feature / "design/data-model.md").write_text(
+            "[D01](design.md#d01)\n\n<a id=\"d01-fields\"></a>\n## D01 扩展\n",
+            encoding="utf-8",
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- [ ] T01 迁移\n\n"
+            "  依据：[D01](../design/design.md#d01)；"
+            "[字段细节](../design/data-model.md#missing)\n"
+            "  依赖：无\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        self.assertEqual(1, code)
+        self.assertIn("DOCUMENT_MISSING_ANCHOR", {item["code"] for item in result["documentDiagnostics"]})
+
+    def test_check_rejects_attachments_without_main_design_decision(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "design/design.md").write_text(
+            "# 设计\n\n[字段设计](data-model.md#fields)\n", encoding="utf-8"
+        )
+        (feature / "design/data-model.md").write_text(
+            "[主设计](design.md)\n\n<a id=\"fields\"></a>\n## 字段设计\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        self.assertEqual(1, code)
+        self.assertIn(
+            "DESIGN_MAIN_DECISION_MISSING",
+            {item["code"] for item in result["documentDiagnostics"]},
+        )
+
+    def test_attachment_change_returns_design_package_and_plan_to_pending_review(self) -> None:
+        import workspace_status
+
+        feature = self.write_feature("demo-feature")
+        self.set_reviews(feature, "已批准", "已批准")
+        (feature / "design/design.md").write_text(
+            "[字段设计](data-model.md#d01-fields)\n\n"
+            "<a id=\"d01\"></a>\n## D01 数据写入\n",
+            encoding="utf-8",
+        )
+        (feature / "design/data-model.md").write_text(
+            "[D01](design.md#d01)\n\n<a id=\"d01-fields\"></a>\n## D01 扩展\n",
+            encoding="utf-8",
+        )
+        self.set_reviews(feature, "待审阅", "已批准")
+
+        stale = workspace_status.status_result(self.root)
+
+        self.assertEqual("feature.design", stale["currentStage"])
+        self.assertIn(
+            "DOCUMENT_REVIEW_PLAN_STALE",
+            {item["code"] for item in stale["features"][0]["documentDiagnostics"]},
+        )
+
+        self.set_reviews(feature, "待审阅", "待审阅")
+
+        result = workspace_status.status_result(self.root)
+
+        self.assertEqual(
+            {"requirements": "已批准", "design": "待审阅", "plan": "待审阅"},
+            result["features"][0]["documentReviews"],
+        )
+        self.assertEqual("feature.design", result["currentStage"])
+        self.assertNotIn(
+            "DOCUMENT_REVIEW_PLAN_STALE",
+            {item["code"] for item in result["features"][0]["documentDiagnostics"]},
+        )
+
+    def test_check_keeps_legacy_d1_and_heading_tasks_compatible(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "design/design.md").write_text("# 设计\n\n## D1 旧决策\n", encoding="utf-8")
+        (feature / "plans/implementation.md").write_text(
+            "### [ ] 1. 历史任务\n\n依据：R1、D1\n", encoding="utf-8"
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        self.assertEqual(0, code)
+        self.assertEqual({"completed": 0, "total": 1}, result["progress"])
+        self.assertIn("PLAN_LEGACY_HEADING_TASK", {item["code"] for item in result["documentDiagnostics"]})
 
     def test_brief_exposes_the_same_document_review_state_as_status(self) -> None:
         import kit_feature_brief
