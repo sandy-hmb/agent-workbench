@@ -2,6 +2,11 @@
 
 本仓是可 clone、可快进更新的公共工作流模板，不是业务代码 monorepo。公共文件包含 Core Skill、脚本、Schema、模板、文档和测试；用户运行时状态只存在于被 Git 忽略的 `.workspace/`。
 
+## 用户可见沟通
+
+- 面向用户的进度、提问和总结跟随用户当前语言，默认使用中文；代码、命令、路径、API 标识、Provider 名称和错误原文保持原样，必要说明使用中文。
+- 用户可见消息只说明当前结果、下一步和需要用户决定的内容，不把 Skill、runbook、Provider 或内部门禁作为行动理由，也不复述内部规则。
+
 ## 先确认模式
 
 - 新任务先运行 `python3 scripts/workspace_status.py --root . --json`。

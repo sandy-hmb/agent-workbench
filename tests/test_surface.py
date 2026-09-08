@@ -232,6 +232,13 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("design/data-model.md", agents)
         self.assertIn("plans/implementation.md", agents)
         self.assertIn("历史对话", agents)
+        self.assertIn("默认使用中文", agents)
+        self.assertIn("错误原文", agents)
+        self.assertIn("用户可见", agents)
+        self.assertIn("当前结果、下一步和需要用户决定的内容", agents)
+
+        self.assertIn("不引用 Skill 名称", design)
+        self.assertIn("不解释内部门禁", design)
 
     def test_add_repo_apply_regenerates_generated_context_safely(self):
         content = (ROOT / ".agents/skills/workspace-init/SKILL.md").read_text(
