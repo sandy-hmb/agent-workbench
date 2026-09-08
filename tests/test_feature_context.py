@@ -81,6 +81,9 @@ class FeatureContextTest(unittest.TestCase):
                 "- 涉及仓库：{repositories}",
                 "- 工作分支：{branches}",
                 "- 基线分支：{base_branches}",
+                "- 需求审阅：待审阅",
+                "- 设计审阅：未生成",
+                "- 计划审阅：未生成",
                 "- 最后更新：{updated}",
             ):
                 self.assertIn(line, template)
@@ -526,6 +529,14 @@ class FeatureContextTest(unittest.TestCase):
             readme = (feature / "README.md").read_text(encoding="utf-8")
             self.assertIn("owner/feature/payment-feature", readme)
             self.assertIn("Store payment records.", readme)
+            self.assertIn("- 需求审阅：待审阅", readme)
+            self.assertIn("- 设计审阅：未生成", readme)
+            self.assertIn("- 计划审阅：未生成", readme)
+            requirements = (feature / "requirements/requirements.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("# Payment Feature 需求", requirements)
+            self.assertIn("Store payment records.", requirements)
             for directory in ("design", "plans", "testing"):
                 self.assertNotIn(f"]({directory}/", readme)
 

@@ -34,13 +34,13 @@ python3 scripts/kit.py registry branch service \
 └── requirements/requirements.md
 ```
 
-`requirements/requirements.md` 记录做什么、为什么和如何验收。只保留当前需求需要的用户场景、功能需求、边界情况、关键实体、非目标、假设与成功标准，不生成空章节或占位内容。写入并自审后先由使用者批准实际需求文件，再讨论设计。
+`requirements/requirements.md` 记录做什么、为什么和如何验收。只保留当前需求需要的用户场景、功能需求、边界情况、关键实体、非目标、假设与成功标准，不生成空章节或占位内容。可独立验收行为使用稳定 R 编号；Design、Plan 和验证引用它，不重复整段正文。写入并自审后将 README 的需求审阅更新为“待审阅”，先由使用者批准实际需求文件，再讨论设计。
 
 随后按讨论结果按需增加：
 
-- `design/design.md` 记录怎么做，包括现状、候选方案与取舍、组件和数据流、错误处理、兼容、回退与验证。方案确认生成后创建并自审，再由使用者批准实际文件。复杂数据模型或迁移经确认可拆为 `design/data-model.md`；复杂接口契约经确认可拆为 `design/api-integration.md`。其他内容默认留在主设计，不建立固定专题文档树。
-- 书面设计获批后，`workspace-writing-plan` 直接创建并自审 `plans/implementation.md` 草案，不重复确认计划摘要。该文件记录可执行任务和跨会话读取清单，不新增 `plan.md` 或 `tasks.md`。使用者审阅实际计划、基线、分支和执行方式并明确批准后，才更新为 `development`。
-- 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态和结果，不使用占位内容。
+- `design/design.md` 记录怎么做，包括现状、候选方案与取舍、组件和数据流、错误处理、兼容、回退与验证。主设计保留整体方案、共享约束、风险和附件导航；只有独立读者、审阅或维护需要时，经确认拆 `design/data-model.md` 或 `design/api-integration.md`。方案确认生成后创建并自审，再由使用者批准实际文件，并更新 README 的设计审阅。
+- 书面设计获批后，`workspace-writing-plan` 直接创建并自审 `plans/implementation.md` 草案，不重复确认计划摘要。任务使用 `- [ ] T01`，并写明 R/D 依据、落点、依赖和具体验证。该文件记录可执行任务和跨会话读取清单，不新增 `plan.md` 或 `tasks.md`。使用者审阅实际计划、基线、分支和执行方式并明确批准后，更新 README 的计划审阅和状态为 `development`。
+- 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态、覆盖验收和执行情况，不使用占位内容。
 
 Requirements 和 Design 只询问会实质改变结果的问题，每轮最多三个；原生交互可用时提供推荐、备选和自定义输入，否则一次提出一个文字问题并等待回复。结论收敛后单独确认生成，未回复不是确认。Plan 只在存在关键阻塞时提问，设计获批后直接生成草案，批准实际文件后才执行。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
 
@@ -59,7 +59,7 @@ python3 scripts/kit.py doctor --root .
 
 `workspace-verify` 会把已授权的离线验证写成完整批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果都记录在 `testing/verification.md`。旧记录仍可阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
 
-新会话通过 `status` 和显式 slug 的 `brief payments-retry --json` 恢复，再按 `plans/implementation.md` 的读取清单加载需求、设计附件和目标仓规范；计划不得依赖历史对话。验证通过且确认结束后才执行：
+新会话通过 `status` 和显式 slug 的 `brief payments-retry --json` 恢复；再用 `brief payments-retry --task T01 --json` 展开当前任务，只读取共同必读、直接依赖和任务引用。`brief payments-retry --check --json` 检查文档结构与本地引用，但不替代人工审阅或语义自审。计划不得依赖历史对话。验证通过且确认结束后才执行：
 
 ```bash
 python3 scripts/kit.py feature set-status payments-retry done

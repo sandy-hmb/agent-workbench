@@ -43,6 +43,9 @@ class KitDescribeTest(unittest.TestCase):
         self.assertIn("add-repo", setup["parameters"]["subcommands"])
         status = by_name["status"]
         self.assertIn("--json", status["parameters"]["options"])
+        brief = by_name["brief"]
+        self.assertIn("--task", brief["parameters"]["options"])
+        self.assertIn("--check", brief["parameters"]["options"])
         verify = by_name["verify"]
         self.assertIn("snapshot", verify["parameters"]["subcommands"])
 

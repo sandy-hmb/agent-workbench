@@ -29,7 +29,7 @@ Requirements 和 Design 的对应文件必须用户确认后才创建；写入�
 
 阶段提问、确认和停顿的用户可见表达只包含当前结果、下一步和需要用户决定的内容，跟随用户当前语言并默认使用中文。不引用 Skill 名称，不解释内部门禁或复述本文件；命令、路径、API 标识和错误原文可以保留，周围说明保持用户语言一致。
 
-Requirements 按需包含背景与目标、用户场景与验收、范围、功能需求、边界情况、关键实体、非目标、假设与依赖和成功标准。Design 按需包含现状与约束、候选方案与取舍、已选方案、组件与数据流、数据模型与迁移、接口契约、错误处理、安全与兼容、回退和验证策略。无关章节省略，不保留空标题或占位内容；需要跨文档精确引用时才增加稳定编号。
+Requirements 按需包含背景与目标、用户场景与验收、范围、功能需求、边界情况、关键实体、非目标、假设与依赖和成功标准。Design 按需包含现状与约束、候选方案与取舍、已选方案、组件与数据流、数据模型与迁移、接口契约、错误处理、安全与兼容、回退和验证策略。生成前分别读取 `templates/feature/requirements.md`、`templates/feature/design.md`；写入实际内容后删除无关章节和示例。可独立验收行为使用稳定 R 编号，需要跨文档精确引用的设计决策使用 D 编号或显式锚点；不要给字段或句子机械编号。README 只记录摘要、入口、审阅状态和下一步，不复制正文。
 
 `design/design.md` 是唯一必需的设计文档。多实体复杂关系、DDL、迁移、回填、双写、兼容、数据校验、回滚或独立数据库审阅需要较大篇幅时，先提议并取得用户确认，再创建 `design/data-model.md`。跨仓或跨团队接口、多个端点或事件、版本兼容、鉴权及错误契约需要独立维护时，按 `workspace-api-contract` 的规则确认后创建 `design/api-integration.md`。其他专题也必须有独立负责人、审批或长期维护理由；附件从主设计链接且不复制正文。
 
@@ -44,8 +44,8 @@ Requirements 按需包含背景与目标、用户场景与验收、范围、功�
      --repo <repo> --title "<title>" --summary "<summary>" --json
    ```
 
-   每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md`，只创建 `.workspace/docs/features/<slug>/README.md` 和 `requirements/requirements.md`，并写入 registry 计算的分支与基线。按文档协议填入实际内容，自审需求可验证、无歧义且没有占位内容，再请用户审阅实际文件；未获批准不得进入 Design。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 校验元数据。
-4. 再讨论方案设计，明确复用能力、关键取舍、风险和待确认项。简单设计一次汇总确认，复杂设计按有实质取舍的章节逐段确认；用户明确确认生成后才创建 `design/design.md` 及已批准的按需附件，并从 README 链接。写入后自审需求覆盖、矛盾、占位内容和范围，再请用户审阅实际文件。书面设计未获批准，不得生成实施计划或开始实现。
+   每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md` 和 `templates/feature/requirements.md`，只创建 `.workspace/docs/features/<slug>/README.md` 和 `requirements/requirements.md`，并写入 registry 计算的分支与基线。按文档协议填入实际内容，自审需求可验证、无歧义且没有占位内容，将 README 的需求审阅记为“待审阅”，再请用户审阅实际文件；未获批准不得进入 Design。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 和 `python3 scripts/kit.py brief <slug> --check --json` 校验元数据与本地结构。
+4. 用户批准实际需求文件后将 README 的需求审阅记为“已批准”，再讨论方案设计，明确复用能力、关键取舍、风险和待确认项。简单设计一次汇总确认，复杂设计按有实质取舍的章节逐段确认；用户明确确认生成后才创建 `design/design.md` 及已批准的按需附件，并从 README 链接。附件只能因独立读者、审阅、执行或维护需要拆分，先说明内容归属和读取任务；主设计保留整体方案、共享约束、风险和附件导航，不复制附件定义。写入后自审需求覆盖、矛盾、占位内容和范围，将 README 的设计审阅记为“待审阅”，再请用户审阅实际文件。用户批准实际设计文件后将其记为“已批准”；书面设计未获批准，不得生成实施计划或开始实现。
 5. 书面设计获批准后，读取 `workspace-writing-plan`，由它直接生成和自审 `plans/implementation.md` 草案，不再要求用户确认计划摘要。实际计划、基线、分支和执行方式的批准属于计划 Skill；计划获批前需求保持 `planning`。
 6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到需求或设计讨论。`testing/verification.md` 只在首次实际验证时创建，记录真实命令、退出状态和结果。
 

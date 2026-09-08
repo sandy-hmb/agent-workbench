@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,8 +28,8 @@ from workspace_model import (  # noqa: E402
 )
 from workspace_status import (  # noqa: E402
     _single_feature_progress,
+    plan_analysis,
     plan_progress,
-    plan_tasks,
     status_result,
     verification_record,
 )
@@ -43,6 +44,10 @@ FEATURE_FILES = {
 }
 PENDING_TASK_LIMIT = 10
 VERIFICATION_SUMMARY_LIMIT = 1200
+MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+EXPLICIT_ANCHOR_RE = re.compile(r"\bid=[\"']([^\"']+)[\"']")
+HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$")
 
 
 def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> str:
@@ -85,6 +90,132 @@ def _verification_tail(feature_dir: Path, limit: int = 10) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines()[-limit:]
 
 
+def _markdown_lines(path: Path) -> list[tuple[int, str]]:
+    visible = []
+    fence: tuple[str, int] | None = None
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        match = FENCE_RE.match(line)
+        if fence is not None:
+            if (
+                match is not None
+                and match.group(1)[0] == fence[0]
+                and len(match.group(1)) >= fence[1]
+            ):
+                fence = None
+            continue
+        if match is not None:
+            fence = (match.group(1)[0], len(match.group(1)))
+            continue
+        visible.append((line_number, line))
+    return visible
+
+
+def _heading_anchor(text: str) -> str:
+    return re.sub(r"[^\w-]+", "-", text.strip().lower()).strip("-")
+
+
+def _document_diagnostic(
+    code: str, severity: str, path: Path, feature_dir: Path, line: int, message: str
+) -> dict[str, object]:
+    return {
+        "severity": severity,
+        "code": code,
+        "path": path.relative_to(feature_dir).as_posix(),
+        "line": line,
+        "message": message,
+    }
+
+
+def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
+    diagnostics = []
+    features_root = feature_dir.parent.resolve()
+    for relative in FEATURE_FILES.values():
+        source = feature_dir / relative
+        if not source.exists():
+            continue
+        if source.is_symlink() or not source.is_file():
+            diagnostics.append(
+                _document_diagnostic(
+                    "DOCUMENT_UNSAFE_PATH",
+                    "error",
+                    source,
+                    feature_dir,
+                    1,
+                    "文档必须是 feature 目录内的普通文件",
+                )
+            )
+            continue
+        for line_number, line in _markdown_lines(source):
+            for target in MARKDOWN_LINK_RE.findall(line):
+                target = target.strip().strip("<>")
+                if not target or "://" in target or target.startswith(("mailto:", "tel:")):
+                    continue
+                file_part, separator, anchor = target.partition("#")
+                candidate = source if not file_part else source.parent / file_part
+                try:
+                    resolved = candidate.resolve()
+                except OSError:
+                    resolved = candidate
+                if not resolved.is_relative_to(features_root):
+                    diagnostics.append(
+                        _document_diagnostic(
+                            "DOCUMENT_LINK_OUTSIDE_FEATURE",
+                            "error",
+                            source,
+                            feature_dir,
+                            line_number,
+                            f"本地链接不能离开需求目录集合：{target}",
+                        )
+                    )
+                    continue
+                if candidate.is_symlink() or not candidate.is_file():
+                    diagnostics.append(
+                        _document_diagnostic(
+                            "DOCUMENT_MISSING_LINK_TARGET",
+                            "error",
+                            source,
+                            feature_dir,
+                            line_number,
+                            f"本地链接目标不存在或不安全：{target}",
+                        )
+                    )
+                    continue
+                if not separator or not anchor:
+                    continue
+                target_text = candidate.read_text(encoding="utf-8")
+                explicit = set(EXPLICIT_ANCHOR_RE.findall(target_text))
+                if anchor in explicit:
+                    continue
+                headings = {
+                    _heading_anchor(match.group(1))
+                    for candidate_line in target_text.splitlines()
+                    if (match := HEADING_RE.match(candidate_line))
+                }
+                if anchor in headings:
+                    diagnostics.append(
+                        _document_diagnostic(
+                            "DOCUMENT_UNVERIFIED_HEADING_ANCHOR",
+                            "warning",
+                            source,
+                            feature_dir,
+                            line_number,
+                            f"链接使用历史标题锚点，未验证其渲染器兼容性：{target}",
+                        )
+                    )
+                    continue
+                diagnostics.append(
+                    _document_diagnostic(
+                        "DOCUMENT_MISSING_ANCHOR",
+                        "error",
+                        source,
+                        feature_dir,
+                        line_number,
+                        f"本地链接锚点不存在：{target}",
+                    )
+                )
+    return diagnostics
+
+
 def _recent_commits(
     root: Path,
     mode: str,
@@ -113,7 +244,61 @@ def _recent_commits(
     return {"repository": repo, "branch": branch, "commits": commits}
 
 
-def brief_result(root: Path, slug: str | None = None) -> dict[str, object]:
+def _task_summary(task: dict[str, object]) -> dict[str, object]:
+    return {
+        "id": task["id"],
+        "title": task["title"],
+        "path": FEATURE_FILES["plan"],
+        "startLine": task["startLine"],
+        "endLine": task["endLine"],
+        "dependencies": task["dependencies"],
+        "references": task["references"],
+    }
+
+
+def _current_task(analysis: dict[str, object]) -> tuple[dict[str, object] | None, list[str]]:
+    diagnostics = analysis["diagnostics"]
+    if any(item["severity"] == "error" for item in diagnostics):
+        return None, ["计划存在结构错误，修复后才能选择可执行任务"]
+    tasks = analysis["tasks"]
+    completed_ids = {
+        task["id"] for task in tasks if task["id"] is not None and task["completed"]
+    }
+    blockers = []
+    for task in tasks:
+        if task["completed"]:
+            continue
+        if task["id"] is None:
+            return _task_summary(task), blockers
+        missing = [dependency for dependency in task["dependencies"] if dependency not in completed_ids]
+        if missing:
+            blockers.append(f"任务 {task['id']} 等待：{', '.join(missing)}")
+            continue
+        return _task_summary(task), blockers
+    return None, blockers
+
+
+def _selected_task(
+    task_id: str | None, analysis: dict[str, object], plan: Path
+) -> dict[str, object] | None:
+    if task_id is None:
+        return None
+    matches = [task for task in analysis["tasks"] if task["id"] == task_id]
+    if not matches:
+        raise ValueError(f"计划中没有任务：{task_id}")
+    if len(matches) != 1:
+        raise ValueError(f"计划中任务编号重复，无法展开：{task_id}")
+    task = matches[0]
+    text = plan.read_text(encoding="utf-8").splitlines()
+    return {
+        **_task_summary(task),
+        "body": "\n".join(text[task["startLine"] - 1 : task["endLine"]]),
+    }
+
+
+def brief_result(
+    root: Path, slug: str | None = None, task_id: str | None = None
+) -> dict[str, object]:
     root = Path(root).resolve()
     status = status_result(root)
     resolved = _resolve_slug(root, status, slug)
@@ -121,7 +306,10 @@ def brief_result(root: Path, slug: str | None = None) -> dict[str, object]:
     feature_dir = root / feature["path"]
     stage = _single_feature_progress(feature, mode=str(status["mode"]))
     workspace_model = load_workspace(root) if status["mode"] == "workspace" else None
-    pending = [task for completed, task in plan_tasks(feature_dir / FEATURE_FILES["plan"]) if not completed]
+    plan = feature_dir / FEATURE_FILES["plan"]
+    analysis = plan_analysis(plan)
+    pending = [task["line"] for task in analysis["tasks"] if not task["completed"]]
+    current_task, task_blockers = _current_task(analysis)
     record = verification_record(feature_dir)
     verification_summary = record[:VERIFICATION_SUMMARY_LIMIT] if record is not None else None
     verification_truncated = record is not None and len(record) > VERIFICATION_SUMMARY_LIMIT
@@ -134,10 +322,22 @@ def brief_result(root: Path, slug: str | None = None) -> dict[str, object]:
         "lastUpdated": feature["lastUpdated"],
         "files": _file_report(feature_dir),
         "artifacts": feature["artifacts"],
+        "documentReviews": feature["documentReviews"],
+        "documentDiagnostics": [
+            *feature["documentDiagnostics"],
+            *_link_diagnostics(feature_dir),
+        ],
         "verificationTail": _verification_tail(feature_dir),
-        "blockers": list(status["blockers"]),
+        "blockers": [
+            blocker
+            for blocker in status["blockers"]
+            if slug is None or blocker not in {"MULTIPLE_ACTIVE_FEATURES", "ACTIVE_FEATURE_INVALID"}
+        ],
         "progress": plan_progress(feature_dir / FEATURE_FILES["plan"]),
         "pendingTasks": pending[:PENDING_TASK_LIMIT],
+        "currentTask": current_task,
+        "taskBlockers": task_blockers,
+        "selectedTask": _selected_task(task_id, analysis, plan),
         "verificationSummary": verification_summary,
         "summaryTruncated": {
             "pendingTasks": len(pending) > PENDING_TASK_LIMIT,
@@ -167,6 +367,12 @@ def _render_text(result: dict[str, object]) -> None:
             print(f"  {task}")
         if result["summaryTruncated"]["pendingTasks"]:
             print("  （其余未完成项已省略）")
+    current_task = result["currentTask"]
+    if current_task is not None:
+        print(
+            f"当前任务：{current_task['id'] or '未编号'} {current_task['title']}"
+            f"（{current_task['path']}:{current_task['startLine']}）"
+        )
     summary = result["verificationSummary"]
     if summary is not None:
         print("最近有效验证记录：")
@@ -195,6 +401,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("slug", nargs="?", help="不传时取活跃指针或唯一的进行中需求")
+    parser.add_argument("--task", dest="task_id", help="展开指定编号任务的正文与引用")
+    parser.add_argument("--check", action="store_true", help="检查已有文档的本地结构与引用")
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -202,7 +410,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = brief_result(args.root, args.slug)
+        result = brief_result(args.root, args.slug, args.task_id)
     except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 1
@@ -210,6 +418,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(json.dumps(result, ensure_ascii=False))
     else:
         _render_text(result)
+    if args.check and any(item["severity"] == "error" for item in result["documentDiagnostics"]):
+        return 1
     return 0
 
 

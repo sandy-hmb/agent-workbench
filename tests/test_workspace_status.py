@@ -71,6 +71,9 @@ class WorkspaceStatusTest(unittest.TestCase):
                 "- 最后更新：2026-09-01\n"
             )
         (feature / "README.md").write_text(metadata, encoding="utf-8")
+        requirements = feature / "requirements"
+        requirements.mkdir()
+        (requirements / "requirements.md").write_text("# 需求\n", encoding="utf-8")
         (feature / "plans/implementation.md").write_text(
             "- [x] complete\n- [ ] pending\n", encoding="utf-8"
         )
@@ -173,7 +176,30 @@ class WorkspaceStatusTest(unittest.TestCase):
                 "baseBranches": [["kit", "main"]],
                 "lastUpdated": "2026-09-01",
                 "designExists": False,
+                "planExists": True,
                 "progress": {"completed": 1, "total": 2},
+                "documentReviews": {
+                    "requirements": "未记录",
+                    "design": "未记录",
+                    "plan": "未记录",
+                },
+                "documentReviewsRecorded": False,
+                "documentDiagnostics": [
+                    {
+                        "severity": "warning",
+                        "code": "PLAN_UNNUMBERED_TASK",
+                        "path": "implementation.md",
+                        "line": 1,
+                        "message": "未编号任务仍会统计；新计划请使用 T01 等稳定编号",
+                    },
+                    {
+                        "severity": "warning",
+                        "code": "PLAN_UNNUMBERED_TASK",
+                        "path": "implementation.md",
+                        "line": 2,
+                        "message": "未编号任务仍会统计；新计划请使用 T01 等稳定编号",
+                    },
+                ],
                 "verificationExists": True,
                 "verificationPassed": False,
                 "artifacts": [],
@@ -237,6 +263,187 @@ class WorkspaceStatusTest(unittest.TestCase):
             "需求 demo-feature 缺少可执行的实施计划",
             result["nextActions"][0]["reason"],
         )
+
+    def test_planning_feature_requires_each_document_review_before_its_successor(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        readme = feature / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8")
+            .replace("状态：development", "状态：planning")
+            .replace(
+                "- 最后更新：2026-09-01\n",
+                "- 需求审阅：待审阅\n"
+                "- 设计审阅：未生成\n"
+                "- 计划审阅：未生成\n"
+                "- 最后更新：2026-09-01\n",
+            ),
+            encoding="utf-8",
+        )
+        (feature / "plans/implementation.md").unlink()
+
+        result = workspace_status.status_result(self.root)
+        self.assertIn("审阅实际需求文件", result["nextActions"][0]["reason"])
+
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace("需求审阅：待审阅", "需求审阅：已批准"),
+            encoding="utf-8",
+        )
+        result = workspace_status.status_result(self.root)
+        self.assertIn("生成设计文档", result["nextActions"][0]["reason"])
+
+        design = feature / "design/design.md"
+        design.parent.mkdir()
+        design.write_text("# 设计\n", encoding="utf-8")
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace("设计审阅：未生成", "设计审阅：待审阅"),
+            encoding="utf-8",
+        )
+        result = workspace_status.status_result(self.root)
+        self.assertIn("审阅实际设计文件", result["nextActions"][0]["reason"])
+
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace("设计审阅：待审阅", "设计审阅：已批准"),
+            encoding="utf-8",
+        )
+        result = workspace_status.status_result(self.root)
+        self.assertIn("生成实施计划", result["nextActions"][0]["reason"])
+
+        plan = feature / "plans/implementation.md"
+        plan.write_text("- [ ] T01 实现\n", encoding="utf-8")
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace("计划审阅：未生成", "计划审阅：待审阅"),
+            encoding="utf-8",
+        )
+        result = workspace_status.status_result(self.root)
+        self.assertIn("审阅并批准实际计划", result["nextActions"][0]["reason"])
+        self.assertEqual(
+            {"requirements": "已批准", "design": "已批准", "plan": "待审阅"},
+            result["features"][0]["documentReviews"],
+        )
+
+    def test_document_review_diagnostics_do_not_infer_missing_files_are_approved(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        readme = feature / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "- 最后更新：2026-09-01\n",
+                "- 需求审阅：无法识别\n"
+                "- 设计审阅：已批准\n"
+                "- 计划审阅：未生成\n"
+                "- 最后更新：2026-09-01\n",
+            ),
+            encoding="utf-8",
+        )
+
+        feature_state = workspace_status.status_result(self.root)["features"][0]
+
+        self.assertEqual("未记录", feature_state["documentReviews"]["requirements"])
+        self.assertEqual("已批准", feature_state["documentReviews"]["design"])
+        codes = {item["code"] for item in feature_state["documentDiagnostics"]}
+        self.assertIn("DOCUMENT_REVIEW_INVALID", codes)
+        self.assertIn("DOCUMENT_REVIEW_MISSING_FILE", codes)
+
+    def test_document_review_rejects_symlinked_requirement_file(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        readme = feature / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "- 最后更新：2026-09-01\n",
+                "- 需求审阅：已批准\n"
+                "- 设计审阅：未生成\n"
+                "- 计划审阅：未生成\n"
+                "- 最后更新：2026-09-01\n",
+            ),
+            encoding="utf-8",
+        )
+        requirement = feature / "requirements/requirements.md"
+        target = self.parent / "requirement.md"
+        requirement.replace(target)
+        requirement.symlink_to(target)
+
+        diagnostics = workspace_status.status_result(self.root)["features"][0]["documentDiagnostics"]
+
+        self.assertIn("DOCUMENT_REVIEW_MISSING_FILE", {item["code"] for item in diagnostics})
+
+    def test_plan_analysis_counts_standard_and_legacy_tasks_without_fenced_examples(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "# 实施计划\n\n"
+            "- [ ] T01 标准任务\n\n"
+            "  依赖：无\n"
+            "  依据：[R1](../requirements/requirements.md)\n\n"
+            "- [x] T02 已完成任务\n\n"
+            "  依赖：T01\n\n"
+            "```markdown\n"
+            "- [ ] T99 示例任务\n"
+            "```\n\n"
+            "### [ ] 3. 历史标题任务\n",
+            encoding="utf-8",
+        )
+
+        analysis = workspace_status.plan_analysis(plan)
+
+        self.assertTrue(analysis["exists"])
+        self.assertEqual({"completed": 1, "total": 3}, workspace_status.plan_progress(plan))
+        self.assertEqual(
+            [
+                (False, "- [ ] T01 标准任务"),
+                (True, "- [x] T02 已完成任务"),
+                (False, "### [ ] 3. 历史标题任务"),
+            ],
+            workspace_status.plan_tasks(plan),
+        )
+        tasks = analysis["tasks"]
+        self.assertEqual("T01", tasks[0]["id"])
+        self.assertEqual(["T01"], tasks[1]["dependencies"])
+        self.assertIsNone(tasks[2]["id"])
+        self.assertFalse(any(item["severity"] == "error" for item in analysis["diagnostics"]))
+
+    def test_plan_analysis_reports_invalid_tasks_and_dependencies(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "- [ ] T01 第一项\n\n"
+            "  依赖：T02\n\n"
+            "- [ ] T01 重复编号\n\n"
+            "  依赖：T99\n\n"
+            "- [ ] T02 第二项\n\n"
+            "  依赖：T02\n\n"
+            "- [ ] T03 第三项\n\n"
+            "  依赖：T04\n\n"
+            "- [ ] T04 第四项\n\n"
+            "  依赖：T03\n\n"
+            "```\n"
+            "- [ ] T03 围栏内任务\n",
+            encoding="utf-8",
+        )
+
+        diagnostics = workspace_status.plan_analysis(plan)["diagnostics"]
+
+        codes = {item["code"] for item in diagnostics}
+        self.assertIn("PLAN_DUPLICATE_TASK_ID", codes)
+        self.assertIn("PLAN_UNKNOWN_DEPENDENCY", codes)
+        self.assertIn("PLAN_SELF_DEPENDENCY", codes)
+        self.assertIn("PLAN_DEPENDENCY_CYCLE", codes)
+        self.assertIn("PLAN_UNCLOSED_FENCE", codes)
+        self.assertTrue(all(item["line"] > 0 for item in diagnostics))
+
+    def test_plan_analysis_points_unclosed_fence_to_its_opening_line(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "```\n示例\n```\n\n- [ ] T01 正常任务\n\n~~~~\n未闭合\n",
+            encoding="utf-8",
+        )
+
+        diagnostics = workspace_status.plan_analysis(plan)["diagnostics"]
+
+        fence = next(item for item in diagnostics if item["code"] == "PLAN_UNCLOSED_FENCE")
+        self.assertEqual(7, fence["line"])
 
     def test_current_batch_passes_until_maintenance_code_changes(self):
         feature = self.write_feature(

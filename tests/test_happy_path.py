@@ -306,8 +306,18 @@ class HappyPathTest(unittest.TestCase):
 
             (feature / "plans").mkdir()
             (feature / "testing").mkdir()
+            (feature / "design").mkdir()
+            (feature / "design/design.md").write_text("# 设计\n", encoding="utf-8")
             (feature / "plans/implementation.md").write_text(
                 "# 实施计划\n\n- [x] 完成实现\n- [x] 完成验证\n",
+                encoding="utf-8",
+            )
+            readme = feature / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                .replace("需求审阅：待审阅", "需求审阅：已批准")
+                .replace("设计审阅：未生成", "设计审阅：已批准")
+                .replace("计划审阅：未生成", "计划审阅：已批准"),
                 encoding="utf-8",
             )
             snapshot = json.loads(

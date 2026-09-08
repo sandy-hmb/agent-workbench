@@ -204,6 +204,46 @@ class OptionalBriefObservationTest(unittest.TestCase):
         self.assertTrue(any(call.args[0] == ["kit.py", "brief", "two"] for call in run.call_args_list))
 
 
+class TaskScopedContextTest(unittest.TestCase):
+    def test_simple_feature_keeps_required_facts_while_skipping_completed_task_detail(self):
+        sections = {
+            "requirements": "R1 当前账户只能查询自己的记录。",
+            "design": "D1 身份从认证上下文取得。",
+            "task": "T02 修改查询服务。依赖：T01。验证：运行定向测试。",
+            "completed": "T01 已完成的建表细节与测试输出。" * 20,
+            "history": "历史验证批次与过期日志。" * 20,
+        }
+        full = "\n".join(sections.values())
+        scoped = "\n".join(sections[key] for key in ("requirements", "design", "task"))
+
+        self.assertLess(
+            context_measure.estimate_tokens(scoped)["estTokens"],
+            context_measure.estimate_tokens(full)["estTokens"],
+        )
+        for required in ("R1", "D1", "T02", "T01", "定向测试"):
+            self.assertIn(required, scoped)
+
+    def test_complex_feature_loads_only_the_attachment_required_by_current_task(self):
+        sections = {
+            "requirements": "R2 Webhook 重复投递不得重复写入。",
+            "design": "D1 共享幂等约束。",
+            "api": "D2 事件 ID 是本任务消费的幂等键。",
+            "task": "T03 接收事件；依赖：T01、T02；验证：回调测试。",
+            "data_model": "数据迁移回填、批量校验和回退 SQL。" * 20,
+            "rollout": "发布窗口、灰度和人工回退值守。" * 20,
+            "history": "已完成任务的详细日志。" * 20,
+        }
+        full = "\n".join(sections.values())
+        scoped = "\n".join(sections[key] for key in ("requirements", "design", "api", "task"))
+
+        self.assertLess(
+            context_measure.estimate_tokens(scoped)["estTokens"],
+            context_measure.estimate_tokens(full)["estTokens"],
+        )
+        for required in ("R2", "D1", "D2", "T03", "T01", "T02", "回调测试"):
+            self.assertIn(required, scoped)
+
+
 class DeterminismTest(unittest.TestCase):
     def test_two_builds_are_byte_identical_json(self):
         first = json.dumps(context_measure.build_report(ROOT), sort_keys=True)

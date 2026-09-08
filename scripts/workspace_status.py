@@ -50,13 +50,31 @@ from workspace_verification import (  # noqa: E402
 )
 
 
-CHECKBOX_RE = re.compile(r"^\s*-\s*\[([ xX])\]")
+CHECKBOX_RE = re.compile(r"^-\s*\[([ xX])\]\s*(.*)$")
+HEADING_CHECKBOX_RE = re.compile(r"^(#{1,6})\s*\[([ xX])\]\s*(.*)$")
+NESTED_CHECKBOX_RE = re.compile(r"^\s+-\s*\[([ xX])\]")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+TASK_ID_RE = re.compile(r"^(T\d{2,})(?:\s+(.+))?$")
+DEPENDENCY_RE = re.compile(r"^\s*依赖：\s*(.*?)\s*$")
+TASK_ID_IN_TEXT_RE = re.compile(r"\bT\d{2,}\b")
+MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
 VERIFICATION_RECORD_RE = re.compile(
     r"^## (?:执行记录 \d{4}-\d{2}-\d{2}|验证批次 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}))\s*$",
     re.MULTILINE,
 )
 SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
 STATUS_SCHEMA_VERSION = 1
+DOCUMENT_REVIEW_FIELDS = {
+    "requirements": "需求审阅",
+    "design": "设计审阅",
+    "plan": "计划审阅",
+}
+DOCUMENT_REVIEW_VALUES = {"未生成", "待审阅", "已批准"}
+DOCUMENT_PATHS = {
+    "requirements": "requirements/requirements.md",
+    "design": "design/design.md",
+    "plan": "plans/implementation.md",
+}
 
 
 def artifact_summary(feature: Path) -> list[dict[str, str]]:
@@ -80,22 +98,266 @@ def artifact_summary(feature: Path) -> list[dict[str, str]]:
     return result
 
 
-def plan_tasks(path: Path) -> list[tuple[bool, str]]:
+def _diagnostic(
+    code: str, severity: str, path: Path, line: int, message: str
+) -> dict[str, object]:
+    return {
+        "severity": severity,
+        "code": code,
+        "path": path.name,
+        "line": line,
+        "message": message,
+    }
+
+
+def _fenced_lines(lines: list[str], path: Path) -> tuple[set[int], list[dict[str, object]]]:
+    fenced = set()
+    diagnostics = []
+    opening: tuple[str, int, int] | None = None
+    for line_number, line in enumerate(lines, start=1):
+        match = FENCE_RE.match(line)
+        if opening is not None:
+            fenced.add(line_number)
+            if (
+                match is not None
+                and match.group(1)[0] == opening[0]
+                and len(match.group(1)) >= opening[1]
+            ):
+                opening = None
+            continue
+        if match is not None:
+            marker = match.group(1)
+            opening = (marker[0], len(marker), line_number)
+            fenced.add(line_number)
+    if opening is not None:
+        diagnostics.append(
+            _diagnostic(
+                "PLAN_UNCLOSED_FENCE",
+                "error",
+                path,
+                opening[2],
+                "代码围栏未闭合，围栏内内容不会作为计划任务解析",
+            )
+        )
+    return fenced, diagnostics
+
+
+def _task_range(
+    lines: list[str], tasks: list[dict[str, object]], index: int
+) -> tuple[int, int]:
+    task = tasks[index]
+    start = int(task["startLine"])
+    next_start = int(tasks[index + 1]["startLine"]) - 1 if index + 1 < len(tasks) else len(lines)
+    if task["style"] == "heading":
+        level = int(task["headingLevel"])
+        boundary = re.compile(r"^(#{1," + str(level) + r"})\s")
+    else:
+        boundary = re.compile(r"^#{1,2}\s")
+    for line_number in range(start + 1, next_start + 1):
+        if boundary.match(lines[line_number - 1]):
+            return start, line_number - 1
+    return start, next_start
+
+
+def _dependency_diagnostics(
+    tasks: list[dict[str, object]], path: Path
+) -> list[dict[str, object]]:
+    diagnostics = []
+    by_id: dict[str, dict[str, object]] = {}
+    for task in tasks:
+        task_id = task["id"]
+        if task_id is None:
+            continue
+        if task_id in by_id:
+            diagnostics.append(
+                _diagnostic(
+                    "PLAN_DUPLICATE_TASK_ID",
+                    "error",
+                    path,
+                    int(task["startLine"]),
+                    f"任务编号重复：{task_id}",
+                )
+            )
+            continue
+        by_id[str(task_id)] = task
+
+    edges: dict[str, list[str]] = {task_id: [] for task_id in by_id}
+    for task in tasks:
+        task_id = task["id"]
+        if task_id is None:
+            continue
+        task_id = str(task_id)
+        dependencies = list(task["dependencies"])
+        for dependency in dependencies:
+            if dependency == task_id:
+                diagnostics.append(
+                    _diagnostic(
+                        "PLAN_SELF_DEPENDENCY",
+                        "error",
+                        path,
+                        int(task["startLine"]),
+                        f"任务 {task_id} 不能依赖自身",
+                    )
+                )
+            elif dependency not in by_id:
+                diagnostics.append(
+                    _diagnostic(
+                        "PLAN_UNKNOWN_DEPENDENCY",
+                        "error",
+                        path,
+                        int(task["startLine"]),
+                        f"任务 {task_id} 依赖不存在的任务：{dependency}",
+                    )
+                )
+            elif by_id[task_id] is task:
+                edges[task_id].append(dependency)
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    reported: set[tuple[str, ...]] = set()
+
+    def visit(task_id: str, stack: list[str]) -> None:
+        if task_id in visiting:
+            cycle = tuple(stack[stack.index(task_id) :] + [task_id])
+            if cycle not in reported:
+                reported.add(cycle)
+                diagnostics.append(
+                    _diagnostic(
+                        "PLAN_DEPENDENCY_CYCLE",
+                        "error",
+                        path,
+                        int(by_id[task_id]["startLine"]),
+                        "任务依赖形成环：" + " -> ".join(cycle),
+                    )
+                )
+            return
+        if task_id in visited:
+            return
+        visiting.add(task_id)
+        for dependency in edges[task_id]:
+            visit(dependency, [*stack, task_id])
+        visiting.remove(task_id)
+        visited.add(task_id)
+
+    for task_id in edges:
+        visit(task_id, [])
+    return diagnostics
+
+
+def plan_analysis(path: Path) -> dict[str, object]:
     if path.is_symlink():
         raise ValueError(f"实施计划不允许符号链接：{path}")
     if not path.exists():
-        return []
+        return {"exists": False, "tasks": [], "diagnostics": []}
     if not path.is_file():
         raise ValueError(f"实施计划必须是普通文件：{path}")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    fenced, diagnostics = _fenced_lines(lines, path)
+    tasks: list[dict[str, object]] = []
+    for line_number, line in enumerate(lines, start=1):
+        if line_number in fenced:
+            continue
+        list_match = CHECKBOX_RE.match(line)
+        heading_match = HEADING_CHECKBOX_RE.match(line)
+        if list_match is not None:
+            completed = list_match.group(1).lower() == "x"
+            title = list_match.group(2).strip()
+            style = "list"
+            heading_level = None
+        elif heading_match is not None:
+            completed = heading_match.group(2).lower() == "x"
+            title = heading_match.group(3).strip()
+            style = "heading"
+            heading_level = len(heading_match.group(1))
+            diagnostics.append(
+                _diagnostic(
+                    "PLAN_LEGACY_HEADING_TASK",
+                    "warning",
+                    path,
+                    line_number,
+                    "标题式任务仍会统计；新计划请使用 - [ ] T01 任务标题",
+                )
+            )
+        else:
+            if NESTED_CHECKBOX_RE.match(line):
+                diagnostics.append(
+                    _diagnostic(
+                        "PLAN_NESTED_TASK",
+                        "warning",
+                        path,
+                        line_number,
+                        "嵌套复选框不作为计划任务统计",
+                    )
+                )
+            continue
+        identifier = TASK_ID_RE.match(title)
+        task_id = identifier.group(1) if identifier is not None else None
+        task_title = identifier.group(2) if identifier is not None else title
+        if style == "list" and task_id is None:
+            diagnostics.append(
+                _diagnostic(
+                    "PLAN_UNNUMBERED_TASK",
+                    "warning",
+                    path,
+                    line_number,
+                    "未编号任务仍会统计；新计划请使用 T01 等稳定编号",
+                )
+            )
+        tasks.append(
+            {
+                "id": task_id,
+                "title": task_title,
+                "completed": completed,
+                "line": line.strip(),
+                "startLine": line_number,
+                "endLine": line_number,
+                "style": style,
+                "headingLevel": heading_level,
+                "dependencies": [],
+                "references": [],
+            }
+        )
+
+    for index, task in enumerate(tasks):
+        start, end = _task_range(lines, tasks, index)
+        task["endLine"] = end
+        body = lines[start - 1 : end]
+        dependencies = []
+        for line in body[1:]:
+            match = DEPENDENCY_RE.match(line)
+            if match is None or match.group(1) in {"", "无"}:
+                continue
+            dependencies.extend(TASK_ID_IN_TEXT_RE.findall(match.group(1)))
+        task["dependencies"] = list(dict.fromkeys(dependencies))
+        task["references"] = [
+            target
+            for line in body
+            for target in MARKDOWN_LINK_RE.findall(line)
+        ]
+
+    if not tasks:
+        diagnostics.append(
+            _diagnostic(
+                "PLAN_EMPTY",
+                "error",
+                path,
+                1,
+                "实施计划存在但没有可识别的顶层任务",
+            )
+        )
+    diagnostics.extend(_dependency_diagnostics(tasks, path))
+    return {"exists": True, "tasks": tasks, "diagnostics": diagnostics}
+
+
+def plan_tasks(path: Path) -> list[tuple[bool, str]]:
     return [
-        (match.group(1).lower() == "x", line.strip())
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if (match := CHECKBOX_RE.match(line))
+        (bool(task["completed"]), str(task["line"]))
+        for task in plan_analysis(path)["tasks"]
     ]
 
 
 def plan_progress(path: Path) -> dict[str, int]:
-    checked = [completed for completed, _ in plan_tasks(path)]
+    checked = [bool(task["completed"]) for task in plan_analysis(path)["tasks"]]
     return {"completed": sum(checked), "total": len(checked)}
 
 
@@ -113,6 +375,73 @@ def verification_record(feature: Path) -> str | None:
     end = next_section.start() if next_section is not None else len(text)
     record = text[latest.start():end].strip()
     return record
+
+
+def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, object]], bool]:
+    readme = feature / "README.md"
+    metadata = feature_metadata(readme)
+    reviews: dict[str, str] = {}
+    diagnostics: list[dict[str, object]] = []
+    recorded = False
+    for key, field in DOCUMENT_REVIEW_FIELDS.items():
+        value = metadata.get(field)
+        if value is None:
+            reviews[key] = "未记录"
+            continue
+        recorded = True
+        if value not in DOCUMENT_REVIEW_VALUES:
+            reviews[key] = "未记录"
+            diagnostics.append(
+                _diagnostic(
+                    "DOCUMENT_REVIEW_INVALID",
+                    "error",
+                    readme,
+                    next(
+                        index
+                        for index, line in enumerate(
+                            readme.read_text(encoding="utf-8").splitlines(), start=1
+                        )
+                        if line.startswith(f"- {field}：")
+                    ),
+                    f"{field} 必须为：{'、'.join(sorted(DOCUMENT_REVIEW_VALUES))}",
+                )
+            )
+            continue
+        reviews[key] = value
+        path = feature / DOCUMENT_PATHS[key]
+        if value in {"待审阅", "已批准"} and (path.is_symlink() or not path.is_file()):
+            diagnostics.append(
+                _diagnostic(
+                    "DOCUMENT_REVIEW_MISSING_FILE",
+                    "error",
+                    readme,
+                    next(
+                        index
+                        for index, line in enumerate(
+                            readme.read_text(encoding="utf-8").splitlines(), start=1
+                        )
+                        if line.startswith(f"- {field}：")
+                    ),
+                    f"{field} 为 {value}，但缺少 {DOCUMENT_PATHS[key]}",
+                )
+            )
+        elif value == "未生成" and path.is_file():
+            diagnostics.append(
+                _diagnostic(
+                    "DOCUMENT_REVIEW_UNEXPECTED_FILE",
+                    "warning",
+                    readme,
+                    next(
+                        index
+                        for index, line in enumerate(
+                            readme.read_text(encoding="utf-8").splitlines(), start=1
+                        )
+                        if line.startswith(f"- {field}：")
+                    ),
+                    f"{field} 为未生成，但 {DOCUMENT_PATHS[key]} 已存在",
+                )
+            )
+    return reviews, diagnostics, recorded
 
 
 def current_branch(path: Path) -> str | None:
@@ -138,6 +467,9 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     verification = feature / "testing" / "verification.md"
     if verification.is_symlink():
         raise ValueError(f"验证记录不允许符号链接：{verification}")
+    plan = feature / "plans" / "implementation.md"
+    analysis = plan_analysis(plan)
+    reviews, review_diagnostics, reviews_recorded = document_reviews(feature)
     record = verification_record(feature)
     current_states = None
     if record is not None and record.startswith("## 验证批次 "):
@@ -147,7 +479,14 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
             current_states = None
     return {
         "designExists": design.is_file(),
-        "progress": plan_progress(feature / "plans" / "implementation.md"),
+        "planExists": analysis["exists"],
+        "progress": {
+            "completed": sum(bool(task["completed"]) for task in analysis["tasks"]),
+            "total": len(analysis["tasks"]),
+        },
+        "documentReviews": reviews,
+        "documentReviewsRecorded": reviews_recorded,
+        "documentDiagnostics": [*review_diagnostics, *analysis["diagnostics"]],
         "verificationExists": verification.is_file(),
         "verificationPassed": batch_verification_passed(record, current_states),
         "artifacts": artifact_summary(feature),
@@ -206,6 +545,49 @@ def _single_feature_progress(
         }
     progress = feature["progress"]
     assert isinstance(progress, dict)
+    reviews = feature.get("documentReviews")
+    reviews_recorded = feature.get("documentReviewsRecorded") is True
+    assert isinstance(reviews, dict)
+    plan_exists = feature.get("planExists") is True
+    if reviews_recorded and feature["status"] != "paused":
+        requirements_review = reviews["requirements"]
+        design_review = reviews["design"]
+        plan_review = reviews["plan"]
+        if feature["status"] == "planning":
+            if requirements_review == "未生成":
+                reason = f"需求 {feature['featureSlug']} 的需求记录尚未生成；讨论并确认范围后生成需求文档"
+            elif requirements_review != "已批准":
+                reason = f"需求 {feature['featureSlug']} 的需求文件已存在；审阅实际需求文件后讨论方案"
+            elif design_review == "未生成":
+                reason = f"需求 {feature['featureSlug']} 的需求文件已批准；讨论并确认方案后生成设计文档"
+            elif design_review != "已批准":
+                reason = f"需求 {feature['featureSlug']} 的设计文档已存在；审阅实际设计文件后生成实施计划"
+            elif plan_review == "未生成":
+                reason = f"需求 {feature['featureSlug']} 的设计文件已批准；生成实施计划草案"
+            elif plan_review != "已批准":
+                reason = f"需求 {feature['featureSlug']} 的实施计划已存在；审阅并批准实际计划、基线、分支和执行方式后更新为 development"
+            elif not plan_exists or progress["total"] == 0:
+                reason = f"需求 {feature['featureSlug']} 的已批准计划缺少可执行任务；先修复计划格式或内容"
+            else:
+                reason = f"需求 {feature['featureSlug']} 的计划已批准；更新状态为 development 后执行"
+            return {
+                "currentStage": "feature.design",
+                "nextActions": [_stage_action("feature.design", reason)],
+                "blockers": [],
+                "confirmation": _confirmation("semantic"),
+            }
+        if plan_review != "已批准":
+            return {
+                "currentStage": "feature.design",
+                "nextActions": [
+                    _stage_action(
+                        "feature.design",
+                        f"需求 {feature['featureSlug']} 的实施计划尚未获批准；审阅实际计划和执行条件后继续",
+                    )
+                ],
+                "blockers": [],
+                "confirmation": _confirmation("semantic"),
+            }
     if feature["status"] == "planning":
         if not feature["designExists"]:
             reason = f"需求 {feature['featureSlug']} 的需求记录已存在；讨论并确认方案后生成设计文档"

@@ -240,6 +240,39 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("不引用 Skill 名称", design)
         self.assertIn("不解释内部门禁", design)
 
+    def test_feature_stage_templates_and_rules_stay_aligned(self):
+        templates = ROOT / "templates/feature"
+        requirements = (templates / "requirements.md").read_text(encoding="utf-8")
+        design = (templates / "design.md").read_text(encoding="utf-8")
+        plan = (templates / "implementation.md").read_text(encoding="utf-8")
+        readme = (templates / "README.md").read_text(encoding="utf-8")
+        self.assertIn("### R1", requirements)
+        self.assertIn('<a id="d1"></a>', design)
+        self.assertIn("- [ ] T01", plan)
+        for field in ("需求审阅：待审阅", "设计审阅：未生成", "计划审阅：未生成"):
+            self.assertIn(field, readme)
+
+        design_skill = (ROOT / ".agents/skills/workspace-feature-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        plan_skill = (ROOT / ".agents/skills/workspace-writing-plan/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        execute_skill = (ROOT / ".agents/skills/workspace-execute-plan/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        verify_skill = (ROOT / ".agents/skills/workspace-verify/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("templates/feature/requirements.md", design_skill)
+        self.assertIn("templates/feature/design.md", design_skill)
+        self.assertIn("templates/feature/implementation.md", plan_skill)
+        self.assertIn("- [ ] T01", plan_skill)
+        self.assertIn("--task T01", execute_skill)
+        self.assertIn("--check", execute_skill)
+        self.assertIn("覆盖验收", verify_skill)
+        self.assertIn("执行情况", verify_skill)
+
     def test_add_repo_apply_regenerates_generated_context_safely(self):
         content = (ROOT / ".agents/skills/workspace-init/SKILL.md").read_text(
             encoding="utf-8"

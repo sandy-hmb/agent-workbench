@@ -385,6 +385,9 @@ def create_feature(
     template = (Path(__file__).resolve().parents[1] / "templates/feature/README.md").read_text(
         encoding="utf-8"
     )
+    requirements_template = (
+        Path(__file__).resolve().parents[1] / "templates/feature/requirements.md"
+    ).read_text(encoding="utf-8")
     readme = template.format(
         title=title,
         repositories=", ".join(f"`{item}`" for item in canonical_repositories),
@@ -396,8 +399,9 @@ def create_feature(
         readme = readme.rstrip() + f"\n\n## 摘要\n\n{summary.strip()}\n"
     outputs = {
         feature / "README.md": readme,
-        feature / "requirements/requirements.md": (
-            "# Requirements\n\n" + (summary.strip() + "\n" if summary.strip() else "")
+        feature / "requirements/requirements.md": requirements_template.format(
+            title=title,
+            summary=summary.strip(),
         ),
     }
     feature.mkdir()

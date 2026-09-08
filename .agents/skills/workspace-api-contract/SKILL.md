@@ -21,7 +21,7 @@ description: Create or update API integration notes for workspace features that 
 
 ## 设计期文档
 
-用户治理模式使用 `.workspace/docs/features/<slug>/`；公共 Kit 维护模式使用 `docs/development/features/<slug>/`。默认在 `design/design.md` 的接口契约章节写入或更新内容；只有接口内容需要独立讨论、维护或按需读取，且用户确认后才创建 `design/api-integration.md` 并从主设计链接。内容保持短而可执行，包含：
+用户治理模式使用 `.workspace/docs/features/<slug>/`；公共 Kit 维护模式使用 `docs/development/features/<slug>/`。默认在 `design/design.md` 的接口契约章节写入或更新内容；主设计保留整体关系、共享约束和附件导航。只有接口内容需要独立讨论、维护或按需读取，且用户确认后才创建 `design/api-integration.md` 并从主设计链接。内容保持短而可执行，包含：
 
 - 变更摘要：说明本次接口或契约变化。
 - 参与仓库：列出提供方、消费方和只读对照方。

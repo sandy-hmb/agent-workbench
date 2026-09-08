@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -104,6 +105,29 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertFalse(result["files"]["design"]["exists"])
         self.assertEqual(0, result["files"]["design"]["bytes"])
         self.assertTrue(result["files"]["readme"]["exists"])
+
+    def test_brief_exposes_the_same_document_review_state_as_status(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        readme = feature / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "- 最后更新：2026-09-01\n",
+                "- 需求审阅：已批准\n"
+                "- 设计审阅：待审阅\n"
+                "- 计划审阅：未生成\n"
+                "- 最后更新：2026-09-01\n",
+            ),
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+
+        self.assertEqual(
+            {"requirements": "已批准", "design": "待审阅", "plan": "未生成"},
+            result["documentReviews"],
+        )
 
     def test_status_and_brief_agree_on_deferred_documents_and_verification(self) -> None:
         import kit_feature_brief
@@ -255,6 +279,57 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertNotIn("- 结果：通过", result["verificationSummary"])
         self.assertFalse(result["summaryTruncated"]["verificationSummary"])
 
+    def test_brief_counts_legacy_heading_tasks(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "\n".join(f"### [ ] {index}. 历史任务" for index in range(1, 9)),
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+
+        self.assertEqual({"completed": 0, "total": 8}, result["progress"])
+        self.assertEqual(8, len(result["pendingTasks"]))
+
+    def test_brief_selects_runnable_task_and_expands_only_the_requested_task(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [x] T01 完成基础\n\n"
+            "- [ ] T02 实现查询\n\n"
+            "  依赖：T01\n"
+            "  依据：[R2](../requirements/requirements.md)\n\n"
+            "- [ ] T03 后续处理\n\n"
+            "  依赖：T02\n",
+            encoding="utf-8",
+        )
+
+        summary = kit_feature_brief.brief_result(self.root, "demo-feature")
+        expanded = kit_feature_brief.brief_result(self.root, "demo-feature", "T02")
+
+        self.assertEqual("T02", summary["currentTask"]["id"])
+        self.assertIsNone(summary["selectedTask"])
+        self.assertEqual("T02", expanded["selectedTask"]["id"])
+        self.assertIn("依赖：T01", expanded["selectedTask"]["body"])
+        self.assertNotIn("后续处理", expanded["selectedTask"]["body"])
+        with self.assertRaisesRegex(ValueError, "没有任务"):
+            kit_feature_brief.brief_result(self.root, "demo-feature", "T99")
+
+    def test_legacy_tasks_follow_document_order(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [x] 已完成\n- [ ] 第一项\n- [ ] 第二项\n", encoding="utf-8"
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+
+        self.assertEqual("第一项", result["currentTask"]["title"])
+
     def test_brief_does_not_treat_template_as_verification(self) -> None:
         import kit_feature_brief
 
@@ -309,7 +384,7 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertNotIn("补充说明", result["verificationSummary"])
         self.assertFalse(result["summaryTruncated"]["verificationSummary"])
 
-    def test_brief_keeps_all_status_blockers_for_explicit_slug(self) -> None:
+    def test_brief_removes_target_selection_blocker_for_explicit_slug(self) -> None:
         import kit_feature_brief
 
         self.write_feature("demo-feature")
@@ -317,7 +392,7 @@ class MaintenanceBriefTest(unittest.TestCase):
 
         result = kit_feature_brief.brief_result(self.root, "demo-feature")
 
-        self.assertEqual(["MULTIPLE_ACTIVE_FEATURES"], result["blockers"])
+        self.assertEqual([], result["blockers"])
 
     def test_workspace_brief_uses_active_feature_and_preserves_explicit_slug(self) -> None:
         import kit_feature_brief
@@ -391,6 +466,72 @@ class MaintenanceBriefTest(unittest.TestCase):
             code = kit_feature_brief.main(["--root", str(self.root), "demo-feature", "--json"])
         self.assertEqual(0, code)
         json.loads(output.getvalue())
+
+    def test_cli_accepts_task_option(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [ ] T01 实现\n", encoding="utf-8"
+        )
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--task", "T01", "--json"]
+            )
+
+        self.assertEqual(0, code)
+        self.assertEqual("T01", json.loads(output.getvalue())["selectedTask"]["id"])
+
+    def test_check_reports_missing_local_links_and_ignores_fenced_examples(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        requirements = feature / "requirements/requirements.md"
+        requirements.write_text(
+            "[缺失文件](missing.md)\n[缺失锚点](../design/design.md#gone)\n"
+            "```markdown\n[围栏示例](also-missing.md)\n```\n",
+            encoding="utf-8",
+        )
+        before = {
+            path.relative_to(feature).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in feature.rglob("*")
+            if path.is_file()
+        }
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = kit_feature_brief.main(
+                ["--root", str(self.root), "demo-feature", "--check", "--json"]
+            )
+
+        codes = {item["code"] for item in result["documentDiagnostics"]}
+        self.assertIn("DOCUMENT_MISSING_LINK_TARGET", codes)
+        self.assertIn("DOCUMENT_MISSING_ANCHOR", codes)
+        self.assertNotIn("also-missing.md", "\n".join(item["message"] for item in result["documentDiagnostics"]))
+        self.assertEqual(1, code)
+        after = {
+            path.relative_to(feature).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in feature.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(before, after)
+
+    def test_check_allows_missing_later_documents_and_accepts_explicit_anchor(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "testing/verification.md").unlink()
+        (feature / "design/design.md").write_text(
+            '<a id="decision"></a>\n# 设计\n', encoding="utf-8"
+        )
+        (feature / "requirements/requirements.md").write_text(
+            "[设计](../design/design.md#decision)\n", encoding="utf-8"
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+
+        self.assertFalse(any(item["severity"] == "error" for item in result["documentDiagnostics"]))
 
     def test_text_output_marks_later_documents_as_stage_based(self) -> None:
         import kit_feature_brief
