@@ -534,6 +534,49 @@ class MaintenanceBriefTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "没有任务"):
             kit_feature_brief.brief_result(self.root, "demo-feature", "T99")
 
+    def test_brief_task_body_stops_before_the_next_group(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "## 任务\n\n"
+            "### 1. 第一组\n\n"
+            "- [ ] T01 第一项\n\n"
+            "  依赖：无\n\n"
+            "### 2. 第二组\n\n"
+            "- [ ] T02 第二项\n\n"
+            "  依赖：T01\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature", "T01")
+
+        self.assertNotIn("第二组", result["selectedTask"]["body"])
+        self.assertEqual(2, result["progress"]["total"])
+
+    def test_dependency_range_blocks_current_task_selection(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [x] T01 第一项\n\n"
+            "  依赖：无\n\n"
+            "- [ ] T02 第二项\n\n"
+            "  依赖：T01-T03\n\n"
+            "- [ ] T03 第三项\n\n"
+            "  依赖：无\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+
+        self.assertIsNone(result["currentTask"])
+        self.assertIn("结构错误", result["taskBlockers"][0])
+        self.assertIn(
+            "PLAN_DEPENDENCY_RANGE",
+            {item["code"] for item in result["documentDiagnostics"]},
+        )
+
     def test_legacy_tasks_follow_document_order(self) -> None:
         import kit_feature_brief
 

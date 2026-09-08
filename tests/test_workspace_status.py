@@ -445,6 +445,67 @@ class WorkspaceStatusTest(unittest.TestCase):
         fence = next(item for item in diagnostics if item["code"] == "PLAN_UNCLOSED_FENCE")
         self.assertEqual(7, fence["line"])
 
+    def test_plan_analysis_stops_standard_task_before_next_group_heading(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "## 任务\n\n"
+            "### 1. 第一组\n\n"
+            "- [ ] T01 第一项\n\n"
+            "  ```markdown\n"
+            "  ### 围栏内标题\n"
+            "  ```\n\n"
+            "### 2. 第二组\n\n"
+            "- [ ] T02 第二项\n",
+            encoding="utf-8",
+        )
+
+        tasks = workspace_status.plan_analysis(plan)["tasks"]
+
+        self.assertEqual(2, len(tasks))
+        self.assertEqual(10, tasks[0]["endLine"])
+        self.assertEqual(13, tasks[1]["startLine"])
+
+    def test_plan_analysis_rejects_dependency_ranges(self):
+        for separator in ("-", "–", "—", "~", "至"):
+            with self.subTest(separator=separator):
+                plan = self.root / "plan.md"
+                plan.write_text(
+                    "- [ ] T01 第一项\n\n"
+                    "  依赖：无\n\n"
+                    "- [ ] T02 第二项\n\n"
+                    "  依赖：无\n\n"
+                    "- [ ] T03 第三项\n\n"
+                    f"  依赖：T01{separator}T02\n",
+                    encoding="utf-8",
+                )
+
+                analysis = workspace_status.plan_analysis(plan)
+
+                ranges = [
+                    item
+                    for item in analysis["diagnostics"]
+                    if item["code"] == "PLAN_DEPENDENCY_RANGE"
+                ]
+                self.assertEqual(1, len(ranges))
+                self.assertEqual(11, ranges[0]["line"])
+                self.assertEqual(["T01", "T02"], analysis["tasks"][2]["dependencies"])
+
+        plan.write_text(
+            "- [ ] T01 第一项\n\n"
+            "  依赖：无\n\n"
+            "- [ ] T02 第二项\n\n"
+            "  依赖：无\n\n"
+            "- [ ] T03 第三项\n\n"
+            "  依赖：T01、T02\n",
+            encoding="utf-8",
+        )
+        analysis = workspace_status.plan_analysis(plan)
+        self.assertNotIn(
+            "PLAN_DEPENDENCY_RANGE",
+            {item["code"] for item in analysis["diagnostics"]},
+        )
+        self.assertEqual(["T01", "T02"], analysis["tasks"][2]["dependencies"])
+
     def test_current_batch_passes_until_maintenance_code_changes(self):
         feature = self.write_feature(
             self.root / "docs/development/features", maintenance=True
