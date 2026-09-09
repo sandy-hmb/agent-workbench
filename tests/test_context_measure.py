@@ -244,6 +244,72 @@ class TaskScopedContextTest(unittest.TestCase):
             self.assertIn(required, scoped)
 
 
+class DocumentLayoutTest(unittest.TestCase):
+    def test_simple_plan_keeps_a_shallow_structure(self):
+        simple = (
+            "## 执行概览\n\n目标仓：service\n\n"
+            "## 任务\n\n- [ ] T01 修正查询\n\n"
+            "  返回当前账户可见的数据。\n\n"
+            "  依据：R1、D01\n  依赖：无\n\n"
+            "  **验证**\n\n  工作目录：service\n\n"
+            "  ```bash\n  pytest tests/test_query.py\n  ```\n\n"
+            "  通过条件：目标测试通过。\n"
+        )
+
+        self.assertNotIn("### ", simple)
+        for fact in ("T01", "R1", "D01", "service", "pytest", "目标测试通过"):
+            self.assertIn(fact, simple)
+
+    def test_complex_plan_improves_blocks_without_losing_facts(self):
+        old = (
+            "- [ ] T02 交付查询\n"
+            "  依据：R1、D01\n"
+            "  结果：返回当前账户可见的数据\n"
+            "  落点：service/query.py、tests/test_query.py\n"
+            "  依赖：T01\n"
+            "  Red：越权查询先失败\n"
+            "  Green：实现作用域过滤\n"
+            "  回归：原分页语义不变\n"
+            "  验证：pytest tests/test_query.py\n"
+        )
+        new = (
+            "### 1. 查询权限\n\n"
+            "- [ ] T02 交付查询\n\n"
+            "  返回当前账户可见的数据。\n\n"
+            "  依据：R1、D01\n  依赖：T01\n\n"
+            "  **改动位置**\n\n"
+            "  - service/query.py\n  - tests/test_query.py\n\n"
+            "  **实施步骤**\n\n"
+            "  1. 越权查询先失败。\n"
+            "  2. 实现作用域过滤，回归原分页语义。\n\n"
+            "  **验证**\n\n"
+            "  ```bash\n  pytest \\\n+    tests/test_query.py\n  ```\n\n"
+            "  通过条件：目标测试通过。\n"
+        )
+
+        for fact in (
+            "T02",
+            "R1",
+            "D01",
+            "T01",
+            "service/query.py",
+            "tests/test_query.py",
+            "越权查询",
+            "作用域过滤",
+            "分页语义",
+            "pytest",
+        ):
+            self.assertIn(fact, old)
+            self.assertIn(fact, new)
+        self.assertIn("**改动位置**\n\n", new)
+        self.assertIn("**实施步骤**\n\n", new)
+        self.assertIn("**验证**\n\n", new)
+        self.assertGreater(
+            context_measure.estimate_tokens(new)["estTokens"],
+            context_measure.estimate_tokens(old)["estTokens"],
+        )
+
+
 class DeterminismTest(unittest.TestCase):
     def test_two_builds_are_byte_identical_json(self):
         first = json.dumps(context_measure.build_report(ROOT), sort_keys=True)

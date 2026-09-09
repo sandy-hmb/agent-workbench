@@ -56,7 +56,8 @@ NESTED_CHECKBOX_RE = re.compile(r"^\s+-\s*\[([ xX])\]")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 TASK_ID_RE = re.compile(r"^(T\d{2,})(?:\s+(.+))?$")
 DEPENDENCY_RE = re.compile(r"^\s*依赖：\s*(.*?)\s*$")
-TASK_ID_IN_TEXT_RE = re.compile(r"\bT\d{2,}\b")
+TASK_ID_IN_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])T\d{2,}(?![A-Za-z0-9_])")
+TASK_RANGE_RE = re.compile(r"\b(T\d{2,})\s*(?:-|–|—|~|至)\s*(T\d{2,})\b")
 MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
 VERIFICATION_RECORD_RE = re.compile(
     r"^## (?:执行记录 \d{4}-\d{2}-\d{2}|验证批次 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}))\s*$",
@@ -143,7 +144,7 @@ def _fenced_lines(lines: list[str], path: Path) -> tuple[set[int], list[dict[str
 
 
 def _task_range(
-    lines: list[str], tasks: list[dict[str, object]], index: int
+    lines: list[str], fenced: set[int], tasks: list[dict[str, object]], index: int
 ) -> tuple[int, int]:
     task = tasks[index]
     start = int(task["startLine"])
@@ -152,8 +153,10 @@ def _task_range(
         level = int(task["headingLevel"])
         boundary = re.compile(r"^(#{1," + str(level) + r"})\s")
     else:
-        boundary = re.compile(r"^#{1,2}\s")
+        boundary = re.compile(r"^#{1,6}\s")
     for line_number in range(start + 1, next_start + 1):
+        if line_number in fenced:
+            continue
         if boundary.match(lines[line_number - 1]):
             return start, line_number - 1
     return start, next_start
@@ -319,15 +322,26 @@ def plan_analysis(path: Path, text: str | None = None) -> dict[str, object]:
         )
 
     for index, task in enumerate(tasks):
-        start, end = _task_range(lines, tasks, index)
+        start, end = _task_range(lines, fenced, tasks, index)
         task["endLine"] = end
         body = lines[start - 1 : end]
         dependencies = []
-        for line in body[1:]:
+        for line_number, line in enumerate(body[1:], start=start + 1):
             match = DEPENDENCY_RE.match(line)
             if match is None or match.group(1) in {"", "无"}:
                 continue
-            dependencies.extend(TASK_ID_IN_TEXT_RE.findall(match.group(1)))
+            value = match.group(1)
+            for range_match in TASK_RANGE_RE.finditer(value):
+                diagnostics.append(
+                    _diagnostic(
+                        "PLAN_DEPENDENCY_RANGE",
+                        "error",
+                        path,
+                        line_number,
+                        f"依赖范围 {range_match.group(0)} 可能遗漏任务；请显式列出每个任务编号",
+                    )
+                )
+            dependencies.extend(TASK_ID_IN_TEXT_RE.findall(value))
         task["dependencies"] = list(dict.fromkeys(dependencies))
         task["references"] = [
             target
