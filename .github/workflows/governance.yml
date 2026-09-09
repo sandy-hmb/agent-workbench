@@ -17,6 +17,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -29,6 +31,7 @@ jobs:
           python -m json.tool schemas/extensions-lock.schema.json
           python -m json.tool schemas/provider-result.schema.json
           python -m json.tool schemas/workspace-workflow.schema.json
+          python -m json.tool schemas/inspect-result.schema.json
           python -m json.tool upgrades/manifest.json
           python -m json.tool workflows/feature-development.json
       - name: py_compile
