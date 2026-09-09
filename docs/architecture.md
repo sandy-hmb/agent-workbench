@@ -57,7 +57,7 @@ flowchart TB
 | 仓库登记：[workspace_registry.py](../scripts/workspace_registry.py) | 需求设计、跨仓分析和交付流程；依赖已登记仓与分支策略。 | 名称或别名解析成仓库路径和有效策略；branch 返回候选分支，命名 Provider 可替换结果，不在这里创建 Git 分支。 |
 | 上下文路由：[workspace_context.py](../scripts/workspace_context.py) | 需要按业务术语定位目标的调用方；依赖 `context.termRouter` 或绑定 Provider。 | 输入文本，输出唯一匹配的仓、capability 或 Action 路由；不匹配或歧义时报告阻塞，不据此自动执行 Action。 |
 | 需求记录：[feature_context.py](../scripts/feature_context.py) | 需求设计、续接和提测；依赖模式、仓登记及本地 owner。 | 创建需求 README 和需求正文，列出元数据、修改状态或活跃指针；设计、计划和验证文件由后续阶段产生。 |
-| 阶段与摘要：[workspace_status.py](../scripts/workspace_status.py)、[kit_feature_brief.py](../scripts/kit_feature_brief.py) | Agent 新任务与续接；依赖需求元数据、计划、最新验证记录和 Git 信息。 | 输出阶段建议、下一步和阻塞；brief 补充未完成项、文档存在情况及近期提交，不自动推进状态。 |
+| 阶段与摘要：[workspace_status.py](../scripts/workspace_status.py)、[kit_feature_brief.py](../scripts/kit_feature_brief.py) | Agent 新任务与续接；依赖需求元数据、计划、最新验证记录和 Git 信息。 | 输出阶段建议、下一步和阻塞；brief 补充顺序化的当前/可执行任务、执行决策、确认要求、文档存在情况及近期提交，不自动推进状态。 |
 | 验证与诊断：[workspace-verify](../.agents/skills/workspace-verify/SKILL.md)、[workspace_doctor.py](../scripts/workspace_doctor.py) | Agent 执行已授权验证；doctor 检查 Kit 和工作区约束。 | 验证 Skill 将实际命令与结果写入需求验证记录；doctor 返回结构性诊断，不代替业务测试，也不自动修复。 |
 | Extension 管理：[workspace_extension.py](../scripts/workspace_extension.py) | Extension Skill；依赖 manifest、来源内容、配置和 Adapter。 | 安装、预览和激活本地扩展，维护 `.workspace/extensions/`、lock、绑定和生成的 `local-*` Adapter。 |
 | Provider 调用：[workspace_provider.py](../scripts/workspace_provider.py) | Core 中已定义的能力调用点；依赖当前作用域的唯一绑定与已锁定内容。 | 解析 Provider，校验漂移，以约定协议返回结果；Provider 本身的影响由其实现与声明决定。 |
@@ -164,6 +164,8 @@ stateDiagram-v2
 | 任务完成，但最新验证未通过 | 继续 `feature.verify`。 |
 | 任务完成且验证通过，当前为维护模式或需求已是 `testing` | 建议 `feature.complete`。 |
 | 其余开发中需求 | 建议 `feature.submit-test`；实际执行仍由提测流程检查目标与授权。 |
+
+实施阶段使用 `brief <slug> --execution --json`，在兼容的默认摘要之外返回按计划位置排序的 `readyTasks`、`confirmationRequired` 和 `executionDecision`。`RUN` 表示必须继续 `currentTask`，不能在任务边界结束或重复确认；`BLOCKED` 表示当前阶段需要确认或没有可执行任务；`COMPLETE` 表示计划任务已全部完成，可进入整体复核与验证。执行者默认不得跳过 `currentTask`，只有已批准计划明确允许并行时才能选择其他 ready task。
 
 验证通过的机器判断读取最新的 `## 验证批次`，要求总体结果、审查结论、代码状态和至少一项检查完整；全部退出状态必须为 `0`，且记录的仓库状态与当前 Git 状态完全匹配。旧 `执行记录`、占位文件、最新失败、不完整或过期批次都不能用更早成功覆盖。这个判断不证明测试覆盖全部验收标准，证据的真实性与充分性仍需核对。
 

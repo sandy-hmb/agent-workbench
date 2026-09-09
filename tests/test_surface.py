@@ -358,6 +358,9 @@ class SurfaceTest(unittest.TestCase):
         execute = paths[0].read_text(encoding="utf-8")
         self.assertIn("单个任务受阻", execute)
         self.assertIn("普通代码漂移", execute)
+        self.assertIn("executionDecision", execute)
+        self.assertIn("confirmationRequired", execute)
+        self.assertIn("不得跳过 `currentTask`", execute)
         self.assertIn(
             "当前任务、阻塞类别、实际证据、已完成的安全步骤和最小用户决策",
             execute,

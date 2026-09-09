@@ -110,6 +110,7 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertTrue(result["nextActions"])
         self.assertEqual(1, len(result["recentCommits"]))
         self.assertEqual("main", result["recentCommits"][0]["branch"])
+        self.assertNotIn("executionDecision", result)
 
         json.dumps(result, ensure_ascii=False)
 
@@ -523,16 +524,72 @@ class MaintenanceBriefTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-        summary = kit_feature_brief.brief_result(self.root, "demo-feature")
+        summary = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
         expanded = kit_feature_brief.brief_result(self.root, "demo-feature", "T02")
 
         self.assertEqual("T02", summary["currentTask"]["id"])
+        self.assertEqual("RUN", summary["executionDecision"])
+        self.assertFalse(summary["confirmationRequired"])
+        self.assertEqual(["T02"], summary["readyTasks"])
         self.assertIsNone(summary["selectedTask"])
         self.assertEqual("T02", expanded["selectedTask"]["id"])
         self.assertIn("依赖：T01", expanded["selectedTask"]["body"])
         self.assertNotIn("后续处理", expanded["selectedTask"]["body"])
         with self.assertRaisesRegex(ValueError, "没有任务"):
             kit_feature_brief.brief_result(self.root, "demo-feature", "T99")
+
+    def test_brief_orders_all_ready_tasks_by_plan_position(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [x] T01 已完成\n\n"
+            "- [ ] T02 当前任务\n\n"
+            "  依赖：T01\n\n"
+            "- [ ] T03 后续独立任务\n\n"
+            "  依赖：T01\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
+
+        self.assertEqual("T02", result["currentTask"]["id"])
+        self.assertEqual(["T02", "T03"], result["readyTasks"])
+        self.assertEqual("RUN", result["executionDecision"])
+
+    def test_brief_blocks_execution_when_plan_approval_is_missing(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        self.set_reviews(feature, "已批准", "待审阅")
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
+
+        self.assertEqual("BLOCKED", result["executionDecision"])
+        self.assertTrue(result["confirmationRequired"])
+
+    def test_brief_marks_plan_execution_complete(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [x] T01 已完成\n- [x] T02 已完成\n", encoding="utf-8"
+        )
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
+
+        self.assertEqual("COMPLETE", result["executionDecision"])
+        self.assertFalse(result["confirmationRequired"])
+        self.assertEqual([], result["readyTasks"])
+        self.assertIsNone(result["currentTask"])
 
     def test_brief_task_body_stops_before_the_next_group(self) -> None:
         import kit_feature_brief
@@ -568,9 +625,13 @@ class MaintenanceBriefTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-        result = kit_feature_brief.brief_result(self.root, "demo-feature")
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
 
         self.assertIsNone(result["currentTask"])
+        self.assertEqual([], result["readyTasks"])
+        self.assertEqual("BLOCKED", result["executionDecision"])
         self.assertIn("结构错误", result["taskBlockers"][0])
         self.assertIn(
             "PLAN_DEPENDENCY_RANGE",
@@ -724,7 +785,31 @@ class MaintenanceBriefTest(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             code = kit_feature_brief.main(["--root", str(self.root), "demo-feature", "--json"])
         self.assertEqual(0, code)
-        json.loads(output.getvalue())
+        result = json.loads(output.getvalue())
+        self.assertNotIn("executionDecision", result)
+
+    def test_cli_execution_option_exposes_finish_gate(self) -> None:
+        import kit_feature_brief
+
+        self.write_feature("demo-feature")
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = kit_feature_brief.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "demo-feature",
+                    "--execution",
+                    "--json",
+                ]
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(0, code)
+        self.assertEqual("RUN", result["executionDecision"])
+        self.assertFalse(result["confirmationRequired"])
+        self.assertTrue(result["readyTasks"])
 
     def test_cli_accepts_task_option(self) -> None:
         import kit_feature_brief

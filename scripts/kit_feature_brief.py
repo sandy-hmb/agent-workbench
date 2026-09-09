@@ -349,26 +349,47 @@ def _task_summary(task: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _current_task(analysis: dict[str, object]) -> tuple[dict[str, object] | None, list[str]]:
+def _task_state(
+    analysis: dict[str, object],
+) -> tuple[dict[str, object] | None, list[dict[str, object]], list[str]]:
     diagnostics = analysis["diagnostics"]
     if any(item["severity"] == "error" for item in diagnostics):
-        return None, ["计划存在结构错误，修复后才能选择可执行任务"]
+        return None, [], ["计划存在结构错误，修复后才能选择可执行任务"]
     tasks = analysis["tasks"]
     completed_ids = {
         task["id"] for task in tasks if task["id"] is not None and task["completed"]
     }
+    ready = []
     blockers = []
     for task in tasks:
         if task["completed"]:
             continue
         if task["id"] is None:
-            return _task_summary(task), blockers
+            ready.append(_task_summary(task))
+            continue
         missing = [dependency for dependency in task["dependencies"] if dependency not in completed_ids]
         if missing:
             blockers.append(f"任务 {task['id']} 等待：{', '.join(missing)}")
             continue
-        return _task_summary(task), blockers
-    return None, blockers
+        ready.append(_task_summary(task))
+    return (ready[0] if ready else None), ready, blockers
+
+
+def _execution_decision(
+    stage: dict[str, object],
+    progress: dict[str, int],
+    current_task: dict[str, object] | None,
+) -> str:
+    current_stage = stage["currentStage"]
+    if current_stage == "feature.implement":
+        return "RUN" if current_task is not None else "BLOCKED"
+    if (
+        progress["total"] > 0
+        and progress["completed"] == progress["total"]
+        and current_stage in {"feature.verify", "feature.submit-test", "feature.complete"}
+    ):
+        return "COMPLETE"
+    return "BLOCKED"
 
 
 def _selected_task(
@@ -390,7 +411,11 @@ def _selected_task(
 
 
 def brief_result(
-    root: Path, slug: str | None = None, task_id: str | None = None
+    root: Path,
+    slug: str | None = None,
+    task_id: str | None = None,
+    *,
+    execution: bool = False,
 ) -> dict[str, object]:
     root = Path(root).resolve()
     status = status_result(root)
@@ -402,11 +427,12 @@ def brief_result(
     plan = feature_dir / FEATURE_FILES["plan"]
     analysis = plan_analysis(plan)
     pending = [task["line"] for task in analysis["tasks"] if not task["completed"]]
-    current_task, task_blockers = _current_task(analysis)
+    current_task, ready_tasks, task_blockers = _task_state(analysis)
+    progress = plan_progress(plan)
     record = verification_record(feature_dir)
     verification_summary = record[:VERIFICATION_SUMMARY_LIMIT] if record is not None else None
     verification_truncated = record is not None and len(record) > VERIFICATION_SUMMARY_LIMIT
-    return {
+    result = {
         "featureSlug": resolved,
         "status": feature["status"],
         "repositories": feature["repositories"],
@@ -426,7 +452,7 @@ def brief_result(
             for blocker in status["blockers"]
             if slug is None or blocker not in {"MULTIPLE_ACTIVE_FEATURES", "ACTIVE_FEATURE_INVALID"}
         ],
-        "progress": plan_progress(feature_dir / FEATURE_FILES["plan"]),
+        "progress": progress,
         "pendingTasks": pending[:PENDING_TASK_LIMIT],
         "currentTask": current_task,
         "taskBlockers": task_blockers,
@@ -443,6 +469,15 @@ def brief_result(
             for repo, branch in feature["branches"]
         ],
     }
+    if execution:
+        result.update(
+            {
+                "readyTasks": [task["id"] or task["title"] for task in ready_tasks],
+                "executionDecision": _execution_decision(stage, progress, current_task),
+                "confirmationRequired": stage["confirmation"]["required"],
+            }
+        )
+    return result
 
 
 def _render_text(result: dict[str, object]) -> None:
@@ -453,6 +488,9 @@ def _render_text(result: dict[str, object]) -> None:
         print("阻塞：" + ", ".join(blockers))
     progress = result["progress"]
     print(f"计划：{progress['completed']}/{progress['total']}")
+    if "executionDecision" in result:
+        print(f"执行决策：{result['executionDecision']}")
+        print(f"需要确认：{'是' if result['confirmationRequired'] else '否'}")
     pending = result["pendingTasks"]
     if pending:
         print("未完成项：")
@@ -466,6 +504,9 @@ def _render_text(result: dict[str, object]) -> None:
             f"当前任务：{current_task['id'] or '未编号'} {current_task['title']}"
             f"（{current_task['path']}:{current_task['startLine']}）"
         )
+    ready_tasks = result.get("readyTasks", [])
+    if ready_tasks:
+        print("可执行队列：" + "、".join(str(task) for task in ready_tasks))
     summary = result["verificationSummary"]
     if summary is not None:
         print("最近有效验证记录：")
@@ -496,6 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("slug", nargs="?", help="不传时取活跃指针或唯一的进行中需求")
     parser.add_argument("--task", dest="task_id", help="展开指定编号任务的正文与引用")
     parser.add_argument("--check", action="store_true", help="检查已有文档的本地结构与引用")
+    parser.add_argument("--execution", action="store_true", help="补充连续执行决策与可执行队列")
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -503,7 +545,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = brief_result(args.root, args.slug, args.task_id)
+        result = brief_result(args.root, args.slug, args.task_id, execution=args.execution)
     except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 1
