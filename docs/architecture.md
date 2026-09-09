@@ -124,7 +124,7 @@ Core Workflow 的公共锚点定义在 [feature-development.json](../workflows/f
 | 8 | `feature.submit-test` | 向配置测试目标交付，可选。 |
 | 9 | `feature.complete` | 核对验收并确认结束。 |
 
-Stage 提供相对顺序和扩展插入点。它们并不包含一套自动执行所有讨论、编码和交付步骤的程序。`status` 返回的是适合续接的阶段建议，未必逐一显示所有锚点；具体操作仍由 Agent 根据当前 Core Skill 完成。详细协作步骤见[第一个需求](guides/first-feature.md)。
+Stage 提供相对顺序和扩展插入点。它们并不包含一套自动执行所有讨论、编码和交付步骤的程序。`status` 返回的是适合续接的阶段建议，未必逐一显示所有锚点；具体操作仍由 Agent 根据当前 Core Skill 完成。实施阶段的一次一个可验证任务不是会话边界，Agent 有下一项依赖满足的未完成任务时直接继续；只有全部任务完成或所有剩余任务真实阻塞时，才能结束当前请求。宿主强制中断仍通过计划复选框、实际 diff 和验证证据恢复。详细协作步骤见[第一个需求](guides/first-feature.md)。
 
 ## 4. 状态、失败与续接
 

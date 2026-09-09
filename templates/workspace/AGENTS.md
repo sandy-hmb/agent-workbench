@@ -5,6 +5,7 @@
 - 没有 Skill 发现能力时，按 status 返回的 `runbook` 路径读取普通 Markdown；不需要安装 Skill。
 - 读取 `.workspace/workspace.json`、`.workspace/CONTEXT.md`、相关 `.workspace/docs/repositories/<repo>.md` 和当前需求记录。
 - 业务仓位于 Kit 父目录，均为独立 Git 仓库；未明确授权时只读。
+- 未明确要求 worktree 时，默认在目标仓当前工作目录开发；分支批准不包含 worktree 操作。创建、删除、切换到或把代码迁移至其他 worktree 前，必须展示目标仓、分支或基线、目录和用途并取得明确确认。
 - 同一任务内已授权的具体范围持续有效，切换 Skill 或阶段不重复确认；目标仓、外部环境、待执行 Extension 内容或实际影响变化时重新核对。
 - 用户需求记录位于 `.workspace/docs/features/<feature-slug>/`。
 - 需求绑定的 SQL、DDL、DML、fixture 和其他交付物放在当前需求的 `artifacts/`，SQL 放在 `artifacts/sql/`，不要默认写入业务仓。

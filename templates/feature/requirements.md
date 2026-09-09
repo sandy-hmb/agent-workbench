@@ -1,6 +1,6 @@
 # {title} 需求
 
-{summary}
+**目标：** {summary}
 
 ## 背景与目标
 

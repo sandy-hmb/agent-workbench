@@ -251,17 +251,40 @@ class SurfaceTest(unittest.TestCase):
         plan = (templates / "implementation.md").read_text(encoding="utf-8")
         readme = (templates / "README.md").read_text(encoding="utf-8")
         self.assertIn("### R1", requirements)
+        self.assertIn("{summary}", requirements)
+        self.assertIn("## 背景与目标", requirements)
+        self.assertIn("## 范围与边界", requirements)
+        self.assertIn("## 功能需求与验收", requirements)
         self.assertIn('<a id="d01"></a>', design)
         self.assertIn("完整、自包含的技术设计和唯一主入口", design)
         self.assertLess(design.index("## D01"), design.index("## 需求覆盖"))
         self.assertIn("角色权限、字段映射或方案比较使用表格", design)
         self.assertIn("审批、事务、迁移或发布顺序使用编号步骤", design)
+        for field in (
+            "**目标：**",
+            "**选定方案：**",
+            "**关键约束：**",
+            "## 现状与方案选择",
+            "## 需求覆盖",
+        ):
+            self.assertIn(field, design)
+        for field in (
+            "**目标：**",
+            "**方案：**",
+            "**技术栈：**",
+            "**设计来源：**",
+            "### 全局约束",
+            "**文件**",
+            "**接口**",
+            "**实施步骤**",
+            "**验证**",
+            "连续执行",
+        ):
+            self.assertIn(field, plan)
+        self.assertNotRegex(plan, r"(?m)^[ \t]+- \[[ x]\]")
         self.assertIn("data-model.md#d01-字段设计", plan)
         self.assertIn("## 执行概览", plan)
         self.assertIn("### 1. 示例分组", plan)
-        self.assertIn("**改动位置**", plan)
-        self.assertIn("**实施步骤**", plan)
-        self.assertIn("**验证**", plan)
         self.assertIn("## 整体验证与完成条件", plan)
         data_model = (templates / "data-model.md").read_text(encoding="utf-8")
         api_integration = (templates / "api-integration.md").read_text(encoding="utf-8")
@@ -295,10 +318,50 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("自然业务或交付领域", plan_skill)
         self.assertIn("Markdown 预览", plan_skill)
         self.assertIn("范围缩写", plan_skill)
+        self.assertIn("存在真实技术取舍", design_skill)
+        self.assertIn("占位内容、内部矛盾、范围和表述歧义", design_skill)
+        self.assertIn("全部任务做一次代码事实预检", plan_skill)
+        self.assertIn("普通代码漂移", plan_skill)
+        self.assertIn("任务边界、验证强度", plan_skill)
         self.assertIn("--task T01", execute_skill)
         self.assertIn("--check", execute_skill)
         self.assertIn("覆盖验收", verify_skill)
         self.assertIn("执行情况", verify_skill)
+
+    def test_worktree_requires_explicit_user_request(self):
+        paths = (
+            ROOT / "AGENTS.md",
+            ROOT / "templates/workspace/AGENTS.md",
+            ROOT / ".agents/skills/workspace-execute-plan/SKILL.md",
+            ROOT / "docs/guides/first-feature.md",
+        )
+        for path in paths:
+            with self.subTest(path=path.relative_to(ROOT)):
+                content = path.read_text(encoding="utf-8")
+                self.assertIn("未明确要求 worktree 时", content)
+                self.assertIn("默认在目标仓当前工作目录开发", content)
+                self.assertIn("分支批准不包含 worktree 操作", content)
+
+    def test_execution_plan_runs_until_complete_or_blocked(self):
+        paths = (
+            ROOT / ".agents/skills/workspace-execute-plan/SKILL.md",
+            ROOT / "docs/guides/first-feature.md",
+            ROOT / "docs/architecture.md",
+        )
+        for path in paths:
+            with self.subTest(path=path.relative_to(ROOT)):
+                content = path.read_text(encoding="utf-8")
+                self.assertIn("一次一个可验证任务不是会话边界", content)
+                self.assertIn("有下一项依赖满足的未完成任务时直接继续", content)
+                self.assertIn("只有全部任务完成或所有剩余任务真实阻塞时", content)
+
+        execute = paths[0].read_text(encoding="utf-8")
+        self.assertIn("单个任务受阻", execute)
+        self.assertIn("普通代码漂移", execute)
+        self.assertIn(
+            "当前任务、阻塞类别、实际证据、已完成的安全步骤和最小用户决策",
+            execute,
+        )
 
     def test_add_repo_apply_regenerates_generated_context_safely(self):
         content = (ROOT / ".agents/skills/workspace-init/SKILL.md").read_text(
