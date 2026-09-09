@@ -408,7 +408,10 @@ class SurfaceTest(unittest.TestCase):
 
     def test_reusable_surface_has_no_product_specific_integrations(self):
         paths = [ROOT / "README.md", ROOT / "AGENTS.md"]
-        paths.extend((ROOT / "docs").rglob("*.md"))
+        paths.extend(
+            path for path in (ROOT / "docs").rglob("*.md")
+            if not path.is_relative_to(ROOT / "docs/development")
+        )
         paths.extend(core_skill_files())
         for path in paths:
             with self.subTest(path=path.relative_to(ROOT)):

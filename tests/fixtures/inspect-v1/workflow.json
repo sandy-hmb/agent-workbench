@@ -1,0 +1,162 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "workflow",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:5890243bbc7553ec63d7d808a675b33648f21b16f4483ab0ab3e7f461aa9c249",
+  "data": {
+    "enabled": true,
+    "workflowId": "feature-development",
+    "configState": "valid",
+    "orderedStages": [
+      {
+        "id": "feature.context",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.context",
+        "source": "core"
+      },
+      {
+        "id": "feature.classify",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.classify",
+        "source": "core"
+      },
+      {
+        "id": "feature.analyze",
+        "core": true,
+        "optional": true,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.analyze",
+        "source": "core"
+      },
+      {
+        "id": "feature.design",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.design",
+        "source": "core"
+      },
+      {
+        "id": "feature.prepare-branch",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.prepare-branch",
+        "source": "core"
+      },
+      {
+        "id": "feature.implement",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.implement",
+        "source": "core"
+      },
+      {
+        "id": "quality.integration",
+        "core": false,
+        "optional": false,
+        "action": "action-extension/integration-test",
+        "trigger": "manual",
+        "placement": {
+          "before": null,
+          "after": "feature.implement"
+        },
+        "title": "quality.integration",
+        "source": "overlay"
+      },
+      {
+        "id": "feature.verify",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.verify",
+        "source": "core"
+      },
+      {
+        "id": "feature.submit-test",
+        "core": true,
+        "optional": true,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.submit-test",
+        "source": "core"
+      },
+      {
+        "id": "feature.complete",
+        "core": true,
+        "optional": false,
+        "action": null,
+        "trigger": "manual",
+        "placement": null,
+        "title": "feature.complete",
+        "source": "core"
+      }
+    ],
+    "configuredStages": [
+      {
+        "id": "quality.integration",
+        "action": "action-extension/integration-test",
+        "trigger": "manual",
+        "placement": {
+          "before": null,
+          "after": "feature.implement"
+        }
+      }
+    ],
+    "extensions": [
+      {
+        "id": "action-extension",
+        "declaredVersion": "1.0.0",
+        "lockedVersion": "1.0.0",
+        "activation": "matched",
+        "capabilities": [],
+        "actions": [
+          {
+            "id": "integration-test",
+            "title": "Run integration tests",
+            "effects": [
+              "process.exec"
+            ]
+          },
+          {
+            "id": "deploy-test",
+            "title": "Deploy to test",
+            "effects": [
+              "network",
+              "process.exec"
+            ]
+          }
+        ],
+        "source": "extensions/action-extension",
+        "diagnostics": []
+      }
+    ],
+    "providerBindings": []
+  },
+  "diagnostics": []
+}

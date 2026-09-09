@@ -1,9 +1,12 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "1.2.0",
+  "kitVersion": "1.3.0",
   "extensionActions": {
     "minimumApiVersion": 1,
-    "requiredFields": ["confirmation.title", "confirmation.summary"],
+    "requiredFields": [
+      "confirmation.title",
+      "confirmation.summary"
+    ],
     "migration": null
   },
   "manualSteps": [

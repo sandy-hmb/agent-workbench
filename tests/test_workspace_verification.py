@@ -4,9 +4,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import contextlib
 import io
 import json
+import os
+import time
 from pathlib import Path
 
 
@@ -51,6 +54,39 @@ def batch(states: dict[str, str], *exit_codes: int) -> str:
 
 
 class WorkspaceVerificationTest(unittest.TestCase):
+    def test_inspect_fingerprint_budget_rejects_large_untracked_content(self):
+        path = self.repository / "large.bin"
+        with path.open("wb") as handle:
+            handle.truncate(65 * 1024 * 1024)
+        with self.assertRaisesRegex(ValueError, "字节超过限制"):
+            workspace_verification.git_fingerprint(
+                self.repository, max_bytes=64 * 1024 * 1024, max_untracked_files=10_000
+            )
+
+    def test_fingerprint_shares_one_timeout_across_git_steps(self):
+        calls = [str(self.repository).encode() + b"\n"]
+        def slow_git(*_args):
+            import time
+            time.sleep(0.02)
+            return calls.pop(0)
+        with mock.patch("workspace_verification._git", side_effect=slow_git):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                workspace_verification.git_fingerprint(self.repository, timeout=0.01)
+
+    def test_git_output_budget_kills_continuous_producer_before_timeout(self):
+        fake = self.repository / "bin"; fake.mkdir()
+        script = fake / "git"
+        script.write_text(
+            "#!/usr/bin/env python3\nimport sys,time\n"
+            "sys.stdout.buffer.write(b'x' * 4096); sys.stdout.flush()\n"
+            "sys.stdout.buffer.write(b'y' * 4096); sys.stdout.flush()\n"
+            "time.sleep(10)\n", encoding="utf-8")
+        script.chmod(0o755)
+        before = time.monotonic()
+        with mock.patch.dict(os.environ, {"PATH": f"{fake}:{os.environ['PATH']}"}):
+            with self.assertRaisesRegex(ValueError, "Git 输出超过限制"):
+                workspace_verification._git(self.repository, ["anything"], timeout=2, max_output_bytes=4096)
+        self.assertLess(time.monotonic() - before, 1)
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.repository = Path(self.temp.name).resolve()

@@ -1,0 +1,50 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "run",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:8dad3182380439f08583242eab50f6191b57c81ebb418f680633dc05774d9cd0",
+  "data": {
+    "id": "demo-run",
+    "workflow": "feature-development",
+    "featureSlug": "demo",
+    "repository": null,
+    "branch": null,
+    "records": [
+      {
+        "stage": "quality.integration",
+        "fingerprint": "sha256:4935870588bf7b228788e86094fec1f61c90647dbb987f7c8aad41700f9025df",
+        "status": "succeeded",
+        "updatedAt": "2026-09-08T10:00:00Z",
+        "summary": "样例检查通过",
+        "configurationMatch": {
+          "state": "matched",
+          "reasonCodes": []
+        }
+      }
+    ],
+    "source": ".workspace/runs/demo-run.json",
+    "sourceRevision": "sha256:aea1607abe5413e1ace03e38a773ab826068447878f522ec44952a8500747f18",
+    "rawRecord": {
+      "schemaVersion": 1,
+      "id": "demo-run",
+      "workflow": "feature-development",
+      "featureSlug": "demo",
+      "repository": null,
+      "branch": null,
+      "stages": {
+        "quality.integration": {
+          "fingerprint": "sha256:4935870588bf7b228788e86094fec1f61c90647dbb987f7c8aad41700f9025df",
+          "status": "succeeded",
+          "updatedAt": "2026-09-08T10:00:00Z",
+          "summary": "样例检查通过"
+        }
+      }
+    }
+  },
+  "diagnostics": []
+}

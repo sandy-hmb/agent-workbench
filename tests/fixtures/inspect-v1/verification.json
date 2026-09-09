@@ -1,0 +1,85 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "verification",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:5ccddaaa0c76a1c9018c27b74f0b68ade2f717dc189fb25cf72e4fd7c0f77257",
+  "data": {
+    "slug": "demo",
+    "featureRevision": "sha256:4d1bb552181ac553c55337daeeb17d6d7fafcf9013ec51f4e64116599d6f73e5",
+    "documentRevision": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3",
+    "batches": [
+      {
+        "id": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3:1",
+        "recordedAt": "2026-09-08T10:00:00Z",
+        "source": {
+          "path": "testing/verification.md",
+          "startLine": 1,
+          "endLine": 11
+        }
+      }
+    ],
+    "latestBatchId": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3:1",
+    "selectedBatch": {
+      "id": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3:1",
+      "recordedAt": "2026-09-08T10:00:00Z",
+      "source": {
+        "path": "testing/verification.md",
+        "startLine": 1,
+        "endLine": 11
+      },
+      "raw": "## 验证批次 2026-09-08T10:00:00Z\n- 总体结果：通过\n- 审查结论：通过\n- 代码状态：{\"service\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\n\n### 检查 1\n- 工作目录：../service\n- 命令：python3 -m unittest\n- 退出状态：0\n- 结果：通过\n- 测试数量：3",
+      "recordedResult": "passed",
+      "recordedReview": "passed",
+      "completeness": "complete",
+      "issues": [],
+      "checks": [
+        {
+          "id": "1",
+          "source": {
+            "path": "testing/verification.md",
+            "startLine": 6,
+            "endLine": 11
+          },
+          "workingDirectory": "../service",
+          "command": "python3 -m unittest",
+          "exitStatus": "0",
+          "result": "通过",
+          "duration": null,
+          "testCount": 3
+        }
+      ]
+    },
+    "checkMode": "records_only",
+    "repositoryStates": [
+      {
+        "repository": "service",
+        "state": "not_checked",
+        "reasonCodes": [],
+        "recordedFingerprint": null,
+        "currentFingerprint": null,
+        "currentHead": null,
+        "source": "record"
+      }
+    ],
+    "applicability": "not_checked",
+    "progression": {
+      "state": "known",
+      "currentStage": "feature.implement",
+      "nextActions": [
+        {
+          "stage": "feature.implement",
+          "runbook": ".agents/skills/workspace-execute-plan/SKILL.md",
+          "reason": "继续需求 demo",
+          "confirmation": "local"
+        }
+      ],
+      "blockers": []
+    }
+  },
+  "diagnostics": []
+}

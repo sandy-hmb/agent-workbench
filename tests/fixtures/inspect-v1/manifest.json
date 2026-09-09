@@ -1,0 +1,22 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "source": "真实 CLI 对临时合成工作区的响应",
+  "regenerate": "python3 -B tests/test_inspect_examples.py --update-examples",
+  "normalization": [
+    "临时根路径替换为 /synthetic",
+    "observedAt 固定为样例时间"
+  ],
+  "operations": [
+    "workspace",
+    "features",
+    "feature",
+    "document",
+    "verification",
+    "workflow",
+    "runs",
+    "run"
+  ]
+}

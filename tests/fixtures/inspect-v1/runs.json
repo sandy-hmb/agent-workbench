@@ -1,0 +1,38 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "runs",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:22b6c39822ea561221305c5f27be44736979e5e3d7f23b30cc1a56295de6bc35",
+  "data": {
+    "items": [
+      {
+        "id": "demo-run",
+        "workflow": "feature-development",
+        "featureSlug": "demo",
+        "repository": null,
+        "branch": null,
+        "updatedAt": "2026-09-08T10:00:00Z",
+        "source": ".workspace/runs/demo-run.json",
+        "recordCounts": {
+          "total": 1
+        }
+      }
+    ],
+    "counts": {
+      "parsed": 1,
+      "diagnostics": 0
+    },
+    "page": {
+      "offset": 0,
+      "limit": 100,
+      "total": 1,
+      "hasMore": false
+    }
+  },
+  "diagnostics": []
+}

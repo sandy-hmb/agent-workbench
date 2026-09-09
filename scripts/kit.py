@@ -34,6 +34,7 @@ COMMANDS = {
     "describe": ("kit_describe", "生成脚本→子命令→runbook 的机器可读能力清单"),
     "brief": ("kit_feature_brief", "接手进行中需求的最小上下文包（--json/文本）"),
     "verify": ("workspace_verification", "读取需求当前 Git 代码状态指纹"),
+    "inspect": ("workspace_inspect", "供工作台按需读取工作区、需求与工作流记录"),
 }
 
 

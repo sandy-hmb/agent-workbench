@@ -38,6 +38,7 @@ COMMAND_RUNBOOKS = {
     "describe": "AGENTS.md",
     "brief": "docs/guides/first-feature.md",
     "verify": ".agents/skills/workspace-verify/SKILL.md",
+    "inspect": "docs/reference/workbench-inspect.md",
 }
 
 EXEMPT = {

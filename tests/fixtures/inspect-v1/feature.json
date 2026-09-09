@@ -1,0 +1,140 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "feature",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:77f7076afa5ba1277aed882c2fe9ac498c0986ce80dbb34789c31f24c1a6fd02",
+  "data": {
+    "summary": {
+      "slug": "demo",
+      "title": "合成需求",
+      "titleSource": "heading",
+      "status": "development",
+      "path": ".workspace/docs/features/demo",
+      "lastUpdated": "2026-09-08",
+      "repositoryBindings": [
+        {
+          "repository": "service",
+          "workBranch": "feature/demo",
+          "baseBranch": "main",
+          "source": "README.md"
+        }
+      ],
+      "planSummary": {
+        "exists": true,
+        "completed": 1,
+        "total": 2,
+        "diagnostics": []
+      },
+      "documentReviews": {
+        "requirements": "已批准",
+        "design": "已批准",
+        "plan": "已批准"
+      },
+      "verificationSummary": {
+        "exists": true,
+        "codeState": "not_checked"
+      }
+    },
+    "tasks": [
+      {
+        "id": "T01",
+        "title": "创建样例",
+        "completed": true,
+        "dependencies": [],
+        "references": [],
+        "startLine": 3,
+        "endLine": 6,
+        "path": "plans/implementation.md",
+        "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f"
+      },
+      {
+        "id": "T02",
+        "title": "读取结果",
+        "completed": false,
+        "dependencies": [
+          "T01"
+        ],
+        "references": [],
+        "startLine": 7,
+        "endLine": 9,
+        "path": "plans/implementation.md",
+        "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f"
+      }
+    ],
+    "files": [
+      {
+        "path": "README.md",
+        "exists": true,
+        "type": "md",
+        "bytes": 288,
+        "revision": "sha256:44baa70da87ce5abc7df6c5cf8195729e04a44e18cd779dc16a603de161891cf"
+      },
+      {
+        "path": "design/design.md",
+        "exists": true,
+        "type": "md",
+        "bytes": 31,
+        "revision": "sha256:4ca61455e8a3d9f053742db4646bcfa8df4d9a1bd1f93739f6217c9021703c14"
+      },
+      {
+        "path": "design/details.md",
+        "exists": true,
+        "type": "md",
+        "bytes": 15,
+        "revision": "sha256:6bba3a07b1901282ca424c18b776f26462abbfbd5cfed66511e93def8f8036b7"
+      },
+      {
+        "path": "plans/implementation.md",
+        "exists": true,
+        "type": "md",
+        "bytes": 95,
+        "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f"
+      },
+      {
+        "path": "requirements/requirements.md",
+        "exists": true,
+        "type": "md",
+        "bytes": 41,
+        "revision": "sha256:3ae6e6225f8f573f38e68fbd6dcdb2b758b112568631ce814a00ee7f8b098cc1"
+      },
+      {
+        "path": "testing/verification.md",
+        "exists": true,
+        "type": "md",
+        "bytes": 317,
+        "revision": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3"
+      }
+    ],
+    "artifacts": [
+      {
+        "path": "artifacts/example.sql",
+        "type": "sql"
+      }
+    ],
+    "description": {
+      "content": "这是可重复生成的公开样例。",
+      "line": 12,
+      "truncated": false
+    },
+    "progression": {
+      "state": "known",
+      "currentStage": "feature.implement",
+      "nextActions": [
+        {
+          "stage": "feature.implement",
+          "runbook": ".agents/skills/workspace-execute-plan/SKILL.md",
+          "reason": "继续需求 demo",
+          "confirmation": "local"
+        }
+      ],
+      "blockers": []
+    },
+    "featureRevision": "sha256:4d1bb552181ac553c55337daeeb17d6d7fafcf9013ec51f4e64116599d6f73e5"
+  },
+  "diagnostics": []
+}

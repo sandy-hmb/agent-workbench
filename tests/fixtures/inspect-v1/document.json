@@ -1,0 +1,21 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "document",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:7e9657608dd9633d89f90c077f4c9bc42c8d57078c7fcbc1286df5db0e3eb0d3",
+  "data": {
+    "slug": "demo",
+    "path": "plans/implementation.md",
+    "mediaType": "text/markdown",
+    "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f",
+    "bytes": 95,
+    "lineCount": 9,
+    "content": "# 实施计划\n\n- [x] T01 创建样例\n\n  依赖：无\n\n- [ ] T02 读取结果\n\n  依赖：T01\n"
+  },
+  "diagnostics": []
+}

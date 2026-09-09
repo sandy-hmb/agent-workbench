@@ -1,0 +1,62 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "features",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:30f6f81040f6afd9cd081acbbca880156f67e25919593a27a7cc60b08b42af83",
+  "data": {
+    "items": [
+      {
+        "slug": "demo",
+        "title": "合成需求",
+        "titleSource": "heading",
+        "status": "development",
+        "path": ".workspace/docs/features/demo",
+        "lastUpdated": "2026-09-08",
+        "repositoryBindings": [
+          {
+            "repository": "service",
+            "workBranch": "feature/demo",
+            "baseBranch": "main",
+            "source": "README.md"
+          }
+        ],
+        "planSummary": {
+          "exists": true,
+          "completed": 1,
+          "total": 2,
+          "diagnostics": []
+        },
+        "documentReviews": {
+          "requirements": "已批准",
+          "design": "已批准",
+          "plan": "已批准"
+        },
+        "verificationSummary": {
+          "exists": true,
+          "codeState": "not_checked"
+        }
+      }
+    ],
+    "counts": {
+      "parsed": 1,
+      "diagnostics": 0,
+      "development": 1,
+      "done": 0,
+      "paused": 0,
+      "planning": 0,
+      "testing": 0
+    },
+    "page": {
+      "offset": 0,
+      "limit": 100,
+      "total": 1,
+      "hasMore": false
+    }
+  },
+  "diagnostics": []
+}

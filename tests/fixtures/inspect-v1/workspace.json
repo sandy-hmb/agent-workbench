@@ -1,0 +1,117 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "operation": "workspace",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:87b329f29e4de632883a460896af38fdf0d5e3a09ae5673c0d90f9ede611b295",
+  "data": {
+    "mode": "workspace",
+    "identity": {
+      "name": "Demo"
+    },
+    "repositories": [
+      {
+        "id": "kit",
+        "role": "kit",
+        "absolutePath": "/synthetic/kit",
+        "aliases": [],
+        "category": "kit",
+        "description": "agent-workbench Kit",
+        "availability": "present",
+        "effectiveBranchPolicy": null,
+        "policySources": {}
+      },
+      {
+        "id": "service",
+        "role": "business",
+        "absolutePath": "/synthetic/service",
+        "aliases": [],
+        "category": "backend",
+        "description": "合成业务仓",
+        "availability": "present",
+        "effectiveBranchPolicy": {
+          "workBase": "develop",
+          "testTarget": "test",
+          "hotfixBase": "main",
+          "namePattern": "{owner}/{type}/{slug}"
+        },
+        "policySources": {
+          "workBase": {
+            "source": "kit-default",
+            "path": "VERSION",
+            "pointer": null
+          },
+          "testTarget": {
+            "source": "kit-default",
+            "path": "VERSION",
+            "pointer": null
+          },
+          "hotfixBase": {
+            "source": "kit-default",
+            "path": "VERSION",
+            "pointer": null
+          },
+          "namePattern": {
+            "source": "kit-default",
+            "path": "VERSION",
+            "pointer": null
+          }
+        }
+      }
+    ],
+    "localContext": {
+      "activeFeature": null,
+      "branchOwner": "alice",
+      "primaryRole": null,
+      "sources": {
+        "activeFeature": ".workspace/workspace.local.json",
+        "branchOwner": ".workspace/workspace.local.json",
+        "primaryRole": ".workspace/workspace.local.json"
+      }
+    },
+    "configuration": {
+      "providers": {},
+      "repositoryOverrides": {},
+      "extensionStatus": {
+        "activeIds": [
+          "action-extension"
+        ],
+        "blockedCodes": []
+      },
+      "unknownExtensionConfig": {
+        "keys": {
+          "action-extension": {}
+        },
+        "valuesOmitted": true
+      }
+    },
+    "protocol": {
+      "operations": [
+        "workspace",
+        "features",
+        "feature",
+        "document",
+        "verification",
+        "workflow",
+        "runs",
+        "run"
+      ],
+      "apiVersion": {
+        "major": 1,
+        "minor": 0
+      },
+      "limits": {
+        "maxFileBytes": 1048576,
+        "maxResponseBytes": 8388608,
+        "maxPageSize": 200,
+        "maxDirectoryEntries": 10000
+      },
+      "kitVersion": "1.0"
+    }
+  },
+  "diagnostics": []
+}

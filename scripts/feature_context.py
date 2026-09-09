@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from workspace_local import LocalSettings, canonical_local_json, load_local_settings
 from workspace_model import Workspace, WorkspaceError, load_workspace, resolve_repository
@@ -50,9 +50,9 @@ class FeatureSummary:
     updated: str
 
 
-def feature_metadata(readme: Path) -> dict[str, str]:
+def feature_metadata(readme: Path, text: str | None = None) -> dict[str, str]:
     fields: dict[str, str] = {}
-    for line in readme.read_text(encoding="utf-8").splitlines():
+    for line in (readme.read_text(encoding="utf-8") if text is None else text).splitlines():
         match = FIELD_RE.match(line)
         if match:
             name = match.group(1).strip()
@@ -124,7 +124,7 @@ def _canonical_repositories(
     return tuple(result)
 
 
-def feature_summary(workspace: Workspace, feature: Path) -> FeatureSummary:
+def feature_summary(workspace: Workspace, feature: Path, readme_text: str | None = None) -> FeatureSummary:
     features = features_root(workspace.root)
     readme = feature / "README.md"
     try:
@@ -140,7 +140,7 @@ def feature_summary(workspace: Workspace, feature: Path) -> FeatureSummary:
             raise ValueError(f"需求 README 不存在或不安全：{readme}")
     except (OSError, RuntimeError) as exc:
         raise ValueError(f"需求目录路径不可解析：{feature}") from exc
-    metadata = feature_metadata(readme)
+    metadata = feature_metadata(readme, readme_text)
     feature_status = metadata.get("状态", "")
     if feature_status not in FEATURE_STATUSES:
         raise ValueError(f"{readme} 的状态无效：{feature_status}")
@@ -194,10 +194,17 @@ def _features_root(root: Path) -> Path:
         raise ValueError(f"需求目录路径不可解析：{root}") from exc
 
 
-def _feature_directories(root: Path):
+def _feature_directories(root: Path, max_entries: int | None = None, check: Callable[[], None] | None = None):
     features = _features_root(root)
     try:
-        children = sorted(features.iterdir())
+        children = []
+        for path in features.iterdir():
+            if check is not None:
+                check()
+            if max_entries is not None and len(children) >= max_entries:
+                raise ValueError("需求目录项超过限制")
+            children.append(path)
+        children.sort()
     except OSError as exc:
         raise ValueError(f"无法读取需求目录：{features}") from exc
     for path in children:
@@ -248,7 +255,7 @@ def list_features(root: Path, status: str | None = None) -> list[FeatureSummary]
     return result
 
 
-def list_features_lenient(root: Path) -> tuple[list[FeatureSummary], list[dict[str, str]]]:
+def list_features_lenient(root: Path, *, workspace: Workspace | None = None, readme_reader: Callable[[Path], str] | None = None, max_entries: int | None = None, check: Callable[[], None] | None = None) -> tuple[list[FeatureSummary], list[dict[str, str]]]:
     """像 list_features 一样列出需求，但单个需求解析失败时收集而不是整体报错。
 
     路径安全检查（符号链接、越出治理根）仍在 _feature_directories 内整体抛出，
@@ -256,13 +263,14 @@ def list_features_lenient(root: Path) -> tuple[list[FeatureSummary], list[dict[s
     """
     root = root.resolve()
     _features_root(root)
-    workspace = load_workspace(root)
-    directories = list(_feature_directories(root))
+    workspace = load_workspace(root) if workspace is None else workspace
+    directories = _feature_directories(root, max_entries, check)
     result: list[FeatureSummary] = []
     degraded: list[dict[str, str]] = []
     for feature in directories:
         try:
-            result.append(feature_summary(workspace, feature))
+            text = readme_reader(feature / "README.md") if readme_reader is not None else None
+            result.append(feature_summary(workspace, feature, text))
         except (ValueError, OSError, RuntimeError) as exc:
             degraded.append({"path": feature.relative_to(root).as_posix(), "error": str(exc)})
     return result, degraded

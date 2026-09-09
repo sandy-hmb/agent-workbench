@@ -10,6 +10,8 @@ import re
 import stat
 import subprocess
 import sys
+import time
+import threading
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping
 
@@ -22,13 +24,54 @@ BATCH_HEADER_RE = re.compile(
 )
 CHECK_HEADER_RE = re.compile(r"^### 检查 [1-9][0-9]*\s*$", re.MULTILINE)
 CHECK_FIELDS = ("工作目录：", "命令：", "退出状态：", "结果：")
+INSPECT_MAX_UNTRACKED_FILES = 10_000
+INSPECT_MAX_FINGERPRINT_BYTES = 64 * 1024 * 1024
 
 
-def _git(repository: Path, arguments: list[str]) -> bytes:
+def _git(repository: Path, arguments: list[str], timeout: float | None = None, max_output_bytes: int | None = None) -> bytes:
+    if max_output_bytes is not None:
+        process = subprocess.Popen(
+            ["git", "-C", str(repository), *arguments], stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"),
+        )
+        assert process.stdout is not None and process.stderr is not None
+        output: list[bytes] = []
+        error: list[bytes] = []
+        total = [0]
+        lock = threading.Lock()
+        exceeded = threading.Event()
+        def drain(handle: object, target: list[bytes]) -> None:
+            while chunk := handle.read1(4096):
+                with lock:
+                    total[0] += len(chunk)
+                    if total[0] > max_output_bytes:
+                        exceeded.set()
+                        if process.poll() is None: process.kill()
+                    else:
+                        target.append(chunk)
+        threads = [threading.Thread(target=drain, args=(process.stdout, output)), threading.Thread(target=drain, args=(process.stderr, error))]
+        for thread in threads: thread.start()
+        started = time.monotonic()
+        while process.poll() is None:
+            if exceeded.is_set() or (timeout is not None and time.monotonic() - started >= timeout):
+                process.kill(); break
+            time.sleep(0.005)
+        process.wait()
+        for thread in threads: thread.join()
+        process.stdout.close(); process.stderr.close()
+        if exceeded.is_set(): raise ValueError("代码核对 Git 输出超过限制")
+        if timeout is not None and time.monotonic() - started >= timeout:
+            raise subprocess.TimeoutExpired("git", timeout)
+        result_stdout, result_stderr = b"".join(output), b"".join(error)
+        if process.returncode:
+            message = result_stderr.decode("utf-8", errors="replace").strip()
+            raise ValueError(message or f"Git 命令失败：{' '.join(arguments)}")
+        return result_stdout
     result = subprocess.run(
         ["git", "-C", str(repository), *arguments],
         check=False,
         capture_output=True,
+        timeout=timeout,
         env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"),
     )
     if result.returncode:
@@ -53,24 +96,37 @@ def _digest_part(digest: object, label: bytes, value: bytes) -> None:
     digest.update(value)
 
 
-def git_fingerprint(repository: Path, excluded: Iterable[str] = ()) -> str:
+def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout: float | None = None, max_untracked_files: int | None = None, max_bytes: int | None = None) -> str:
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    def remaining() -> float | None:
+        if deadline is None:
+            return None
+        value = deadline - time.monotonic()
+        if value <= 0:
+            raise subprocess.TimeoutExpired("git", timeout)
+        return value
     repository = Path(repository).resolve()
-    top = Path(os.fsdecode(_git(repository, ["rev-parse", "--show-toplevel"]).strip())).resolve()
+    output_limit = max_bytes
+    top = Path(os.fsdecode(_git(repository, ["rev-parse", "--show-toplevel"], remaining(), output_limit).strip())).resolve()
     if top != repository:
         raise ValueError(f"仓库不是独立 Git 根目录：{repository}")
-    head = _git(repository, ["rev-parse", "--verify", "HEAD"]).strip()
+    head = _git(repository, ["rev-parse", "--verify", "HEAD"], remaining(), output_limit).strip()
     excluded_paths = _excluded_paths(excluded)
     pathspecs = [".", *(f":(exclude){path}" for path in excluded_paths)]
     diff = _git(
-        repository,
-        ["diff", "--binary", "--no-ext-diff", "HEAD", "--", *pathspecs],
+        repository, ["diff", "--binary", "--no-ext-diff", "HEAD", "--", *pathspecs], remaining(), output_limit,
     )
-    untracked = _git(repository, ["ls-files", "--others", "--exclude-standard", "-z", "--", "."])
+    untracked = _git(repository, ["ls-files", "--others", "--exclude-standard", "-z", "--", "."], remaining(), output_limit)
 
     digest = hashlib.sha256()
     _digest_part(digest, b"HEAD", head)
     _digest_part(digest, b"DIFF", diff)
-    for raw_path in sorted(path for path in untracked.split(b"\0") if path):
+    paths = sorted(path for path in untracked.split(b"\0") if path)
+    if max_untracked_files is not None and len(paths) > max_untracked_files:
+        raise ValueError("代码核对未跟踪文件数量超过限制")
+    consumed = len(head) + len(diff) + len(untracked)
+    for raw_path in paths:
+        remaining()
         relative = os.fsdecode(raw_path)
         if PurePosixPath(relative).as_posix() in excluded_paths:
             continue
@@ -79,11 +135,18 @@ def git_fingerprint(repository: Path, excluded: Iterable[str] = ()) -> str:
         if stat.S_ISLNK(file_stat.st_mode):
             content = os.fsencode(os.readlink(path))
         elif stat.S_ISREG(file_stat.st_mode):
-            content = path.read_bytes()
+            if max_bytes is not None and consumed + file_stat.st_size > max_bytes:
+                raise ValueError("代码核对读取字节超过限制")
+            chunks = []
+            with path.open("rb") as handle:
+                while chunk := handle.read(64 * 1024):
+                    remaining(); chunks.append(chunk)
+            content = b"".join(chunks)
         else:
             raise ValueError(f"未跟踪路径不是普通文件或符号链接：{path}")
         _digest_part(digest, b"PATH", raw_path)
         _digest_part(digest, b"DATA", content)
+        consumed += len(raw_path) + len(content)
     return f"sha256:{digest.hexdigest()}"
 
 
@@ -111,6 +174,91 @@ def encode_code_state(states: Mapping[str, str]) -> str:
 def _field(lines: list[str], prefix: str) -> str | None:
     values = [line[len(prefix) + 2 :].strip() for line in lines if line.startswith(f"- {prefix}")]
     return values[0] if len(values) == 1 and values[0] else None
+
+
+def describe_verification_document(text: str) -> dict[str, object]:
+    """Explain existing evidence without executing checks or inferring missing facts."""
+    # Use the same record boundaries as status; defer the import to avoid its
+    # verification -> status -> verification module cycle at import time.
+    from workspace_status import SECTION_RE, VERIFICATION_RECORD_RE
+
+    revision = "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+    matches = list(VERIFICATION_RECORD_RE.finditer(text))
+    batches = []
+    for match in matches:
+        boundary = SECTION_RE.search(text, match.end())
+        end = boundary.start() if boundary else len(text)
+        start_line = text.count("\n", 0, match.start()) + 1
+        batches.append({
+            "id": f"{revision}:{start_line}",
+            "recordedAt": match.group(0).split(" ", 2)[-1],
+            "source": {"path": "testing/verification.md", "startLine": start_line,
+                       "endLine": start_line + len(text[match.start():end].rstrip().splitlines()) - 1},
+        })
+    if not matches:
+        return {"documentRevision": revision, "batches": [], "latestBatchId": None, "selectedBatch": None}
+
+    latest = matches[-1]
+    boundary = SECTION_RE.search(text, latest.end())
+    record = text[latest.start():boundary.start() if boundary else len(text)].strip()
+    check_matches = list(CHECK_HEADER_RE.finditer(record))
+    header = record[:check_matches[0].start()].splitlines() if check_matches else record.splitlines()
+    issues: list[dict[str, object]] = []
+    selected = dict(batches[-1])
+    source_line = selected["source"]["startLine"]
+
+    def issue(code: str, message: str, line: int = source_line) -> None:
+        issues.append({"code": code, "message": message, "path": "testing/verification.md", "line": line})
+
+    def required(lines: list[str], field: str, line: int) -> str | None:
+        value = _field(lines, field)
+        if not value:
+            issue("VERIFICATION_FIELD_INCOMPLETE", f"字段缺失、为空或重复：{field}", line)
+        return value
+
+    def recorded_result(value: str | None) -> str:
+        if value == "通过":
+            return "passed"
+        return "failed" if value in {"失败", "不通过", "未通过"} else "unknown"
+
+    legacy = not BATCH_HEADER_RE.fullmatch(record.splitlines()[0])
+    if legacy:
+        issue("VERIFICATION_LEGACY_RECORD", "旧格式保留原文，不能作为完整批次核对")
+    overall = required(header, "总体结果：", source_line)
+    review = required(header, "审查结论：", source_line)
+    encoded = required(header, "代码状态：", source_line)
+    try:
+        code_state = json.loads(encoded) if encoded else None
+    except (ValueError, RecursionError):
+        code_state = None
+    if not _valid_code_state(code_state):
+        issue("VERIFICATION_CODE_STATE_INVALID", "未记录合法的仓库代码指纹集合")
+    if not check_matches:
+        issue("VERIFICATION_CHECKS_MISSING", "批次中没有完整的检查记录")
+
+    checks = []
+    for index, match in enumerate(check_matches):
+        end = check_matches[index + 1].start() if index + 1 < len(check_matches) else len(record)
+        lines = record[match.end():end].splitlines()
+        line = source_line + record.count("\n", 0, match.start())
+        fields = {name: required(lines, name, line) for name in CHECK_FIELDS}
+        test_count = _field(lines, "测试数量：")
+        checks.append({
+            "id": match.group(0).strip().split(" ")[-1],
+            "source": {"path": "testing/verification.md", "startLine": line,
+                       "endLine": source_line + len(record[:end].rstrip().splitlines()) - 1},
+            "workingDirectory": fields["工作目录："], "command": fields["命令："],
+            "exitStatus": fields["退出状态："], "result": fields["结果："],
+            "duration": _field(lines, "耗时："),
+            "testCount": int(test_count) if test_count and re.fullmatch(r"[0-9]{1,9}", test_count) else None,
+        })
+    selected.update({
+        "raw": record, "recordedResult": recorded_result(overall),
+        "recordedReview": recorded_result(review),
+        "completeness": "legacy" if legacy else "incomplete" if issues else "complete",
+        "issues": issues, "checks": checks,
+    })
+    return {"documentRevision": revision, "batches": batches, "latestBatchId": selected["id"], "selectedBatch": selected}
 
 
 def verification_passed(
@@ -148,7 +296,7 @@ def verification_passed(
 
 
 def feature_code_state(
-    root: Path, mode: str, feature: Mapping[str, object]
+    root: Path, mode: str, feature: Mapping[str, object], *, timeout: float | None = None, inspect_budget: bool = False
 ) -> dict[str, str]:
     root = Path(root).resolve()
     repositories = feature.get("repositories")
@@ -169,13 +317,13 @@ def feature_code_state(
             (feature_path / item).as_posix()
             for item in ("README.md", "plans/implementation.md", "testing/verification.md")
         )
-        return {root.name: git_fingerprint(root, excluded)}
+        return {root.name: git_fingerprint(root, excluded, timeout=timeout, max_untracked_files=INSPECT_MAX_UNTRACKED_FILES if inspect_budget else None, max_bytes=INSPECT_MAX_FINGERPRINT_BYTES if inspect_budget else None)}
 
     workspace = load_workspace(root)
     result = {}
     for name in repositories:
         repository = resolve_repository(workspace.repositories, name)
-        result[name] = git_fingerprint(repository_path(workspace, repository))
+        result[name] = git_fingerprint(repository_path(workspace, repository), timeout=timeout, max_untracked_files=INSPECT_MAX_UNTRACKED_FILES if inspect_budget else None, max_bytes=INSPECT_MAX_FINGERPRINT_BYTES if inspect_budget else None)
     return result
 
 

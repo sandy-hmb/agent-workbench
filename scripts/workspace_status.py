@@ -244,14 +244,14 @@ def _dependency_diagnostics(
     return diagnostics
 
 
-def plan_analysis(path: Path) -> dict[str, object]:
+def plan_analysis(path: Path, text: str | None = None) -> dict[str, object]:
     if path.is_symlink():
         raise ValueError(f"实施计划不允许符号链接：{path}")
     if not path.exists():
         return {"exists": False, "tasks": [], "diagnostics": []}
     if not path.is_file():
         raise ValueError(f"实施计划必须是普通文件：{path}")
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = (path.read_text(encoding="utf-8") if text is None else text).splitlines()
     fenced, diagnostics = _fenced_lines(lines, path)
     tasks: list[dict[str, object]] = []
     for line_number, line in enumerate(lines, start=1):
@@ -361,12 +361,12 @@ def plan_progress(path: Path) -> dict[str, int]:
     return {"completed": sum(checked), "total": len(checked)}
 
 
-def verification_record(feature: Path) -> str | None:
+def verification_record(feature: Path, text: str | None = None) -> str | None:
     """Read the latest legacy record or verification batch without fallback."""
     path = feature / "testing/verification.md"
-    if not path.is_file() or path.is_symlink():
+    if text is None and (not path.is_file() or path.is_symlink()):
         return None
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8") if text is None else text
     records = list(VERIFICATION_RECORD_RE.finditer(text))
     if not records:
         return None
@@ -377,9 +377,11 @@ def verification_record(feature: Path) -> str | None:
     return record
 
 
-def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, object]], bool]:
+def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, str], list[dict[str, object]], bool]:
     readme = feature / "README.md"
-    metadata = feature_metadata(readme)
+    text = readme.read_text(encoding="utf-8") if text is None else text
+    metadata = feature_metadata(readme, text)
+    lines = text.splitlines()
     reviews: dict[str, str] = {}
     diagnostics: list[dict[str, object]] = []
     recorded = False
@@ -399,7 +401,7 @@ def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, obje
                     next(
                         index
                         for index, line in enumerate(
-                            readme.read_text(encoding="utf-8").splitlines(), start=1
+                            lines, start=1
                         )
                         if line.startswith(f"- {field}：")
                     ),
@@ -418,7 +420,7 @@ def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, obje
                     next(
                         index
                         for index, line in enumerate(
-                            readme.read_text(encoding="utf-8").splitlines(), start=1
+                            lines, start=1
                         )
                         if line.startswith(f"- {field}：")
                     ),
@@ -434,7 +436,7 @@ def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, obje
                     next(
                         index
                         for index, line in enumerate(
-                            readme.read_text(encoding="utf-8").splitlines(), start=1
+                            lines, start=1
                         )
                         if line.startswith(f"- {field}：")
                     ),
@@ -449,7 +451,7 @@ def document_reviews(feature: Path) -> tuple[dict[str, str], list[dict[str, obje
                 readme,
                 next(
                     index
-                    for index, line in enumerate(readme.read_text(encoding="utf-8").splitlines(), start=1)
+                    for index, line in enumerate(lines, start=1)
                     if line.startswith("- 计划审阅：")
                 ),
                 "设计审阅为待审阅时，已有实施计划也必须改为待审阅",
