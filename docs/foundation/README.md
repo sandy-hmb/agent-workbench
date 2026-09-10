@@ -23,6 +23,40 @@ python3 scripts/kit.py status --root . --json
 
 ## 需求阶段
 
+```mermaid
+flowchart LR
+    subgraph S_Plan ["状态: planning (方案设计)"]
+        direction TB
+        c1["feature.context"] --> c2["feature.classify"]
+        c2 --> c3["feature.analyze"]
+        c3 --> c4["feature.design (两轮审阅)"]
+    end
+
+    subgraph S_Dev ["状态: development (任务执行)"]
+        direction TB
+        d1["feature.prepare-branch"] --> d2["feature.implement (连续执行 TDD)"]
+    end
+
+    subgraph S_Test ["状态: testing (验证交付)"]
+        direction TB
+        t1["feature.verify"] --> t2["feature.submit-test"]
+    end
+
+    subgraph S_Done ["状态: done (归档)"]
+        doneNode["feature.complete"]
+    end
+
+    S_Plan ==> S_Dev
+    S_Dev ==> S_Test
+    S_Test ==> S_Done
+    S_Dev -.->|无需提测| S_Done
+
+    style S_Plan fill:none,stroke:#0288d1,stroke-width:1px
+    style S_Dev fill:none,stroke:#f59e0b,stroke-width:1px
+    style S_Test fill:none,stroke:#8b5cf6,stroke-width:1px
+    style S_Done fill:none,stroke:#10b981,stroke-width:1px
+```
+
 稳定阶段依次为：`feature.context`、`feature.classify`、`feature.analyze`、`feature.design`、`feature.prepare-branch`、`feature.implement`、`feature.verify`、`feature.submit-test`、`feature.complete`。
 
 需求状态是 `planning`、`development`、`testing`、`done` 或 `paused`，不等同于 Stage。轻量改动不创建需求目录；标准需求先确认需求、生成并审阅书面设计，再由 `workspace-writing-plan` 生成并审阅书面计划。`feature.design` 承载设计与计划的两轮讨论，避免增加新的公共 Stage 锚点。书面计划、基线、分支和执行方式确认并更新为 `development` 后，范围内实现与离线验证持续执行。详情见[第一个需求](../guides/first-feature.md)。

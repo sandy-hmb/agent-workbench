@@ -29,6 +29,33 @@
 
 ## 初始化后会生成什么
 
+```mermaid
+graph TD
+    subgraph DotWS [".workspace/ (本地私有状态目录)"]
+        subgraph CoreMeta ["工作区核心配置与规则"]
+            WSJson["workspace.json<br>(版本格式、注册仓、分支策略)"]
+            WSLocal["workspace.local.json<br>(本机当前 activeFeature 焦点)"]
+            WSAgents["AGENTS.md<br>(工作区模式运行时治理指令)"]
+            WSContext["CONTEXT.md<br>(多仓业务与架构事实，非规则)"]
+        end
+
+        subgraph DocsDir ["docs/ (文档状态)"]
+            RepoDocs["repositories/<repo>.md<br>(各业务仓规范与镜像)"]
+            FeatDocs["features/<feature-slug>/<br>(需求、设计、计划、验证报告)"]
+        end
+
+        subgraph ExtDir ["extensions/ (扩展与运行时状态)"]
+            ExtMeta[".state/<br>(input.json / lock.json)"]
+            ExtPacks["<extension-id>/<br>(自定义 Action 与 Provider)"]
+        end
+    end
+
+    style DotWS fill:none,stroke:#0288d1,stroke-width:2px
+    style CoreMeta fill:none,stroke:#4b5563,stroke-width:1px
+    style DocsDir fill:none,stroke:#10b981,stroke-width:1px
+    style ExtDir fill:none,stroke:#f59e0b,stroke-width:1px
+```
+
 ```text
 .workspace/
 ├── AGENTS.md

@@ -51,3 +51,7 @@ Run 的 status 是保存值，running 不代表进程仍存活。`configurationM
 常用错误码包括 `INSPECT_INVALID_ARGUMENT`、`INSPECT_UNSUPPORTED_VERSION`、`INSPECT_INVALID_DATA`、`INSPECT_NOT_FOUND`、`INSPECT_UNSAFE_PATH`、`INSPECT_LIMIT_EXCEEDED`、`INSPECT_TIMEOUT`、`INSPECT_INPUT_CHANGED`、`INSPECT_REVISION_CHANGED`。坏记录可成为 partial 中的诊断，单资源不可读时为 error；消费方应保留上次成功内容并标记读取失败。
 
 [Schema](../../schemas/inspect-result.schema.json) 与 [八类合成响应](../../tests/fixtures/inspect-v1/manifest.json) 一同维护。样例由 `python3 -B tests/test_inspect_examples.py --update-examples` 对临时工作区调用真实 CLI 生成，仅规范化临时根路径和 observedAt；不含真实业务记录。`test_inspect_examples.py` 同时校验实时查询和发布样例，`test_inspect_compatibility.py` 对固定旧基线比较默认 status/brief 输出。
+
+## 客户端与 IDE 插件参考实现
+
+- **[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij)**：基于本 Inspect 协议构建的 IntelliJ IDEA / JetBrains 插件参考实现，提供工作区树、Feature 文档查看、计划任务列表、代码变更对比与验证证据可视化的全套 UI。

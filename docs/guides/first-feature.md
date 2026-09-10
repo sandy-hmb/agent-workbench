@@ -11,6 +11,22 @@ python3 scripts/kit.py brief <feature-slug> --json
 
 ## 先分类
 
+在开始编码前，先根据改动特征确定走“轻量路径”还是“标准需求”：
+
+```mermaid
+flowchart TD
+    Start([准备开始新任务]) --> Q1{涉及多个仓库 / 契约变更?}
+    Q1 -- 是 --> Standard[走【标准需求流程】<br>kit.py feature create]
+    Q1 -- 否 --> Q2{涉及数据库结构、状态迁移<br>或需要新增外部依赖?}
+    Q2 -- 是 --> Standard
+    Q2 -- 否 --> Q3{改动难以定向验证<br>或需要跨会话长线追踪?}
+    Q3 -- 是 --> Standard
+    Q3 -- 否 --> Light[走【轻量修改模式】<br>无需创建需求目录<br>本地修改 -> 跑测试 -> 记录证据]
+
+    style Standard fill:none,stroke:#0288d1,stroke-width:2px
+    style Light fill:none,stroke:#388e3c,stroke-width:2px
+```
+
 单一业务仓的局部实现、无外部契约或核心状态变化、无需新增依赖且能定向验证时，可以走轻量路径：实现、运行该仓已有验证、在当前交付中记录命令和结果。不创建需求目录。
 
 其他改动走标准需求。以下示例以 `payments-retry` 和已登记仓 `service` 为例：
@@ -25,6 +41,41 @@ python3 scripts/kit.py registry branch service \
 按命令返回的 `baseBranch` 和 `branch` 写入需求记录；不要手工拼接分支名。创建分支需要工作树干净且用户确认，Kit 不自动创建、切换、提交或合并分支。未明确要求 worktree 时，默认在目标仓当前工作目录开发；分支批准不包含 worktree 操作。创建、删除、切换到或把代码迁移至其他 worktree 前，必须另行展示目录和用途并取得明确确认。
 
 ## 标准需求
+
+### 人 - Agent - Kit 协作流程
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor H as 人 (User)
+    participant A as 编码 Agent (Claude/Cursor/Pi)
+    participant K as Kit 校验脚本 (kit.py)
+    participant R as 业务代码仓 (Git)
+
+    Note over H, R: 阶段 1：需求与方案收敛 (Planning)
+    H->>A: 提出功能诉求："我想加一个支付重试机制"
+    A->>K: kit.py feature create & registry branch
+    A->>H: 澄清关键未决项，输出 Requirements & Design 草案
+    H->>A: 审阅通过："设计批准"
+    A->>A: 生成 plans/implementation.md (拆解为 T01, T02...)
+    H->>A: 审阅通过："计划批准，开始执行"
+
+    Note over H, R: 阶段 2：任务驱动与 TDD 执行 (Development)
+    loop 每个任务 (T01, T02...)
+        A->>K: kit.py brief <slug> --task <id> --json (获取局部依赖与规范)
+        A->>R: 先编写最小失败测试，再编写业务实现
+        A->>R: 执行本地测试，确保退出状态正常
+        A->>K: kit.py verify snapshot (捕获代码状态快照)
+        A->>A: 勾选任务，写入 task-evidence-v1 证据
+        A->>K: kit.py brief --execution (检查推进状态)
+        Note over A: 若返回 RUN：连续自动进入下一任务，不打扰人类<br>若返回 BLOCKED：停止并向人类呈现明确决策点
+    end
+
+    Note over H, R: 阶段 3：离线验证与交付 (Verification & Handoff)
+    A->>K: kit.py status / doctor
+    A->>H: 报告全部任务可信完成，出具完整验证批次报告
+    H->>K: kit.py feature set-status <slug> done
+```
 
 需求目标、场景、范围、边界、验收和假设收敛并明确确认生成后，先创建：
 
@@ -66,6 +117,13 @@ python3 scripts/kit.py feature set-status payments-retry done
 ```
 
 `done` 只改需求状态，不会删除记录、分支或业务代码。
+
+## 相关参考
+
+- [常用命令速查表 (Cheat Sheet)](cheat-sheet.md)：常用命令、状态机阶段与决策速查
+- [Agent 指令实战手册 (Prompt Cookbook)](prompt-cookbook.md)：发起需求、审阅批准、断点续接等黄金提示词
+- [疑难排查与常见问题 (Troubleshooting & FAQ)](troubleshooting-faq.md)：多活跃需求阻塞、Hash 不匹配等卡点恢复
+- [核心工作流规范](../foundation/README.md)：模式、阶段、分支策略与完成状态的权威定义
 
 ## 等价命令
 

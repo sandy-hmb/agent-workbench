@@ -21,13 +21,21 @@ python3 scripts/kit.py doctor --root .
 
 `.workspace/` 是本机状态，公共更新不会覆盖它，也不应提交。目录职责、备份和恢复见[本地工作区布局](docs/reference/local-workspace-layout.md)。
 
-## 日常路径
+## 日常路径与速查
 
+- [开始使用](docs/getting-started.md)：环境要求、拓扑结构与初始化流程。
 - [第一个需求](docs/guides/first-feature.md)：从轻量改动或标准需求开始，到验证和新会话续接。
+- [常用命令速查 (Cheat Sheet)](docs/guides/cheat-sheet.md)：高频 CLI、状态机阶段及决策树一览。
+- [Agent 指令手册 (Prompt Cookbook)](docs/guides/prompt-cookbook.md)：发起需求、审阅批准、TDD 执行等实战 Prompt 模板。
+- [疑难排查 (Troubleshooting FAQ)](docs/guides/troubleshooting-faq.md)：常见阻塞原因（多需求冲突、Hash 漂移等）与解决方案。
 - [核心工作流](docs/foundation/README.md)：模式、阶段、分支、验证与完成状态的参考。
 - [本地 Extension](docs/guides/local-extensions.md)：按需接入本地 Provider 或 Action。
 - [自定义工作流](docs/guides/custom-workflows.md)：为已确认的本地 Action 配置 Stage Overlay。
 - [Agent 兼容性](docs/reference/agent-compatibility.md)：读取入口和兄弟仓访问范围。
+
+## IDE 插件与周边生态
+
+- **IntelliJ IDEA 插件**：[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij) —— 基于 `kit.py inspect` 协议构建的 JetBrains IDE 官方插件，提供需求管理、任务跟踪、设计/计划文档预览、变更审查与验证状态可视化的原生图形界面。
 
 ## 架构阅读
 
