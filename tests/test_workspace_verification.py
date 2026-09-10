@@ -341,6 +341,53 @@ class WorkspaceVerificationTest(unittest.TestCase):
         self.assertIn("TASK_DELIVERABLE_MISSING", codes)
         self.assertIn("TASK_DELETED_PATH_PRESENT", codes)
 
+    def test_task_evidence_checks_feature_artifacts_from_workspace_root(self) -> None:
+        workspace = self.repository / "workspace"
+        repository = workspace / "service"
+        feature = workspace / ".workspace/docs/features/demo-feature"
+        artifact = feature / "artifacts/sql/001-statement.sql"
+        repository.mkdir(parents=True)
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("CREATE TABLE statement (id BIGINT);\n", encoding="utf-8")
+        task = {
+            "id": "T01",
+            "completed": True,
+            "repository": "service",
+            "validationKind": "声明式",
+            "deliverables": [{
+                "repository": "service",
+                "kind": "Create",
+                "path": ".workspace/docs/features/demo-feature/artifacts/sql/001-statement.sql",
+                "symbol": None,
+                "line": 1,
+            }],
+        }
+        evidence = workspace_verification.describe_task_evidence_document(
+            task_evidence(check_type="静态检查", executed=None, skipped=None)
+        )["latestByTask"]["T01"]
+
+        valid = workspace_verification.evaluate_task_evidence(
+            task,
+            evidence,
+            {"service": repository},
+            workspace_root=workspace,
+            feature_root=feature,
+        )
+        artifact.unlink()
+        invalid = workspace_verification.evaluate_task_evidence(
+            task,
+            evidence,
+            {"service": repository},
+            workspace_root=workspace,
+            feature_root=feature,
+        )
+
+        self.assertTrue(valid["trusted"])
+        self.assertIn(
+            "TASK_DELIVERABLE_MISSING",
+            {item["code"] for item in invalid["diagnostics"]},
+        )
+
     def test_snapshot_cli_reports_current_maintenance_feature_state(self) -> None:
         feature = self.repository / "docs/development/features/demo-feature"
         (feature / "plans").mkdir(parents=True)

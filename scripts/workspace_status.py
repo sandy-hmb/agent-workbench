@@ -652,6 +652,7 @@ def _task_repository_roots(
 def _task_evidence_state(
     root: Path,
     mode: str,
+    feature: Path,
     item: dict[str, object],
     analysis: dict[str, object],
     verification: Path,
@@ -671,7 +672,13 @@ def _task_evidence_state(
     for task in tasks:
         if not task["completed"]:
             continue
-        result = evaluate_task_evidence(task, evidence.get(task["id"]), roots)
+        result = evaluate_task_evidence(
+            task,
+            evidence.get(task["id"]),
+            roots,
+            workspace_root=root,
+            feature_root=feature,
+        )
         results.append(result)
         diagnostics.extend(result["diagnostics"])
     return (
@@ -702,7 +709,7 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     )
     reviews, review_diagnostics, reviews_recorded = document_reviews(feature)
     trusted_progress, task_evidence, evidence_diagnostics = _task_evidence_state(
-        root, mode, item, analysis, verification
+        root, mode, feature, item, analysis, verification
     )
     record = verification_record(feature)
     current_states = None

@@ -300,7 +300,7 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
     verification = verification_record(feature, verification_text)
     progress = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
     trusted, _, evidence_diagnostics = _task_evidence_state(
-        root, _mode(root), item, plan, verification_path
+        root, _mode(root), feature, item, plan, verification_path
     )
     plan_summary = {
         "exists": plan_path.is_file(),
@@ -391,7 +391,7 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
     title, _, description = _title_description(directory / "README.md", root, readme_text, deadline)
     verification_path = directory / "testing/verification.md"
     _, evidence_results, _ = _task_evidence_state(
-        root, _mode(root), item, plan, verification_path
+        root, _mode(root), directory, item, plan, verification_path
     )
     evidence_by_task = {result["taskId"]: result for result in evidence_results}
     tasks = []

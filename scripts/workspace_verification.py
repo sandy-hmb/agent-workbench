@@ -310,10 +310,29 @@ def _deliverable_exists(repository: Path, relative: str, *, file_only: bool) -> 
     return target.is_file() if file_only else target.exists()
 
 
+def _feature_artifact_root(
+    workspace_root: Path | None, feature_root: Path | None, relative: str
+) -> Path | None:
+    if workspace_root is None or feature_root is None:
+        return None
+    try:
+        feature_relative = Path(feature_root).resolve().relative_to(Path(workspace_root).resolve())
+    except ValueError:
+        return None
+    expected = PurePosixPath(feature_relative.as_posix()) / "artifacts"
+    path = PurePosixPath(relative)
+    if path.is_absolute() or ".." in path.parts:
+        return None
+    return Path(workspace_root).resolve() if path.parts[:len(expected.parts)] == expected.parts else None
+
+
 def evaluate_task_evidence(
     task: Mapping[str, object],
     evidence: Mapping[str, object] | None,
     repository_roots: Mapping[str, Path],
+    *,
+    workspace_root: Path | None = None,
+    feature_root: Path | None = None,
 ) -> dict[str, object]:
     """Check deterministic task evidence and current deliverable paths."""
     task_id = str(task.get("id") or "")
@@ -396,15 +415,20 @@ def evaluate_task_evidence(
         kind = deliverable.get("kind")
         relative = deliverable.get("path")
         line = int(deliverable.get("line", 1))
-        if repository is None or not isinstance(relative, str):
+        target_root = (
+            _feature_artifact_root(workspace_root, feature_root, relative)
+            if isinstance(relative, str)
+            else None
+        ) or repository
+        if target_root is None or not isinstance(relative, str):
             issue("TASK_DELIVERABLE_MISSING", "无法定位任务交付路径", line)
             continue
         if kind == "Delete":
-            target = repository.joinpath(*PurePosixPath(relative).parts)
+            target = target_root.joinpath(*PurePosixPath(relative).parts)
             if target.exists() or target.is_symlink():
                 issue("TASK_DELETED_PATH_PRESENT", f"声明删除的路径仍存在：{relative}", line)
         elif not _deliverable_exists(
-            repository, relative, file_only=kind in {"Create", "Test", "Modify"}
+            target_root, relative, file_only=kind in {"Create", "Test", "Modify"}
         ):
             issue("TASK_DELIVERABLE_MISSING", f"任务交付路径不存在或不安全：{relative}", line)
 
