@@ -156,6 +156,11 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("不依赖历史对话", writing_plan)
         self.assertIn("启动读取清单", writing_plan)
         self.assertIn("实际计划文件", writing_plan)
+        self.assertIn("定向修订", writing_plan)
+        self.assertIn("保持设计审阅为“已批准”", writing_plan)
+        self.assertIn("不再请求同一修订的设计批准", writing_plan)
+        self.assertIn("未披露或超出用户选择", writing_plan)
+        self.assertIn("计划审阅仍为“待审阅”", writing_plan)
         self.assertIn(
             "python3 scripts/workspace_registry.py branch <repo> --type <type> --slug <slug> --json",
             writing_plan,
@@ -318,6 +323,7 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("templates/feature/design.md", design_skill)
         self.assertIn("附件只能引用并展开这些决策", design_skill)
         self.assertIn("设计审阅及已有计划审阅都回到“待审阅”", design_skill)
+        self.assertIn("唯一例外是尚未生成计划时", design_skill)
         self.assertIn("内容、结构和阅读自审", design_skill)
         self.assertIn("Markdown 预览", design_skill)
         self.assertIn("templates/feature/implementation.md", plan_skill)
