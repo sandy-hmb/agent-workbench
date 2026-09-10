@@ -26,6 +26,7 @@ from workspace_model import (  # noqa: E402
     repository_path,
     resolve_repository,
 )
+from workspace_paths import state_root  # noqa: E402
 from workspace_status import (  # noqa: E402
     _single_feature_progress,
     plan_analysis,
@@ -338,7 +339,7 @@ def _recent_commits(
 
 
 def _task_summary(task: dict[str, object]) -> dict[str, object]:
-    return {
+    result = {
         "id": task["id"],
         "title": task["title"],
         "path": FEATURE_FILES["plan"],
@@ -347,18 +348,49 @@ def _task_summary(task: dict[str, object]) -> dict[str, object]:
         "dependencies": task["dependencies"],
         "references": task["references"],
     }
+    if task.get("repository") is not None:
+        result.update(
+            {
+                "repository": task["repository"],
+                "validationKind": task["validationKind"],
+                "deliverables": task["deliverables"],
+            }
+        )
+    return result
 
 
 def _task_state(
     analysis: dict[str, object],
-) -> tuple[dict[str, object] | None, list[dict[str, object]], list[str]]:
+    task_evidence: list[dict[str, object]],
+) -> tuple[dict[str, object] | None, list[dict[str, object]], list[str], bool]:
     diagnostics = analysis["diagnostics"]
     if any(item["severity"] == "error" for item in diagnostics):
-        return None, [], ["计划存在结构错误，修复后才能选择可执行任务"]
+        return None, [], ["计划存在结构错误，修复后才能选择可执行任务"], True
     tasks = analysis["tasks"]
-    completed_ids = {
-        task["id"] for task in tasks if task["id"] is not None and task["completed"]
+    evidence_contract = analysis["completionPolicy"] == "task-evidence-v1"
+    trusted = {
+        result["taskId"]
+        for result in task_evidence
+        if result.get("trusted") is True
     }
+    completed_ids = {
+        task["id"]
+        for task in tasks
+        if task["id"] is not None
+        and task["completed"]
+        and (not evidence_contract or task["id"] in trusted)
+    }
+    untrusted = [
+        task
+        for task in tasks
+        if evidence_contract and task["completed"] and task["id"] not in trusted
+    ]
+    if untrusted:
+        blockers = [
+            f"任务 {task['id']} 已勾选但完成证据无效"
+            for task in untrusted
+        ]
+        return _task_summary(untrusted[0]), [], blockers, True
     ready = []
     blockers = []
     for task in tasks:
@@ -372,14 +404,17 @@ def _task_state(
             blockers.append(f"任务 {task['id']} 等待：{', '.join(missing)}")
             continue
         ready.append(_task_summary(task))
-    return (ready[0] if ready else None), ready, blockers
+    return (ready[0] if ready else None), ready, blockers, False
 
 
 def _execution_decision(
     stage: dict[str, object],
     progress: dict[str, int],
     current_task: dict[str, object] | None,
+    completion_blocked: bool = False,
 ) -> str:
+    if completion_blocked:
+        return "BLOCKED"
     current_stage = stage["currentStage"]
     if current_stage == "feature.implement":
         return "RUN" if current_task is not None else "BLOCKED"
@@ -410,6 +445,179 @@ def _selected_task(
     }
 
 
+def _instruction_diagnostic(code: str, path: str, message: str) -> dict[str, object]:
+    return {
+        "severity": "error",
+        "code": code,
+        "path": path,
+        "line": 1,
+        "message": message,
+    }
+
+
+def _ordinary_file(base: Path, path: Path) -> bool:
+    try:
+        relative = path.relative_to(base)
+    except ValueError:
+        return False
+    current = base
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            return False
+    return path.is_file()
+
+
+def _scoped_instruction_paths(
+    root: Path, repository_root: Path, task: dict[str, object], excluded: set[Path]
+) -> tuple[list[str], list[dict[str, object]]]:
+    paths = []
+    diagnostics = []
+    for deliverable in task.get("deliverables", []):
+        target = repository_root / str(deliverable["path"])
+        parent = target.parent
+        try:
+            relative_parent = parent.relative_to(repository_root)
+        except ValueError:
+            diagnostics.append(
+                _instruction_diagnostic(
+                    "INSTRUCTION_SCOPE_UNSAFE",
+                    str(deliverable["path"]),
+                    "任务交付路径离开目标仓，无法解析适用规范",
+                )
+            )
+            continue
+        current = repository_root
+        candidates = [repository_root / "AGENTS.md"]
+        unsafe = False
+        for part in relative_parent.parts:
+            current /= part
+            if current.is_symlink():
+                unsafe = True
+                break
+            candidates.append(current / "AGENTS.md")
+        if unsafe:
+            diagnostics.append(
+                _instruction_diagnostic(
+                    "INSTRUCTION_SCOPE_UNSAFE",
+                    str(deliverable["path"]),
+                    "任务交付路径包含符号链接，无法解析适用规范",
+                )
+            )
+            continue
+        for candidate in candidates:
+            if candidate.resolve() in excluded or not _ordinary_file(repository_root, candidate):
+                continue
+            relative = Path(os.path.relpath(candidate, root)).as_posix()
+            if relative not in paths:
+                paths.append(relative)
+    return paths, diagnostics
+
+
+def _instruction_context(
+    root: Path,
+    mode: str,
+    workspace_model: object,
+    task: dict[str, object] | None,
+) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
+    if task is None:
+        return None, []
+    repository_name = task.get("repository")
+    if not isinstance(repository_name, str):
+        return None, []
+    diagnostics = []
+    if mode == "maintenance":
+        agents = root / "AGENTS.md"
+        workspace_entries = []
+        if _ordinary_file(root, agents):
+            workspace_entries.append({"path": "AGENTS.md", "scope": "workspace"})
+        else:
+            diagnostics.append(
+                _instruction_diagnostic(
+                    "INSTRUCTION_SOURCE_MISSING",
+                    "AGENTS.md",
+                    "维护仓根规范入口不存在或不安全",
+                )
+            )
+        scoped, scoped_diagnostics = _scoped_instruction_paths(
+            root, root, task, {agents.resolve()}
+        )
+        diagnostics.extend(scoped_diagnostics)
+        return {
+            "workspace": workspace_entries,
+            "repositories": [
+                {
+                    "repository": repository_name,
+                    "governance": None,
+                    "sourceInstruction": None,
+                    "scopedInstructions": scoped,
+                }
+            ],
+        }, diagnostics
+
+    workspace_entries = []
+    for relative, scope in (
+        (".workspace/AGENTS.md", "workspace"),
+        (".workspace/CONTEXT.md", "workspace-context"),
+    ):
+        candidate = root / relative
+        if _ordinary_file(root, candidate):
+            workspace_entries.append({"path": relative, "scope": scope})
+        else:
+            diagnostics.append(
+                _instruction_diagnostic(
+                    "INSTRUCTION_SOURCE_MISSING",
+                    relative,
+                    f"工作区规范入口不存在或不安全：{relative}",
+                )
+            )
+
+    repository = resolve_repository(workspace_model.repositories, repository_name)
+    repository_root = repository_path(workspace_model, repository)
+    governance = state_root(root) / repository.instruction
+    governance_path = f".workspace/{repository.instruction}"
+    if not _ordinary_file(state_root(root), governance):
+        diagnostics.append(
+            _instruction_diagnostic(
+                "INSTRUCTION_SOURCE_MISSING",
+                governance_path,
+                f"仓库治理入口不存在或不安全：{governance_path}",
+            )
+        )
+    source = (
+        repository_root / repository.source_instruction
+        if repository.source_instruction is not None
+        else None
+    )
+    source_path = (
+        Path(os.path.relpath(source, root)).as_posix() if source is not None else None
+    )
+    if source is not None and not _ordinary_file(repository_root, source):
+        diagnostics.append(
+            _instruction_diagnostic(
+                "INSTRUCTION_SOURCE_MISSING",
+                source_path or repository.source_instruction,
+                f"仓库规范入口不存在或不安全：{repository.source_instruction}",
+            )
+        )
+    excluded = {source.resolve()} if source is not None else set()
+    scoped, scoped_diagnostics = _scoped_instruction_paths(
+        root, repository_root, task, excluded
+    )
+    diagnostics.extend(scoped_diagnostics)
+    return {
+        "workspace": workspace_entries,
+        "repositories": [
+            {
+                "repository": repository_name,
+                "governance": governance_path,
+                "sourceInstruction": source_path,
+                "scopedInstructions": scoped,
+            }
+        ],
+    }, diagnostics
+
+
 def brief_result(
     root: Path,
     slug: str | None = None,
@@ -425,13 +633,20 @@ def brief_result(
     stage = _single_feature_progress(feature, mode=str(status["mode"]))
     workspace_model = load_workspace(root) if status["mode"] == "workspace" else None
     plan = feature_dir / FEATURE_FILES["plan"]
-    analysis = plan_analysis(plan)
+    analysis = plan_analysis(plan, repositories=set(feature["repositories"]))
     pending = [task["line"] for task in analysis["tasks"] if not task["completed"]]
-    current_task, ready_tasks, task_blockers = _task_state(analysis)
+    task_evidence = list(feature.get("taskEvidence", []))
+    current_task, ready_tasks, task_blockers, completion_blocked = _task_state(
+        analysis, task_evidence
+    )
     progress = plan_progress(plan)
     record = verification_record(feature_dir)
     verification_summary = record[:VERIFICATION_SUMMARY_LIMIT] if record is not None else None
     verification_truncated = record is not None and len(record) > VERIFICATION_SUMMARY_LIMIT
+    selected_task = _selected_task(task_id, analysis, plan)
+    instruction_context, instruction_diagnostics = _instruction_context(
+        root, str(status["mode"]), workspace_model, selected_task
+    )
     result = {
         "featureSlug": resolved,
         "status": feature["status"],
@@ -445,6 +660,7 @@ def brief_result(
         "documentDiagnostics": [
             *feature["documentDiagnostics"],
             *_link_diagnostics(feature_dir),
+            *instruction_diagnostics,
         ],
         "verificationTail": _verification_tail(feature_dir),
         "blockers": [
@@ -456,7 +672,7 @@ def brief_result(
         "pendingTasks": pending[:PENDING_TASK_LIMIT],
         "currentTask": current_task,
         "taskBlockers": task_blockers,
-        "selectedTask": _selected_task(task_id, analysis, plan),
+        "selectedTask": selected_task,
         "verificationSummary": verification_summary,
         "summaryTruncated": {
             "pendingTasks": len(pending) > PENDING_TASK_LIMIT,
@@ -469,11 +685,23 @@ def brief_result(
             for repo, branch in feature["branches"]
         ],
     }
+    if analysis["completionPolicy"] == "task-evidence-v1":
+        result.update(
+            {
+                "completionPolicy": analysis["completionPolicy"],
+                "trustedProgress": feature["trustedProgress"],
+                "taskEvidence": task_evidence,
+            }
+        )
+    if instruction_context is not None:
+        result["instructionContext"] = instruction_context
     if execution:
         result.update(
             {
                 "readyTasks": [task["id"] or task["title"] for task in ready_tasks],
-                "executionDecision": _execution_decision(stage, progress, current_task),
+                "executionDecision": _execution_decision(
+                    stage, progress, current_task, completion_blocked
+                ),
                 "confirmationRequired": stage["confirmation"]["required"],
             }
         )
@@ -488,6 +716,9 @@ def _render_text(result: dict[str, object]) -> None:
         print("阻塞：" + ", ".join(blockers))
     progress = result["progress"]
     print(f"计划：{progress['completed']}/{progress['total']}")
+    trusted = result.get("trustedProgress")
+    if trusted is not None and trusted["applicable"]:
+        print(f"可信进度：{trusted['completed']}/{trusted['total']}")
     if "executionDecision" in result:
         print(f"执行决策：{result['executionDecision']}")
         print(f"需要确认：{'是' if result['confirmationRequired'] else '否'}")

@@ -7,30 +7,30 @@
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:5ccddaaa0c76a1c9018c27b74f0b68ade2f717dc189fb25cf72e4fd7c0f77257",
+  "revision": "sha256:e9747936f1a85cae721c5ddc960dbb1ab52fcc2d63bb38430da169b534fb8120",
   "data": {
     "slug": "demo",
-    "featureRevision": "sha256:4d1bb552181ac553c55337daeeb17d6d7fafcf9013ec51f4e64116599d6f73e5",
-    "documentRevision": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3",
+    "featureRevision": "sha256:bfbe28ef5836360ee52b73032b779d85398144700a97dbc5b1599e04217d5333",
+    "documentRevision": "sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd",
     "batches": [
       {
-        "id": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3:1",
+        "id": "sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd:17",
         "recordedAt": "2026-09-08T10:00:00Z",
         "source": {
           "path": "testing/verification.md",
-          "startLine": 1,
-          "endLine": 11
+          "startLine": 17,
+          "endLine": 27
         }
       }
     ],
-    "latestBatchId": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3:1",
+    "latestBatchId": "sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd:17",
     "selectedBatch": {
-      "id": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3:1",
+      "id": "sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd:17",
       "recordedAt": "2026-09-08T10:00:00Z",
       "source": {
         "path": "testing/verification.md",
-        "startLine": 1,
-        "endLine": 11
+        "startLine": 17,
+        "endLine": 27
       },
       "raw": "## 验证批次 2026-09-08T10:00:00Z\n- 总体结果：通过\n- 审查结论：通过\n- 代码状态：{\"service\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\n\n### 检查 1\n- 工作目录：../service\n- 命令：python3 -m unittest\n- 退出状态：0\n- 结果：通过\n- 测试数量：3",
       "recordedResult": "passed",
@@ -42,8 +42,8 @@
           "id": "1",
           "source": {
             "path": "testing/verification.md",
-            "startLine": 6,
-            "endLine": 11
+            "startLine": 22,
+            "endLine": 27
           },
           "workingDirectory": "../service",
           "command": "python3 -m unittest",
@@ -54,6 +54,18 @@
         }
       ]
     },
+    "taskEvidence": [
+      {
+        "taskId": "T01",
+        "trusted": true,
+        "source": {
+          "path": "testing/verification.md",
+          "startLine": 1,
+          "endLine": 15
+        },
+        "diagnostics": []
+      }
+    ],
     "checkMode": "records_only",
     "repositoryStates": [
       {

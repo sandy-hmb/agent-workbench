@@ -54,6 +54,56 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("# Requirements\n\nBody\n", document["data"]["content"])
 
+    def test_feature_exposes_trusted_plan_state(self):
+        source = self.root / "source.py"
+        source.write_text("value = 1\n", encoding="utf-8")
+        tests = self.root / "tests"
+        tests.mkdir()
+        (tests / "test_source.py").write_text("def test_source(): pass\n", encoding="utf-8")
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [x] T01 Demo\n\n"
+            "  依赖：无\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`source.py`（`Source#run`）\n"
+            "  - Test：`tests/test_source.py`\n",
+            encoding="utf-8",
+        )
+        (feature / "testing").mkdir()
+        (feature / "testing/verification.md").write_text(
+            "## 任务证据 T01 2026-09-10T10:00:00Z\n\n"
+            "- 交付核对：通过\n"
+            f'- 代码状态：{{"{self.root.name}":"sha256:{"a" * 64}"}}\n\n'
+            "### 检查 1\n\n"
+            "- 类型：测试\n"
+            f"- 工作目录：`{self.root}`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 目标：`tests/test_source.py`\n"
+            "- 执行数：1\n"
+            "- 跳过数：0\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n",
+            encoding="utf-8",
+        )
+
+        code, value, _ = command(self.root, "feature", "demo-feature")
+
+        self.assertEqual(0, code)
+        summary = value["data"]["summary"]["planSummary"]
+        self.assertEqual("task-evidence-v1", summary["completionPolicy"])
+        self.assertEqual(
+            {"applicable": True, "completed": 1, "total": 1},
+            summary["trustedProgress"],
+        )
+        task = value["data"]["tasks"][0]
+        self.assertEqual(self.root.name, task["repository"])
+        self.assertEqual("行为", task["validationKind"])
+        self.assertEqual("source.py", task["deliverables"][0]["path"])
+        self.assertTrue(task["trusted"])
+
     def test_feature_collection_revision_is_page_independent(self):
         _, first, _ = command(self.root, "features", "--offset", "0", "--limit", "1")
         _, second, _ = command(self.root, "features", "--offset", "1", "--limit", "1")

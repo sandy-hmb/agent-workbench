@@ -11,7 +11,7 @@ import subprocess
 import sys
 from collections import Counter
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional, Sequence
 
 
@@ -37,6 +37,7 @@ from workspace_model import (  # noqa: E402
     load_workspace,
     read_json,
     repository_path,
+    resolve_repository,
     workspace_schema_version,
 )
 from workspace_setup import discover_sibling_repositories  # noqa: E402
@@ -45,6 +46,8 @@ from workspace_extension import extension_status  # noqa: E402
 from workspace_local import load_local_settings  # noqa: E402
 from workspace_workflow import status_result as workflow_status  # noqa: E402
 from workspace_verification import (  # noqa: E402
+    describe_task_evidence_document,
+    evaluate_task_evidence,
     feature_code_state,
     verification_passed as batch_verification_passed,
 )
@@ -59,6 +62,15 @@ DEPENDENCY_RE = re.compile(r"^\s*依赖：\s*(.*?)\s*$")
 TASK_ID_IN_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])T\d{2,}(?![A-Za-z0-9_])")
 TASK_RANGE_RE = re.compile(r"\b(T\d{2,})\s*(?:-|–|—|~|至)\s*(T\d{2,})\b")
 MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
+COMPLETION_POLICY_RE = re.compile(r"^\s*-\s*完成门禁：\s*`?([^`\s]+)`?\s*$")
+TASK_REPOSITORY_RE = re.compile(r"^\s*目标仓：\s*`?([^`\s]+)`?\s*$")
+VALIDATION_KIND_RE = re.compile(r"^\s*验证性质：\s*(.*?)\s*$")
+DELIVERABLE_RE = re.compile(
+    r"^\s*-\s*(Create|Modify|Test|Delete|Verify)：\s*(.*?)\s*$"
+)
+INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+COMPLETION_POLICIES = {"task-evidence-v1"}
+VALIDATION_KINDS = {"行为", "声明式", "持久化"}
 VERIFICATION_RECORD_RE = re.compile(
     r"^## (?:执行记录 \d{4}-\d{2}-\d{2}|验证批次 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}))\s*$",
     re.MULTILINE,
@@ -247,15 +259,54 @@ def _dependency_diagnostics(
     return diagnostics
 
 
-def plan_analysis(path: Path, text: str | None = None) -> dict[str, object]:
+def _safe_deliverable_path(value: str) -> bool:
+    if not value or value.endswith("/") or "\\" in value:
+        return False
+    if any(marker in value for marker in ("*", "?", "[", "]")):
+        return False
+    pure = PurePosixPath(value)
+    return not pure.is_absolute() and pure != PurePosixPath(".") and ".." not in pure.parts
+
+
+def plan_analysis(
+    path: Path,
+    text: str | None = None,
+    repositories: set[str] | None = None,
+) -> dict[str, object]:
     if path.is_symlink():
         raise ValueError(f"实施计划不允许符号链接：{path}")
     if not path.exists():
-        return {"exists": False, "tasks": [], "diagnostics": []}
+        return {
+            "exists": False,
+            "completionPolicy": None,
+            "tasks": [],
+            "diagnostics": [],
+        }
     if not path.is_file():
         raise ValueError(f"实施计划必须是普通文件：{path}")
     lines = (path.read_text(encoding="utf-8") if text is None else text).splitlines()
     fenced, diagnostics = _fenced_lines(lines, path)
+    policy_matches = [
+        (line_number, match.group(1))
+        for line_number, line in enumerate(lines, start=1)
+        if line_number not in fenced and (match := COMPLETION_POLICY_RE.match(line))
+    ]
+    completion_policy = (
+        "legacy-checkbox" if not policy_matches else policy_matches[0][1]
+    )
+    evidence_contract = bool(policy_matches)
+    if len(policy_matches) > 1 or (
+        policy_matches and completion_policy not in COMPLETION_POLICIES
+    ):
+        diagnostics.append(
+            _diagnostic(
+                "PLAN_COMPLETION_POLICY_UNKNOWN",
+                "error",
+                path,
+                policy_matches[1][0] if len(policy_matches) > 1 else policy_matches[0][0],
+                "完成门禁必须唯一且值为 task-evidence-v1",
+            )
+        )
     tasks: list[dict[str, object]] = []
     for line_number, line in enumerate(lines, start=1):
         if line_number in fenced:
@@ -318,6 +369,9 @@ def plan_analysis(path: Path, text: str | None = None) -> dict[str, object]:
                 "headingLevel": heading_level,
                 "dependencies": [],
                 "references": [],
+                "repository": None,
+                "validationKind": None,
+                "deliverables": [],
             }
         )
 
@@ -348,6 +402,94 @@ def plan_analysis(path: Path, text: str | None = None) -> dict[str, object]:
             for line in body
             for target in MARKDOWN_LINK_RE.findall(line)
         ]
+        if not evidence_contract:
+            continue
+
+        repositories_in_task = [
+            (line_number, match.group(1))
+            for line_number, line in enumerate(body[1:], start=start + 1)
+            if (match := TASK_REPOSITORY_RE.match(line))
+        ]
+        repository = (
+            repositories_in_task[0][1] if len(repositories_in_task) == 1 else None
+        )
+        repository_valid = (
+            repository is not None
+            and SLUG_RE.fullmatch(repository) is not None
+            and (repositories is None or repository in repositories)
+        )
+        if not repository_valid:
+            diagnostics.append(
+                _diagnostic(
+                    "PLAN_TASK_REPOSITORY_INVALID",
+                    "error",
+                    path,
+                    repositories_in_task[0][0] if repositories_in_task else start,
+                    "新计划任务必须声明 feature 内唯一目标仓",
+                )
+            )
+        task["repository"] = repository
+
+        validation_fields = [
+            (line_number, match.group(1))
+            for line_number, line in enumerate(body[1:], start=start + 1)
+            if (match := VALIDATION_KIND_RE.match(line))
+        ]
+        validation_kind = (
+            validation_fields[0][1] if len(validation_fields) == 1 else None
+        )
+        if validation_kind not in VALIDATION_KINDS:
+            diagnostics.append(
+                _diagnostic(
+                    "PLAN_TASK_VALIDATION_KIND_MISSING",
+                    "error",
+                    path,
+                    validation_fields[0][0] if validation_fields else start,
+                    "新计划任务必须声明唯一验证性质：行为、声明式或持久化",
+                )
+            )
+        task["validationKind"] = validation_kind
+
+        deliverables = []
+        deliverable_lines = [
+            (line_number, match.group(1), match.group(2))
+            for line_number, line in enumerate(body[1:], start=start + 1)
+            if (match := DELIVERABLE_RE.match(line))
+        ]
+        for line_number, kind, detail in deliverable_lines:
+            code_values = INLINE_CODE_RE.findall(detail)
+            value = code_values[0] if code_values else ""
+            if not _safe_deliverable_path(value):
+                diagnostics.append(
+                    _diagnostic(
+                        "PLAN_TASK_DELIVERABLE_INVALID",
+                        "error",
+                        path,
+                        line_number,
+                        f"{kind} 必须使用完整、安全且不含 glob 的仓内相对文件路径",
+                    )
+                )
+                continue
+            deliverables.append(
+                {
+                    "repository": repository,
+                    "kind": kind,
+                    "path": value,
+                    "symbol": "、".join(code_values[1:]) or None,
+                    "line": line_number,
+                }
+            )
+        if not deliverable_lines:
+            diagnostics.append(
+                _diagnostic(
+                    "PLAN_TASK_DELIVERABLE_INVALID",
+                    "error",
+                    path,
+                    start,
+                    "新计划任务必须声明至少一个精确交付文件",
+                )
+            )
+        task["deliverables"] = deliverables
 
     if not tasks:
         diagnostics.append(
@@ -360,7 +502,12 @@ def plan_analysis(path: Path, text: str | None = None) -> dict[str, object]:
             )
         )
     diagnostics.extend(_dependency_diagnostics(tasks, path))
-    return {"exists": True, "tasks": tasks, "diagnostics": diagnostics}
+    return {
+        "exists": True,
+        "completionPolicy": completion_policy,
+        "tasks": tasks,
+        "diagnostics": diagnostics,
+    }
 
 
 def plan_tasks(path: Path) -> list[tuple[bool, str]]:
@@ -487,6 +634,57 @@ def current_branch(path: Path) -> str | None:
     return result.stdout.strip() or None if result.returncode == 0 else None
 
 
+def _task_repository_roots(
+    root: Path, mode: str, item: dict[str, object]
+) -> dict[str, Path]:
+    repositories = [str(name) for name in item["repositories"]]
+    if mode == "maintenance":
+        return {root.name: root}
+    workspace = load_workspace(root)
+    return {
+        name: repository_path(
+            workspace, resolve_repository(workspace.repositories, name)
+        )
+        for name in repositories
+    }
+
+
+def _task_evidence_state(
+    root: Path,
+    mode: str,
+    item: dict[str, object],
+    analysis: dict[str, object],
+    verification: Path,
+) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]:
+    tasks = analysis["tasks"]
+    if analysis["completionPolicy"] != "task-evidence-v1":
+        return (
+            {"applicable": False, "completed": None, "total": len(tasks)},
+            [],
+            [],
+        )
+    text = verification.read_text(encoding="utf-8") if verification.is_file() else ""
+    evidence = describe_task_evidence_document(text)["latestByTask"]
+    roots = _task_repository_roots(root, mode, item)
+    results = []
+    diagnostics = []
+    for task in tasks:
+        if not task["completed"]:
+            continue
+        result = evaluate_task_evidence(task, evidence.get(task["id"]), roots)
+        results.append(result)
+        diagnostics.extend(result["diagnostics"])
+    return (
+        {
+            "applicable": True,
+            "completed": sum(bool(result["trusted"]) for result in results),
+            "total": len(tasks),
+        },
+        results,
+        diagnostics,
+    )
+
+
 def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> dict[str, object]:
     for directory in (feature / "design", feature / "plans", feature / "testing"):
         if directory.is_symlink():
@@ -498,8 +696,14 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     if verification.is_symlink():
         raise ValueError(f"验证记录不允许符号链接：{verification}")
     plan = feature / "plans" / "implementation.md"
-    analysis = plan_analysis(plan)
+    analysis = plan_analysis(
+        plan,
+        repositories={str(repository) for repository in item["repositories"]},
+    )
     reviews, review_diagnostics, reviews_recorded = document_reviews(feature)
+    trusted_progress, task_evidence, evidence_diagnostics = _task_evidence_state(
+        root, mode, item, analysis, verification
+    )
     record = verification_record(feature)
     current_states = None
     if record is not None and record.startswith("## 验证批次 "):
@@ -507,7 +711,7 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
             current_states = feature_code_state(root, mode, item)
         except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError):
             current_states = None
-    return {
+    result = {
         "designExists": design.is_file(),
         "planExists": analysis["exists"],
         "progress": {
@@ -516,11 +720,24 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
         },
         "documentReviews": reviews,
         "documentReviewsRecorded": reviews_recorded,
-        "documentDiagnostics": [*review_diagnostics, *analysis["diagnostics"]],
+        "documentDiagnostics": [
+            *review_diagnostics,
+            *analysis["diagnostics"],
+            *evidence_diagnostics,
+        ],
         "verificationExists": verification.is_file(),
         "verificationPassed": batch_verification_passed(record, current_states),
         "artifacts": artifact_summary(feature),
     }
+    if analysis["completionPolicy"] == "task-evidence-v1":
+        result.update(
+            {
+                "completionPolicy": analysis["completionPolicy"],
+                "trustedProgress": trusted_progress,
+                "taskEvidence": task_evidence,
+            }
+        )
+    return result
 
 
 STAGE_RUNBOOKS = {
@@ -575,6 +792,12 @@ def _single_feature_progress(
         }
     progress = feature["progress"]
     assert isinstance(progress, dict)
+    trusted_progress = feature.get("trustedProgress")
+    if (
+        isinstance(trusted_progress, dict)
+        and trusted_progress.get("applicable") is True
+    ):
+        progress = trusted_progress
     reviews = feature.get("documentReviews")
     reviews_recorded = feature.get("documentReviewsRecorded") is True
     assert isinstance(reviews, dict)

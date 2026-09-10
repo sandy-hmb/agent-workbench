@@ -264,6 +264,64 @@ class WorkspaceStatusTest(unittest.TestCase):
             result["nextActions"][0]["reason"],
         )
 
+    def test_status_reports_claimed_and_trusted_progress_for_new_plan(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        tests = self.root / "tests"
+        tests.mkdir()
+        (tests / "test_feature.py").write_text("def test_feature(): pass\n", encoding="utf-8")
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [x] T01 已声明完成\n\n"
+            "  依赖：无\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`.gitignore`\n"
+            "  - Test：`tests/test_feature.py`\n\n"
+            "- [ ] T02 后续任务\n\n"
+            "  依赖：T01\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：声明式\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`README.md`\n",
+            encoding="utf-8",
+        )
+
+        missing = workspace_status.status_result(self.root)["features"][0]
+        (feature / "testing/verification.md").write_text(
+            "## 任务证据 T01 2026-09-10T10:00:00Z\n\n"
+            "- 交付核对：通过\n"
+            f'- 代码状态：{{"{self.root.name}":"sha256:{"a" * 64}"}}\n\n'
+            "### 检查 1\n\n"
+            "- 类型：测试\n"
+            f"- 工作目录：`{self.root}`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 目标：`tests/test_feature.py`\n"
+            "- 执行数：1\n"
+            "- 跳过数：0\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n",
+            encoding="utf-8",
+        )
+        trusted = workspace_status.status_result(self.root)["features"][0]
+
+        self.assertEqual({"completed": 1, "total": 2}, missing["progress"])
+        self.assertEqual(
+            {"applicable": True, "completed": 0, "total": 2},
+            missing["trustedProgress"],
+        )
+        self.assertIn(
+            "TASK_EVIDENCE_MISSING",
+            {item["code"] for item in missing["documentDiagnostics"]},
+        )
+        self.assertEqual(
+            {"applicable": True, "completed": 1, "total": 2},
+            trusted["trustedProgress"],
+        )
+        self.assertTrue(trusted["taskEvidence"][0]["trusted"])
+
     def test_planning_feature_requires_each_document_review_before_its_successor(self):
         feature = self.write_feature(
             self.root / "docs/development/features", maintenance=True
@@ -404,6 +462,97 @@ class WorkspaceStatusTest(unittest.TestCase):
         self.assertEqual(["T01"], tasks[1]["dependencies"])
         self.assertIsNone(tasks[2]["id"])
         self.assertFalse(any(item["severity"] == "error" for item in analysis["diagnostics"]))
+
+    def test_plan_analysis_parses_task_evidence_v1_contract(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "# 实施计划\n\n"
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [ ] T01 实现服务\n\n"
+            "  依赖：无\n"
+            "  目标仓：`service`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`src/service.py`（`Service#run`）\n"
+            "  - Test：`tests/test_service.py`（`ServiceTest#test_run`）\n",
+            encoding="utf-8",
+        )
+
+        analysis = workspace_status.plan_analysis(plan, repositories={"service"})
+
+        self.assertEqual("task-evidence-v1", analysis["completionPolicy"])
+        task = analysis["tasks"][0]
+        self.assertEqual("service", task["repository"])
+        self.assertEqual("行为", task["validationKind"])
+        self.assertEqual(
+            [
+                {
+                    "repository": "service",
+                    "kind": "Modify",
+                    "path": "src/service.py",
+                    "symbol": "Service#run",
+                    "line": 13,
+                },
+                {
+                    "repository": "service",
+                    "kind": "Test",
+                    "path": "tests/test_service.py",
+                    "symbol": "ServiceTest#test_run",
+                    "line": 14,
+                },
+            ],
+            task["deliverables"],
+        )
+        self.assertFalse(
+            any(item["severity"] == "error" for item in analysis["diagnostics"])
+        )
+
+    def test_plan_analysis_rejects_invalid_task_evidence_v1_fields(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "- 完成门禁：`unknown-policy`\n\n"
+            "- [ ] T01 无效任务\n\n"
+            "  依赖：无\n"
+            "  目标仓：`service`\n"
+            "  目标仓：`other`\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`src/*.py`\n",
+            encoding="utf-8",
+        )
+
+        analysis = workspace_status.plan_analysis(plan, repositories={"service"})
+
+        codes = {item["code"] for item in analysis["diagnostics"]}
+        self.assertIn("PLAN_COMPLETION_POLICY_UNKNOWN", codes)
+        self.assertIn("PLAN_TASK_REPOSITORY_INVALID", codes)
+        self.assertIn("PLAN_TASK_VALIDATION_KIND_MISSING", codes)
+        self.assertIn("PLAN_TASK_DELIVERABLE_INVALID", codes)
+        self.assertTrue(
+            all(item["line"] > 0 for item in analysis["diagnostics"])
+        )
+
+    def test_legacy_plan_keeps_checkbox_completion_policy(self):
+        plan = self.root / "plan.md"
+        plan.write_text(
+            "- [x] T01 已完成\n\n"
+            "  依赖：无\n\n"
+            "- [ ] T02 待执行\n\n"
+            "  依赖：T01\n",
+            encoding="utf-8",
+        )
+
+        analysis = workspace_status.plan_analysis(plan)
+
+        self.assertEqual("legacy-checkbox", analysis["completionPolicy"])
+        self.assertEqual({"completed": 1, "total": 2}, workspace_status.plan_progress(plan))
+        self.assertEqual(["T01"], analysis["tasks"][1]["dependencies"])
+        self.assertTrue(
+            all(task["repository"] is None for task in analysis["tasks"])
+        )
+        self.assertTrue(
+            all(task["validationKind"] is None for task in analysis["tasks"])
+        )
+        self.assertTrue(all(task["deliverables"] == [] for task in analysis["tasks"]))
 
     def test_plan_analysis_reports_invalid_tasks_and_dependencies(self):
         plan = self.root / "plan.md"

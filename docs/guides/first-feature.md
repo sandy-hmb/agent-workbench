@@ -39,12 +39,12 @@ python3 scripts/kit.py registry branch service \
 随后按讨论结果按需增加：
 
 - `design/design.md` 开头集中说明目标、选定方案和关键约束，再记录完整怎么做。存在真实技术取舍时比较二至三个可行方案并说明推荐理由；随后按需展开组件和数据流、数据/API/状态概览、错误处理、兼容、回退与验证，只为需要稳定引用的关键决策分配 D01-DNN。主设计保留完整方案、共享约束、风险和附件导航；只有独立读者、审阅或维护需要时，经确认拆 `design/data-model.md` 或 `design/api-integration.md`。附件扩展主设计，不替代主设计，并声明所扩展的 D 编号和链接回主设计。写入后检查占位内容、内部矛盾、范围、歧义和需求覆盖，再完成结构与 Markdown 阅读自审，由使用者批准整个 Design 审阅包。新建、删除或实质修改任一附件时，设计审阅和已有计划审阅都回到“待审阅”。
-- 书面设计获批后，`workspace-writing-plan` 直接创建并自审 `plans/implementation.md` 草案，不重复确认计划摘要。计划开头集中说明目标、方案、技术栈、设计来源、仓与分支、执行方式和全局约束，再按实际业务或交付领域选择性分组；小计划不增加分组。任务使用顶层 `- [ ] T01`，并按交付结果、R/D 依据、精确 Files、Interfaces、依赖、单动作步骤和具体验证组织。提交审阅前核对全部任务的实际模块、符号或 Create 目标、上下游接口、依赖、验证命令和主要行为边界。长命令使用可执行的多行续行格式。该文件记录可执行任务和跨会话读取清单，不新增 `plan.md`、`tasks.md` 或嵌套任务状态。使用者审阅实际计划、基线、分支和执行方式并明确批准后，更新 README 的计划审阅和状态为 `development`。
+- 书面设计获批后，`workspace-writing-plan` 直接创建并自审 `plans/implementation.md` 草案，不重复确认计划摘要。新计划声明 `task-evidence-v1`；每项使用顶层 `- [ ] T01`，并记录交付结果、R/D 依据、唯一目标仓、验证性质、完整 Files 与稳定符号、Interfaces、依赖、具体失败场景、单动作步骤和具体验证。跨仓交付拆为不同任务；持久化任务不能只靠编译或纯 Mock。计划不复制或绑定项目规范。使用者审阅实际计划、基线、分支和执行方式并明确批准后，更新 README 的计划审阅和状态为 `development`。
 - 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态、覆盖验收和执行情况，不使用占位内容。
 
 Requirements 和 Design 只询问会实质改变结果的问题，每轮最多三个；原生交互可用时提供推荐、备选和自定义输入，否则一次提出一个文字问题并等待回复。结论收敛后单独确认生成，未回复不是确认。Plan 只在存在关键阻塞时提问，设计获批后直接生成草案，批准实际文件后才执行。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
 
-计划获批后由 `workspace-execute-plan` 逐项执行：先预检计划，再完成任务级验证和实际 diff 自审。一次一个可验证任务不是会话边界；任务通过后更新顶层复选框，有下一项依赖满足的未完成任务时直接继续。普通代码位置或等价验证入口变化在范围内修正，范围、验收、契约、关键方案或任务边界变化时才回到对应讨论阶段。只有全部任务完成或所有剩余任务真实阻塞时，才能结束当前请求；前者继续整体复核与验证，后者报告当前任务、证据和最小用户决策。
+计划获批后由 `workspace-execute-plan` 逐项执行：展开当前任务后读取 `instructionContext`，新会话先读工作区入口，首次编辑目标仓前读仓库与就近规范，再按实际改动类型加载专项规范；同会话复用未变化内容。完成任务验证后记录执行数、跳过数、退出状态、交付核对和代码快照，再勾选任务并用 `trustedProgress` 判断是否解锁依赖。一次一个可验证任务不是会话边界；有下一项依赖满足的未完成任务时直接继续。只有全部任务完成或所有剩余任务真实阻塞时才能结束；新计划的“完成”还要求全部任务可信。
 
 需要临时 SQL、DDL、DML 或交付 fixture 时，将其放在当前需求的 `artifacts/`，SQL 使用 `artifacts/sql/`。数据模型、迁移顺序、兼容和回退策略默认写在主设计文档的数据库章节；业务正式数据库迁移和自动化测试必需 fixture 必须随业务仓版本化。
 
@@ -59,7 +59,7 @@ python3 scripts/kit.py doctor --root .
 
 `workspace-verify` 会把已授权的离线验证写成完整批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果都记录在 `testing/verification.md`。旧记录仍可阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
 
-新会话通过 `status` 和显式 slug 的 `brief payments-retry --json` 恢复；再用 `brief payments-retry --task T01 --json` 展开当前任务，只读取共同必读、直接依赖和任务引用。`brief payments-retry --check --json` 检查文档结构与本地引用，但不替代人工审阅或语义自审。计划不得依赖历史对话。验证通过且确认结束后才执行：
+新会话通过 `status` 和显式 slug 的 `brief payments-retry --json` 恢复；再用 `brief payments-retry --task T01 --json` 展开当前任务和规范入口。`brief payments-retry --check --json` 检查文档结构、任务证据与本地引用；`progress` 保留勾选数量，`trustedProgress` 决定新计划的执行依赖。需要额外授权的数据库、Provider、部署或联调列为待外部验证，不作为本地顶层任务。验证通过且确认结束后才执行：
 
 ```bash
 python3 scripts/kit.py feature set-status payments-retry done

@@ -22,6 +22,29 @@ VALID = '''## 验证批次 2026-09-08T10:00:00Z
 
 
 class InspectVerificationTest(unittest.TestCase):
+    def test_final_batch_parser_ignores_task_evidence_sections(self):
+        task = '''## 任务证据 T01 2026-09-10T09:00:00Z
+- 交付核对：通过
+- 代码状态：{"service":"sha256:''' + 'b' * 64 + '''"}
+
+### 检查 1
+- 类型：测试
+- 工作目录：../service
+- 命令：./mvnw test
+- 目标：ExampleTest
+- 执行数：1
+- 跳过数：0
+- 退出状态：0
+- 结果：通过
+'''
+        result = verification.describe_verification_document(
+            "# 验证记录\n\n" + task + "\n" + VALID
+        )
+
+        self.assertEqual(1, len(result["batches"]))
+        self.assertEqual("2026-09-08T10:00:00Z", result["selectedBatch"]["recordedAt"])
+        self.assertEqual(1, len(result["selectedBatch"]["checks"]))
+
     def test_complete_document_has_actual_batch_and_check_source_positions(self):
         text = '# 验证记录\n\n' + VALID
         result = verification.describe_verification_document(text)

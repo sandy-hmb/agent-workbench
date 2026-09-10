@@ -1,5 +1,7 @@
 # {title} 实施计划
 
+- 完成门禁：`task-evidence-v1`
+
 **目标：** 用一句话说明全部任务完成后的结果。
 
 **方案：** 用两至三句话概括实现路径。
@@ -10,7 +12,7 @@
 
 ## 执行概览
 
-记录 feature slug、目标仓、基线、工作分支、当前工作目录和执行方式。新会话的读取命令与共同必读文件也放在这里。
+记录 feature slug、目标仓、基线、工作分支、当前工作目录和执行方式。新会话的读取命令与共同必读文件也放在这里。计划不复制或绑定项目规范；执行时通过 `brief --task` 返回的 `instructionContext` 渐进读取。
 
 ### 全局约束
 
@@ -18,7 +20,7 @@
 
 ## 任务
 
-只有存在至少两个自然业务或交付领域时才增加三级分组；分组不带复选框，不计入进度。
+只有存在至少两个自然业务或交付领域时才增加三级分组；分组不带复选框，不计入进度。跨仓交付拆为不同任务；同仓任务按可独立验收的主要行为闭环拆分。
 
 ### 1. 示例分组
 
@@ -28,12 +30,13 @@
 
   依据：R1、[D01](../design/design.md#d01)；细节（如适用）：[D01 扩展](../design/data-model.md#d01-字段设计)
   依赖：无
+  目标仓：`repository`
+  验证性质：行为
 
   **文件**
 
-  - Create：`path/to/new-file`
-  - Modify：`path/to/existing-file` 或现有符号
-  - Test：`tests/path/to/test-file`
+  - Modify：`path/to/existing-file.py`（`Service#method`）
+  - Test：`tests/test_service.py`（`ServiceTest#test_observable_result`）
 
   **接口**
 
@@ -42,22 +45,43 @@
 
   **实施步骤**
 
-  1. 为非平凡行为增加最小失败检查，并确认失败原因正确。
-  2. 完成最小实现，使目标检查通过。
-  3. 运行必要回归并核对实际 diff。
+  1. 在 `ServiceTest#test_observable_result` 增加具体失败场景和断言，运行目标命令，预期因当前缺少的行为而失败。
+  2. 修改 `Service#method` 完成一个实现动作，并写明该动作产生的可观察结果。
+  3. 重跑目标检查与必要回归，核对执行数、跳过数、退出状态和本任务 diff。
 
   **验证**
 
   工作目录：`repository`
 
-  ```bash
-  command \
-    --long-option value \
-    test
-  ```
+  ~~~bash
+  exact-command \
+    --target ServiceTest.test_observable_result
+  ~~~
 
-  通过条件：写明实际可观察结果，不只记录退出码。
+  通过条件：写明目标检查的实际执行要求和业务结果，不只记录退出码。持久化任务使用“验证性质：持久化”，并包含结构、迁移或集成级真实写入检查；编译或纯 Mock 不能单独通过。
+
+## 任务证据
+
+每项任务按“验证 → 核对交付 → 获取代码状态 → 写证据 → 勾选 → 重跑 brief”完成。实际证据追加到 `testing/verification.md`：
+
+~~~markdown
+## 任务证据 T01 YYYY-MM-DDTHH:MM:SS+08:00
+
+- 交付核对：通过
+- 代码状态：{"repository":"sha256:<digest>"}
+
+### 检查 1
+
+- 类型：测试
+- 工作目录：repository
+- 命令：exact-command
+- 目标：ServiceTest.test_observable_result
+- 执行数：1
+- 跳过数：0
+- 退出状态：0
+- 结果：写明实际可观察结果
+~~~
 
 ## 整体验证与完成条件
 
-记录跨任务回归、需求覆盖、范围核对和交付边界；不要重复每个任务已经定义的验证。
+记录跨任务回归、需求覆盖、范围核对和交付边界；不要重复每个任务已经定义的验证。需要额外授权的数据库、Provider、部署、生产迁移或跨团队联调列在“待外部验证”，不作为本地任务依赖。

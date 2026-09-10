@@ -7,15 +7,15 @@
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:7e9657608dd9633d89f90c077f4c9bc42c8d57078c7fcbc1286df5db0e3eb0d3",
+  "revision": "sha256:b063293cf3aadad83d33c44a1c2a3c6f8cf94fe8b7d3f3394b8b57748a814c4f",
   "data": {
     "slug": "demo",
     "path": "plans/implementation.md",
     "mediaType": "text/markdown",
-    "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f",
-    "bytes": 95,
-    "lineCount": 9,
-    "content": "# 实施计划\n\n- [x] T01 创建样例\n\n  依赖：无\n\n- [ ] T02 读取结果\n\n  依赖：T01\n"
+    "revision": "sha256:789c1ed33ea97697110d7988cf664b2777816633e9e30f69b92eff007290c21e",
+    "bytes": 347,
+    "lineCount": 24,
+    "content": "# 实施计划\n\n- 完成门禁：`task-evidence-v1`\n\n- [x] T01 创建样例\n\n  依赖：无\n  目标仓：`service`\n  验证性质：行为\n\n  **文件**\n\n  - Modify：`source.txt`\n  - Test：`tests/test_source.py`\n\n- [ ] T02 读取结果\n\n  依赖：T01\n  目标仓：`service`\n  验证性质：声明式\n\n  **文件**\n\n  - Modify：`source.txt`\n"
   },
   "diagnostics": []
 }

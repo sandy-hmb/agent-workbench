@@ -32,14 +32,18 @@ class InspectExamplesTest(unittest.TestCase):
             "requirements/requirements.md": "# 需求\n\n展示现有工作流记录。\n",
             "design/design.md": "# 设计\n\n[附件](details.md)\n",
             "design/details.md": "# 设计细节\n",
-            "plans/implementation.md": "# 实施计划\n\n- [x] T01 创建样例\n\n  依赖：无\n\n- [ ] T02 读取结果\n\n  依赖：T01\n",
+            "plans/implementation.md": "# 实施计划\n\n- 完成门禁：`task-evidence-v1`\n\n- [x] T01 创建样例\n\n  依赖：无\n  目标仓：`service`\n  验证性质：行为\n\n  **文件**\n\n  - Modify：`source.txt`\n  - Test：`tests/test_source.py`\n\n- [ ] T02 读取结果\n\n  依赖：T01\n  目标仓：`service`\n  验证性质：声明式\n\n  **文件**\n\n  - Modify：`source.txt`\n",
             "artifacts/example.sql": "SELECT 1;\n",
-            "testing/verification.md": "## 验证批次 2026-09-08T10:00:00Z\n- 总体结果：通过\n- 审查结论：通过\n- 代码状态：{\"service\":\"sha256:" + "a" * 64 + "\"}\n\n### 检查 1\n- 工作目录：../service\n- 命令：python3 -m unittest\n- 退出状态：0\n- 结果：通过\n- 测试数量：3\n",
+            "testing/verification.md": "## 任务证据 T01 2026-09-08T09:00:00Z\n\n- 交付核对：通过\n- 代码状态：{\"service\":\"sha256:" + "b" * 64 + "\"}\n\n### 检查 1\n\n- 类型：测试\n- 工作目录：../service\n- 命令：python3 -m unittest\n- 目标：tests/test_source.py\n- 执行数：1\n- 跳过数：0\n- 退出状态：0\n- 结果：通过\n\n## 验证批次 2026-09-08T10:00:00Z\n- 总体结果：通过\n- 审查结论：通过\n- 代码状态：{\"service\":\"sha256:" + "a" * 64 + "\"}\n\n### 检查 1\n- 工作目录：../service\n- 命令：python3 -m unittest\n- 退出状态：0\n- 结果：通过\n- 测试数量：3\n",
         }.items():
             target = feature / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text)
-        (self.root.parent / "service").mkdir()
+        service = self.root.parent / "service"
+        service.mkdir()
+        (service / "source.txt").write_text("value\n")
+        (service / "tests").mkdir()
+        (service / "tests/test_source.py").write_text("def test_source(): pass\n")
         config_path = state / "workspace.json"
         config = json.loads(config_path.read_text())
         config["repositories"] = [{"path": "service", "aliases": [], "remote": None,

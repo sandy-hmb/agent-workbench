@@ -534,6 +534,15 @@
         "total": {
           "type": "integer"
         },
+        "completionPolicy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trustedProgress": {
+          "$ref": "#/$defs/trustedProgress"
+        },
         "diagnostics": {
           "type": "array",
           "items": {
@@ -685,6 +694,111 @@
       },
       "additionalProperties": true
     },
+    "trustedProgress": {
+      "type": "object",
+      "required": [
+        "applicable",
+        "completed",
+        "total"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "completed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "deliverable": {
+      "type": "object",
+      "required": [
+        "repository",
+        "kind",
+        "path",
+        "symbol",
+        "line"
+      ],
+      "properties": {
+        "repository": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "Create",
+            "Modify",
+            "Test",
+            "Delete",
+            "Verify"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "taskEvidence": {
+      "type": "object",
+      "required": [
+        "taskId",
+        "trusted",
+        "source",
+        "diagnostics"
+      ],
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "trusted": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "startLine": {
+              "type": "integer"
+            },
+            "endLine": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": true
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/documentDiagnostic"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "task": {
       "type": "object",
       "required": [
@@ -710,6 +824,60 @@
         },
         "completed": {
           "type": "boolean"
+        },
+        "repository": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "validationKind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "行为",
+            "声明式",
+            "持久化",
+            null
+          ]
+        },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deliverable"
+          }
+        },
+        "trusted": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "evidenceSource": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "startLine": {
+              "type": "integer"
+            },
+            "endLine": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": true
+        },
+        "evidenceDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/documentDiagnostic"
+          }
         },
         "dependencies": {
           "type": "array",
@@ -1207,6 +1375,12 @@
         },
         "selectedBatch": {
           "$ref": "#/$defs/selectedBatch"
+        },
+        "taskEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/taskEvidence"
+          }
         },
         "checkMode": {
           "enum": [

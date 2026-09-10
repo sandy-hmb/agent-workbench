@@ -85,6 +85,88 @@ class MaintenanceBriefTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def write_workspace_task(self) -> tuple[Path, Path]:
+        state = self.root / ".workspace"
+        service = self.root.parent / "service"
+        worker = self.root.parent / "worker"
+        service.mkdir()
+        worker.mkdir()
+        (service / "module").mkdir()
+        (service / "module/file.py").write_text("value = 1\n", encoding="utf-8")
+        (service / "AGENTS.md").write_text("# Service rules\n", encoding="utf-8")
+        (service / "module/AGENTS.md").write_text("# Module rules\n", encoding="utf-8")
+        (worker / "AGENTS.md").write_text("# Worker rules\n", encoding="utf-8")
+        (state / "workspace.json").parent.mkdir(parents=True)
+        (state / "workspace.json").write_text(
+            json.dumps(
+                {
+                    "version": {"major": 1, "minor": 0},
+                    "workspace": {"name": "Demo"},
+                    "context": {},
+                    "branchPolicy": {},
+                    "extensions": {"providers": {}, "config": {}},
+                    "repositories": [
+                        {
+                            "path": "service",
+                            "aliases": [],
+                            "remote": None,
+                            "category": "backend",
+                            "description": "Service",
+                            "instruction": "docs/repositories/service.md",
+                            "sourceInstruction": "AGENTS.md",
+                        },
+                        {
+                            "path": "worker",
+                            "aliases": [],
+                            "remote": None,
+                            "category": "backend",
+                            "description": "Worker",
+                            "instruction": "docs/repositories/worker.md",
+                            "sourceInstruction": "AGENTS.md",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (state / "AGENTS.md").write_text("# Workspace rules\n", encoding="utf-8")
+        (state / "CONTEXT.md").write_text("# Workspace context\n", encoding="utf-8")
+        profiles = state / "docs/repositories"
+        profiles.mkdir(parents=True)
+        (profiles / "service.md").write_text("# Service profile\n", encoding="utf-8")
+        (profiles / "worker.md").write_text("# Worker profile\n", encoding="utf-8")
+        feature = state / "docs/features/demo-feature"
+        (feature / "requirements").mkdir(parents=True)
+        (feature / "design").mkdir()
+        (feature / "plans").mkdir()
+        (feature / "testing").mkdir()
+        (feature / "README.md").write_text(
+            "# Demo\n\n"
+            "- 状态：development\n"
+            "- 涉及仓库：`service`\n"
+            "- 工作分支：`service` -> `main`\n"
+            "- 基线分支：`service` -> `main`\n"
+            "- 需求审阅：已批准\n"
+            "- 设计审阅：已批准\n"
+            "- 计划审阅：已批准\n"
+            "- 最后更新：2026-09-10\n",
+            encoding="utf-8",
+        )
+        (feature / "requirements/requirements.md").write_text("# 需求\n", encoding="utf-8")
+        (feature / "design/design.md").write_text("# 设计\n", encoding="utf-8")
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [ ] T01 修改服务\n\n"
+            "  依赖：无\n"
+            "  目标仓：`service`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`module/file.py`（`Service#run`）\n",
+            encoding="utf-8",
+        )
+        (feature / "testing/verification.md").write_text("# 验证记录\n", encoding="utf-8")
+        return feature, service
+
     def test_brief_reports_full_feature(self) -> None:
         import kit_feature_brief
 
@@ -540,6 +622,95 @@ class MaintenanceBriefTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "没有任务"):
             kit_feature_brief.brief_result(self.root, "demo-feature", "T99")
 
+    def test_task_instruction_context_deduplicates_maintenance_root(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (self.root / "AGENTS.md").write_text("# Root rules\n", encoding="utf-8")
+        module = self.root / "src/module"
+        module.mkdir(parents=True)
+        (module / "AGENTS.md").write_text("# Module rules\n", encoding="utf-8")
+        (module / "file.py").write_text("value = 1\n", encoding="utf-8")
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [ ] T01 修改模块\n\n"
+            "  依赖：无\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`src/module/file.py`（`Module#run`）\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", "T01"
+        )
+
+        context = result["instructionContext"]
+        self.assertEqual(
+            [{"path": "AGENTS.md", "scope": "workspace"}],
+            context["workspace"],
+        )
+        self.assertEqual(
+            ["src/module/AGENTS.md"],
+            context["repositories"][0]["scopedInstructions"],
+        )
+        self.assertIsNone(context["repositories"][0]["sourceInstruction"])
+
+    def test_task_instruction_context_orders_workspace_repository_and_scoped_sources(self) -> None:
+        import kit_feature_brief
+
+        self.write_workspace_task()
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", "T01"
+        )
+
+        context = result["instructionContext"]
+        self.assertEqual(
+            [".workspace/AGENTS.md", ".workspace/CONTEXT.md"],
+            [item["path"] for item in context["workspace"]],
+        )
+        self.assertEqual(1, len(context["repositories"]))
+        repository = context["repositories"][0]
+        self.assertEqual("service", repository["repository"])
+        self.assertEqual(
+            ".workspace/docs/repositories/service.md",
+            repository["governance"],
+        )
+        self.assertEqual("../service/AGENTS.md", repository["sourceInstruction"])
+        self.assertEqual(
+            ["../service/module/AGENTS.md"],
+            repository["scopedInstructions"],
+        )
+        self.assertNotIn("worker", json.dumps(context))
+
+    def test_task_instruction_context_rejects_missing_or_unsafe_required_sources(self) -> None:
+        import kit_feature_brief
+
+        _, service = self.write_workspace_task()
+        source = service / "AGENTS.md"
+        source.unlink()
+
+        missing = kit_feature_brief.brief_result(
+            self.root, "demo-feature", "T01"
+        )
+
+        self.assertIn(
+            "INSTRUCTION_SOURCE_MISSING",
+            {item["code"] for item in missing["documentDiagnostics"]},
+        )
+
+        source.symlink_to(self.root / "README.md")
+        unsafe = kit_feature_brief.brief_result(
+            self.root, "demo-feature", "T01"
+        )
+
+        self.assertIn(
+            "INSTRUCTION_SOURCE_MISSING",
+            {item["code"] for item in unsafe["documentDiagnostics"]},
+        )
+
     def test_brief_orders_all_ready_tasks_by_plan_position(self) -> None:
         import kit_feature_brief
 
@@ -559,6 +730,108 @@ class MaintenanceBriefTest(unittest.TestCase):
 
         self.assertEqual("T02", result["currentTask"]["id"])
         self.assertEqual(["T02", "T03"], result["readyTasks"])
+        self.assertEqual("RUN", result["executionDecision"])
+
+    def write_evidence_plan(self, feature: Path) -> None:
+        tests = self.root / "tests"
+        tests.mkdir(exist_ok=True)
+        (tests / "test_service.py").write_text(
+            "def test_service(): pass\n", encoding="utf-8"
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [x] T01 已声明完成\n\n"
+            "  依赖：无\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`README.md`\n"
+            "  - Test：`tests/test_service.py`\n\n"
+            "- [ ] T02 后续任务\n\n"
+            "  依赖：T01\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：声明式\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`README.md`\n",
+            encoding="utf-8",
+        )
+
+    def write_valid_task_evidence(self, feature: Path) -> None:
+        (feature / "testing/verification.md").write_text(
+            "## 任务证据 T01 2026-09-10T10:00:00Z\n\n"
+            "- 交付核对：通过\n"
+            f'- 代码状态：{{"{self.root.name}":"sha256:{"a" * 64}"}}\n\n'
+            "### 检查 1\n\n"
+            "- 类型：测试\n"
+            f"- 工作目录：`{self.root}`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 目标：`tests/test_service.py`\n"
+            "- 执行数：1\n"
+            "- 跳过数：0\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n",
+            encoding="utf-8",
+        )
+
+    def test_brief_blocks_checked_task_without_valid_evidence(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        self.write_evidence_plan(feature)
+        (feature / "testing/verification.md").write_text("# 验证记录\n", encoding="utf-8")
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
+
+        self.assertEqual({"completed": 1, "total": 2}, result["progress"])
+        self.assertEqual(
+            {"applicable": True, "completed": 0, "total": 2},
+            result["trustedProgress"],
+        )
+        self.assertEqual("T01", result["currentTask"]["id"])
+        self.assertEqual("BLOCKED", result["executionDecision"])
+        self.assertEqual([], result["readyTasks"])
+
+    def test_brief_unlocks_dependency_with_valid_task_evidence(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        self.write_evidence_plan(feature)
+        self.write_valid_task_evidence(feature)
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
+
+        self.assertEqual(
+            {"applicable": True, "completed": 1, "total": 2},
+            result["trustedProgress"],
+        )
+        self.assertEqual("T02", result["currentTask"]["id"])
+        self.assertEqual(["T02"], result["readyTasks"])
+        self.assertEqual("RUN", result["executionDecision"])
+
+    def test_legacy_plan_keeps_checkbox_execution_semantics(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        (feature / "plans/implementation.md").write_text(
+            "- [x] T01 已完成\n\n"
+            "- [ ] T02 后续任务\n\n"
+            "  依赖：T01\n",
+            encoding="utf-8",
+        )
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", execution=True
+        )
+
+        self.assertNotIn("trustedProgress", result)
+        self.assertNotIn("completionPolicy", result)
+        self.assertNotIn("taskEvidence", result)
+        self.assertEqual("T02", result["currentTask"]["id"])
+        self.assertEqual(["T02"], result["readyTasks"])
         self.assertEqual("RUN", result["executionDecision"])
 
     def test_brief_blocks_execution_when_plan_approval_is_missing(self) -> None:

@@ -86,6 +86,56 @@ class InspectContractReviewTest(unittest.TestCase):
         self.assertIn(plan["revision"], json.dumps(task))
         self.assertEqual("text/markdown", plan["mediaType"])
 
+    def test_inspect_preserves_claimed_and_trusted_progress(self):
+        service = self.root.parent / "service"
+        (service / "source.py").write_text("value = 1\n")
+        tests = service / "tests"
+        tests.mkdir()
+        (tests / "test_source.py").write_text("def test_source(): pass\n")
+        self.write(
+            f"{self.feature}/plans/implementation.md",
+            "- 完成门禁：`task-evidence-v1`\n\n"
+            "- [x] T01 已声明完成\n\n"
+            "  依赖：无\n"
+            "  目标仓：`service`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`source.py`\n"
+            "  - Test：`tests/test_source.py`\n",
+        )
+        self.write(
+            f"{self.feature}/testing/verification.md",
+            "## 任务证据 T01 2026-09-10T10:00:00Z\n\n"
+            "- 交付核对：通过\n"
+            f'- 代码状态：{{"service":"sha256:{"a" * 64}"}}\n\n'
+            "### 检查 1\n\n"
+            "- 类型：测试\n"
+            f"- 工作目录：`{service}`\n"
+            "- 命令：`python3 -m unittest`\n"
+            "- 目标：`tests/test_source.py`\n"
+            "- 执行数：1\n"
+            "- 跳过数：0\n"
+            "- 退出状态：0\n"
+            "- 结果：通过\n",
+        )
+
+        feature = self.query("feature", "demo")["data"]
+        verification = self.query("verification", "demo")["data"]
+
+        self.assertEqual(1, feature["summary"]["planSummary"]["completed"])
+        self.assertEqual(
+            1,
+            feature["summary"]["planSummary"]["trustedProgress"]["completed"],
+        )
+        self.assertTrue(feature["tasks"][0]["trusted"])
+        self.assertTrue(verification["taskEvidence"][0]["trusted"])
+        schema = json.loads((ROOT / "schemas/inspect-result.schema.json").read_text())
+        validate(feature, {"$defs": schema["$defs"], "$ref": "#/$defs/feature"})
+        validate(
+            verification,
+            {"$defs": schema["$defs"], "$ref": "#/$defs/verification"},
+        )
+
     def test_schema_rejects_invalid_repository_and_verification_states(self):
         schema = json.loads((ROOT / "schemas/inspect-result.schema.json").read_text())
         for operation, args, mutate in [

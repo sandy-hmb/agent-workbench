@@ -7,7 +7,7 @@
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:30f6f81040f6afd9cd081acbbca880156f67e25919593a27a7cc60b08b42af83",
+  "revision": "sha256:e1d408ac3e818a5c0434f5ab47480c7c96910b1f3558e2300bc5245e4c8c7de6",
   "data": {
     "items": [
       {
@@ -29,6 +29,12 @@
           "exists": true,
           "completed": 1,
           "total": 2,
+          "completionPolicy": "task-evidence-v1",
+          "trustedProgress": {
+            "applicable": true,
+            "completed": 1,
+            "total": 2
+          },
           "diagnostics": []
         },
         "documentReviews": {

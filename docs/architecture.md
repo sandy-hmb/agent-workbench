@@ -57,8 +57,8 @@ flowchart TB
 | 仓库登记：[workspace_registry.py](../scripts/workspace_registry.py) | 需求设计、跨仓分析和交付流程；依赖已登记仓与分支策略。 | 名称或别名解析成仓库路径和有效策略；branch 返回候选分支，命名 Provider 可替换结果，不在这里创建 Git 分支。 |
 | 上下文路由：[workspace_context.py](../scripts/workspace_context.py) | 需要按业务术语定位目标的调用方；依赖 `context.termRouter` 或绑定 Provider。 | 输入文本，输出唯一匹配的仓、capability 或 Action 路由；不匹配或歧义时报告阻塞，不据此自动执行 Action。 |
 | 需求记录：[feature_context.py](../scripts/feature_context.py) | 需求设计、续接和提测；依赖模式、仓登记及本地 owner。 | 创建需求 README 和需求正文，列出元数据、修改状态或活跃指针；设计、计划和验证文件由后续阶段产生。 |
-| 阶段与摘要：[workspace_status.py](../scripts/workspace_status.py)、[kit_feature_brief.py](../scripts/kit_feature_brief.py) | Agent 新任务与续接；依赖需求元数据、计划、最新验证记录和 Git 信息。 | 输出阶段建议、下一步和阻塞；brief 补充顺序化的当前/可执行任务、执行决策、确认要求、文档存在情况及近期提交，不自动推进状态。 |
-| 验证与诊断：[workspace-verify](../.agents/skills/workspace-verify/SKILL.md)、[workspace_doctor.py](../scripts/workspace_doctor.py) | Agent 执行已授权验证；doctor 检查 Kit 和工作区约束。 | 验证 Skill 将实际命令与结果写入需求验证记录；doctor 返回结构性诊断，不代替业务测试，也不自动修复。 |
+| 阶段与摘要：[workspace_status.py](../scripts/workspace_status.py)、[kit_feature_brief.py](../scripts/kit_feature_brief.py) | Agent 新任务与续接；依赖需求元数据、计划、任务证据和仓库登记。 | 输出原始/可信进度、当前任务、执行决策与阻塞；按任务展开时返回工作区、仓库和就近规范入口，不内联规范正文。 |
+| 验证与诊断：[workspace-verify](../.agents/skills/workspace-verify/SKILL.md)、[workspace_verification.py](../scripts/workspace_verification.py)、[workspace_doctor.py](../scripts/workspace_doctor.py) | Agent 执行已授权验证；脚本核对任务证据、最终批次和代码指纹。 | 新计划以精简任务证据解锁依赖，最终批次仍绑定完整代码状态；doctor 返回结构诊断，不执行计划命令。 |
 | Extension 管理：[workspace_extension.py](../scripts/workspace_extension.py) | Extension Skill；依赖 manifest、来源内容、配置和 Adapter。 | 安装、预览和激活本地扩展，维护 `.workspace/extensions/`、lock、绑定和生成的 `local-*` Adapter。 |
 | Provider 调用：[workspace_provider.py](../scripts/workspace_provider.py) | Core 中已定义的能力调用点；依赖当前作用域的唯一绑定与已锁定内容。 | 解析 Provider，校验漂移，以约定协议返回结果；Provider 本身的影响由其实现与声明决定。 |
 | Workflow 与 Action：[workflow_model.py](../scripts/workflow_model.py)、[workspace_workflow.py](../scripts/workspace_workflow.py) | Workflow Skill；依赖 Core Stage、Overlay、已激活 Action。 | 解析自定义步骤顺序，生成当前边界的计划，执行或记录 Action；Overlay 与 Run 保存在 `.workspace/`。 |
@@ -252,7 +252,7 @@ sequenceDiagram
 | Core Skill、脚本、Schema、模板和公开文档 | 公共 Kit Git；由 Kit 维护者修改。 | 公共更新按已确认目标快进，不更新业务仓代码。本文在此类中，但不进入 Agent 日常读取清单。 |
 | `workspace.json`、`workspace.local.json` | `.workspace/`；登记、配置或相关管理命令写入。 | 共享登记与本机偏好分别存放；都属于本地状态，不随公共 Git 同步。 |
 | 工作区 AGENTS、CONTEXT 与仓 profile | 初始化或登记流程生成；CONTEXT 保存业务事实，AGENTS 保存约定。 | 公共模板更新不会自动重写已有生成文件；相应 preview/apply 只更新其声明的范围。 |
-| 需求、设计、计划与验证 | 当前 feature；需求和设计在生成确认后记录，设计获批后直接生成计划草案，验证保存实际执行证据。 | `requirements.md` 记录需求；`design.md` 是完整技术设计和 D 决策唯一入口，复杂数据模型或接口经确认才拆扩展附件；附件变更使 Design 审阅包及已有计划回到待审阅；`implementation.md` 记录可执行任务并优先引用主设计 D 编号。 |
+| 需求、设计、计划与验证 | 当前 feature；需求和设计在生成确认后记录，设计获批后直接生成计划草案，验证保存任务检查点和最终批次。 | `implementation.md` 记录 `task-evidence-v1` 任务但不复制项目规范；`testing/verification.md` 的任务证据决定可信进度，最终批次绑定当前完整代码状态。 |
 | Extension、lock、Overlay 与 Run | `.workspace/`；扩展与 Workflow 命令管理。 | 修改后需要重新检查漂移和计划；详细日志与业务产物由扩展按授权保存。 |
 | `local-*` Adapter | 本地激活流程生成，Git 忽略。 | 不手工维护，不作为公共更新覆盖的内容。 |
 | 需求附属 SQL、临时 fixture 等 | feature 的 `artifacts/`，SQL 使用 `artifacts/sql/`。 | 只保存与本需求绑定的交付物；扩展产物不预设统一专用目录。 |

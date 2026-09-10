@@ -7,7 +7,7 @@
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:77f7076afa5ba1277aed882c2fe9ac498c0986ce80dbb34789c31f24c1a6fd02",
+  "revision": "sha256:38c38d88bdb04f7a36511759054e2a0b04e6f9adf82b9ef07315fefc951ccf84",
   "data": {
     "summary": {
       "slug": "demo",
@@ -28,6 +28,12 @@
         "exists": true,
         "completed": 1,
         "total": 2,
+        "completionPolicy": "task-evidence-v1",
+        "trustedProgress": {
+          "applicable": true,
+          "completed": 1,
+          "total": 2
+        },
         "diagnostics": []
       },
       "documentReviews": {
@@ -47,10 +53,35 @@
         "completed": true,
         "dependencies": [],
         "references": [],
-        "startLine": 3,
-        "endLine": 6,
+        "startLine": 5,
+        "endLine": 15,
+        "repository": "service",
+        "validationKind": "行为",
+        "deliverables": [
+          {
+            "repository": "service",
+            "kind": "Modify",
+            "path": "source.txt",
+            "symbol": null,
+            "line": 13
+          },
+          {
+            "repository": "service",
+            "kind": "Test",
+            "path": "tests/test_source.py",
+            "symbol": null,
+            "line": 14
+          }
+        ],
+        "trusted": true,
+        "evidenceSource": {
+          "path": "testing/verification.md",
+          "startLine": 1,
+          "endLine": 15
+        },
+        "evidenceDiagnostics": [],
         "path": "plans/implementation.md",
-        "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f"
+        "revision": "sha256:789c1ed33ea97697110d7988cf664b2777816633e9e30f69b92eff007290c21e"
       },
       {
         "id": "T02",
@@ -60,10 +91,24 @@
           "T01"
         ],
         "references": [],
-        "startLine": 7,
-        "endLine": 9,
+        "startLine": 16,
+        "endLine": 24,
+        "repository": "service",
+        "validationKind": "声明式",
+        "deliverables": [
+          {
+            "repository": "service",
+            "kind": "Modify",
+            "path": "source.txt",
+            "symbol": null,
+            "line": 24
+          }
+        ],
+        "trusted": null,
+        "evidenceSource": null,
+        "evidenceDiagnostics": [],
         "path": "plans/implementation.md",
-        "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f"
+        "revision": "sha256:789c1ed33ea97697110d7988cf664b2777816633e9e30f69b92eff007290c21e"
       }
     ],
     "files": [
@@ -92,8 +137,8 @@
         "path": "plans/implementation.md",
         "exists": true,
         "type": "md",
-        "bytes": 95,
-        "revision": "sha256:dd7589bf135ae59711e4758e6a55809b1b36d3b89f2a788638e7803db95cf33f"
+        "bytes": 347,
+        "revision": "sha256:789c1ed33ea97697110d7988cf664b2777816633e9e30f69b92eff007290c21e"
       },
       {
         "path": "requirements/requirements.md",
@@ -106,14 +151,15 @@
         "path": "testing/verification.md",
         "exists": true,
         "type": "md",
-        "bytes": 317,
-        "revision": "sha256:7c6f95dc9946e05b4fbf62c705150fe6aab37ccc39e24e794fc01a5330e137d3"
+        "bytes": 680,
+        "revision": "sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd"
       }
     ],
     "artifacts": [
       {
         "path": "artifacts/example.sql",
-        "type": "sql"
+        "type": "sql",
+        "bytes": 10
       }
     ],
     "description": {
@@ -134,7 +180,7 @@
       ],
       "blockers": []
     },
-    "featureRevision": "sha256:4d1bb552181ac553c55337daeeb17d6d7fafcf9013ec51f4e64116599d6f73e5"
+    "featureRevision": "sha256:bfbe28ef5836360ee52b73032b779d85398144700a97dbc5b1599e04217d5333"
   },
   "diagnostics": []
 }

@@ -22,8 +22,15 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 BATCH_HEADER_RE = re.compile(
     r"^## 验证批次 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})\s*$"
 )
+TASK_EVIDENCE_HEADER_RE = re.compile(
+    r"^## 任务证据 (T\d{2,}) "
+    r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}))\s*$",
+    re.MULTILINE,
+)
+SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
 CHECK_HEADER_RE = re.compile(r"^### 检查 [1-9][0-9]*\s*$", re.MULTILINE)
 CHECK_FIELDS = ("工作目录：", "命令：", "退出状态：", "结果：")
+TASK_CHECK_FIELDS = ("类型：", "工作目录：", "命令：", "目标：", "退出状态：", "结果：")
 INSPECT_MAX_UNTRACKED_FILES = 10_000
 INSPECT_MAX_FINGERPRINT_BYTES = 64 * 1024 * 1024
 
@@ -174,6 +181,244 @@ def encode_code_state(states: Mapping[str, str]) -> str:
 def _field(lines: list[str], prefix: str) -> str | None:
     values = [line[len(prefix) + 2 :].strip() for line in lines if line.startswith(f"- {prefix}")]
     return values[0] if len(values) == 1 and values[0] else None
+
+
+def _integer_field(lines: list[str], prefix: str) -> int | None:
+    value = _field(lines, prefix)
+    return int(value) if value is not None and re.fullmatch(r"[0-9]{1,9}", value) else None
+
+
+def describe_task_evidence_document(text: str) -> dict[str, object]:
+    """Parse task checkpoints without treating them as final verification."""
+    revision = "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+    matches = list(TASK_EVIDENCE_HEADER_RE.finditer(text))
+    records = []
+    for match in matches:
+        boundary = SECTION_RE.search(text, match.end())
+        end = boundary.start() if boundary else len(text)
+        record = text[match.start():end].strip()
+        source_line = text.count("\n", 0, match.start()) + 1
+        check_matches = list(CHECK_HEADER_RE.finditer(record))
+        header = (
+            record[:check_matches[0].start()].splitlines()
+            if check_matches
+            else record.splitlines()
+        )
+        issues = []
+
+        def issue(code: str, message: str, line: int = source_line) -> None:
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": code,
+                    "message": message,
+                    "path": "testing/verification.md",
+                    "line": line,
+                }
+            )
+
+        def required(lines: list[str], field: str, line: int) -> str | None:
+            value = _field(lines, field)
+            if value is None:
+                issue(
+                    "TASK_EVIDENCE_FIELD_INCOMPLETE",
+                    f"字段缺失、为空或重复：{field}",
+                    line,
+                )
+            return value
+
+        delivery = required(header, "交付核对：", source_line)
+        encoded = required(header, "代码状态：", source_line)
+        try:
+            code_state = json.loads(encoded) if encoded else None
+        except (ValueError, RecursionError):
+            code_state = None
+        if not _valid_code_state(code_state):
+            issue("TASK_EVIDENCE_CODE_STATE_INVALID", "任务证据没有合法的仓库代码指纹")
+        if not check_matches:
+            issue("TASK_EVIDENCE_CHECKS_MISSING", "任务证据没有检查记录")
+
+        checks = []
+        for index, check_match in enumerate(check_matches):
+            check_end = (
+                check_matches[index + 1].start()
+                if index + 1 < len(check_matches)
+                else len(record)
+            )
+            lines = record[check_match.end():check_end].splitlines()
+            line = source_line + record.count("\n", 0, check_match.start())
+            fields = {
+                field: required(lines, field, line) for field in TASK_CHECK_FIELDS
+            }
+            checks.append(
+                {
+                    "id": check_match.group(0).strip().split(" ")[-1],
+                    "source": {
+                        "path": "testing/verification.md",
+                        "startLine": line,
+                        "endLine": source_line
+                        + len(record[:check_end].rstrip().splitlines())
+                        - 1,
+                    },
+                    "type": fields["类型："],
+                    "workingDirectory": fields["工作目录："],
+                    "command": fields["命令："],
+                    "target": fields["目标："],
+                    "executed": _integer_field(lines, "执行数："),
+                    "skipped": _integer_field(lines, "跳过数："),
+                    "exitStatus": fields["退出状态："],
+                    "result": fields["结果："],
+                }
+            )
+        records.append(
+            {
+                "taskId": match.group(1),
+                "recordedAt": match.group(2),
+                "source": {
+                    "path": "testing/verification.md",
+                    "startLine": source_line,
+                    "endLine": source_line + len(record.splitlines()) - 1,
+                },
+                "raw": record,
+                "deliveryCheck": delivery,
+                "codeState": code_state,
+                "checks": checks,
+                "completeness": "incomplete" if issues else "complete",
+                "issues": issues,
+            }
+        )
+    latest = {}
+    for record in records:
+        latest[record["taskId"]] = record
+    return {
+        "documentRevision": revision,
+        "records": records,
+        "latestByTask": latest,
+    }
+
+
+def _deliverable_exists(repository: Path, relative: str, *, file_only: bool) -> bool:
+    pure = PurePosixPath(relative)
+    if not relative or pure.is_absolute() or ".." in pure.parts:
+        return False
+    target = repository.joinpath(*pure.parts)
+    current = repository
+    for part in pure.parts:
+        current /= part
+        if current.is_symlink():
+            return False
+    return target.is_file() if file_only else target.exists()
+
+
+def evaluate_task_evidence(
+    task: Mapping[str, object],
+    evidence: Mapping[str, object] | None,
+    repository_roots: Mapping[str, Path],
+) -> dict[str, object]:
+    """Check deterministic task evidence and current deliverable paths."""
+    task_id = str(task.get("id") or "")
+    diagnostics = []
+    source = evidence.get("source") if evidence is not None else None
+
+    def issue(code: str, message: str, line: int | None = None) -> None:
+        diagnostics.append(
+            {
+                "severity": "error",
+                "code": code,
+                "path": "testing/verification.md",
+                "line": line or int((source or {}).get("startLine", 1)),
+                "message": message,
+            }
+        )
+
+    if evidence is None:
+        issue("TASK_EVIDENCE_MISSING", f"已勾选任务 {task_id} 没有任务证据")
+        return {
+            "taskId": task_id,
+            "trusted": False,
+            "source": None,
+            "diagnostics": diagnostics,
+        }
+    diagnostics.extend(evidence.get("issues", []))
+    if evidence.get("taskId") != task_id:
+        issue("TASK_EVIDENCE_TASK_MISMATCH", "任务证据编号与计划任务不一致")
+    if evidence.get("deliveryCheck") != "通过":
+        issue("TASK_EVIDENCE_DELIVERY_FAILED", "任务交付核对未通过")
+
+    repository_name = task.get("repository")
+    code_state = evidence.get("codeState")
+    if (
+        not isinstance(repository_name, str)
+        or not isinstance(code_state, dict)
+        or set(code_state) != {repository_name}
+    ):
+        issue("TASK_EVIDENCE_REPOSITORY_MISMATCH", "任务证据仓库与目标仓不一致")
+
+    checks = evidence.get("checks")
+    checks = checks if isinstance(checks, list) else []
+    successful_types = set()
+    for check in checks:
+        check_type = check.get("type")
+        exit_status = check.get("exitStatus")
+        result = check.get("result")
+        line = int(check.get("source", {}).get("startLine", 1))
+        failed_result = not isinstance(result, str) or result.lstrip().startswith(
+            ("失败", "未执行", "不通过", "未通过")
+        )
+        if exit_status != "0" or failed_result:
+            issue("TASK_EVIDENCE_CHECK_FAILED", "任务检查未成功完成", line)
+            continue
+        if isinstance(check_type, str):
+            successful_types.add(check_type)
+        if check_type == "测试":
+            if check.get("executed") in {None, 0}:
+                issue("TASK_EVIDENCE_ZERO_TESTS", "目标测试没有实际执行", line)
+            if check.get("skipped") is None or int(check["skipped"]) > 0:
+                issue("TASK_EVIDENCE_SKIPPED_TESTS", "目标测试存在跳过或未记录跳过数", line)
+
+    validation_kind = task.get("validationKind")
+    allowed = {
+        "行为": {"测试", "行为检查", "集成", "结构", "迁移"},
+        "声明式": {"静态检查", "编译", "测试", "行为检查", "集成", "结构", "迁移"},
+        "持久化": {"结构", "迁移", "集成"},
+    }
+    if validation_kind not in allowed or not successful_types.intersection(
+        allowed.get(validation_kind, set())
+    ):
+        issue("TASK_EVIDENCE_KIND_INSUFFICIENT", "检查类型不足以证明任务验证性质")
+
+    repository = (
+        Path(repository_roots[repository_name]).resolve()
+        if isinstance(repository_name, str) and repository_name in repository_roots
+        else None
+    )
+    for deliverable in task.get("deliverables", []):
+        kind = deliverable.get("kind")
+        relative = deliverable.get("path")
+        line = int(deliverable.get("line", 1))
+        if repository is None or not isinstance(relative, str):
+            issue("TASK_DELIVERABLE_MISSING", "无法定位任务交付路径", line)
+            continue
+        if kind == "Delete":
+            target = repository.joinpath(*PurePosixPath(relative).parts)
+            if target.exists() or target.is_symlink():
+                issue("TASK_DELETED_PATH_PRESENT", f"声明删除的路径仍存在：{relative}", line)
+        elif not _deliverable_exists(
+            repository, relative, file_only=kind in {"Create", "Test", "Modify"}
+        ):
+            issue("TASK_DELIVERABLE_MISSING", f"任务交付路径不存在或不安全：{relative}", line)
+
+    if any(item["kind"] == "Test" for item in task.get("deliverables", [])):
+        test_checks = [check for check in checks if check.get("type") == "测试"]
+        if not test_checks:
+            issue("TASK_EVIDENCE_KIND_INSUFFICIENT", "Test 交付没有对应测试执行证据")
+
+    return {
+        "taskId": task_id,
+        "trusted": not diagnostics,
+        "source": source,
+        "diagnostics": diagnostics,
+    }
 
 
 def describe_verification_document(text: str) -> dict[str, object]:

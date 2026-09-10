@@ -53,6 +53,66 @@ def batch(states: dict[str, str], *exit_codes: int) -> str:
     )
 
 
+def task_evidence(
+    *,
+    task_id: str = "T01",
+    repository: str = "service",
+    check_type: str = "测试",
+    executed: int | None = 3,
+    skipped: int | None = 0,
+    exit_status: int = 0,
+    delivery: str = "通过",
+) -> str:
+    counts = []
+    if executed is not None:
+        counts.append(f"- 执行数：{executed}")
+    if skipped is not None:
+        counts.append(f"- 跳过数：{skipped}")
+    return "\n".join(
+        [
+            f"## 任务证据 {task_id} 2026-09-10T10:00:00Z",
+            "",
+            f"- 交付核对：{delivery}",
+            f'- 代码状态：{{"{repository}":"sha256:{"a" * 64}"}}',
+            "",
+            "### 检查 1",
+            "",
+            f"- 类型：{check_type}",
+            f"- 工作目录：`/tmp/{repository}`",
+            "- 命令：`run-check`",
+            "- 目标：`tests/test_service.py`",
+            *counts,
+            f"- 退出状态：{exit_status}",
+            "- 结果：目标检查通过" if exit_status == 0 else "- 结果：失败",
+        ]
+    )
+
+
+def evidence_task(validation_kind: str = "行为") -> dict[str, object]:
+    return {
+        "id": "T01",
+        "completed": True,
+        "repository": "service",
+        "validationKind": validation_kind,
+        "deliverables": [
+            {
+                "repository": "service",
+                "kind": "Modify",
+                "path": "source.txt",
+                "symbol": None,
+                "line": 1,
+            },
+            {
+                "repository": "service",
+                "kind": "Test",
+                "path": "tests/test_service.py",
+                "symbol": None,
+                "line": 2,
+            },
+        ],
+    }
+
+
 class WorkspaceVerificationTest(unittest.TestCase):
     def test_inspect_fingerprint_budget_rejects_large_untracked_content(self):
         path = self.repository / "large.bin"
@@ -187,6 +247,99 @@ class WorkspaceVerificationTest(unittest.TestCase):
                 record.replace(states["service"], "invalid"), states
             )
         )
+
+    def test_task_evidence_uses_latest_complete_record(self) -> None:
+        tests = self.repository / "tests"
+        tests.mkdir()
+        (tests / "test_service.py").write_text("def test_service(): pass\n", encoding="utf-8")
+        first = task_evidence(exit_status=1)
+        latest = task_evidence(executed=4).replace(
+            "- 结果：目标检查通过",
+            "- 结果：已覆盖失败矩阵，目标检查通过",
+        )
+        text = f"# 验证记录\n\n{first}\n\n{latest}\n\n{batch({'service': 'sha256:' + 'b' * 64}, 0)}"
+
+        described = workspace_verification.describe_task_evidence_document(text)
+        result = workspace_verification.evaluate_task_evidence(
+            evidence_task(), described["latestByTask"]["T01"], {"service": self.repository}
+        )
+
+        self.assertEqual(2, len(described["records"]))
+        self.assertEqual(4, described["latestByTask"]["T01"]["checks"][0]["executed"])
+        self.assertTrue(result["trusted"])
+        self.assertEqual([], result["diagnostics"])
+
+    def test_task_evidence_rejects_zero_skipped_failed_and_insufficient_checks(self) -> None:
+        cases = (
+            (task_evidence(executed=0), "行为", "TASK_EVIDENCE_ZERO_TESTS"),
+            (task_evidence(skipped=1), "行为", "TASK_EVIDENCE_SKIPPED_TESTS"),
+            (task_evidence(exit_status=1), "行为", "TASK_EVIDENCE_CHECK_FAILED"),
+            (
+                task_evidence().replace("- 结果：目标检查通过", "- 结果：失败，等待修复"),
+                "行为",
+                "TASK_EVIDENCE_CHECK_FAILED",
+            ),
+            (task_evidence(check_type="编译", executed=None, skipped=None), "行为",
+             "TASK_EVIDENCE_KIND_INSUFFICIENT"),
+            (task_evidence(check_type="单元 Mock"), "持久化",
+             "TASK_EVIDENCE_KIND_INSUFFICIENT"),
+        )
+
+        for record, validation_kind, expected in cases:
+            with self.subTest(expected=expected, validation_kind=validation_kind):
+                evidence = workspace_verification.describe_task_evidence_document(
+                    record
+                )["latestByTask"]["T01"]
+                result = workspace_verification.evaluate_task_evidence(
+                    evidence_task(validation_kind),
+                    evidence,
+                    {"service": self.repository},
+                )
+                self.assertFalse(result["trusted"])
+                self.assertIn(expected, {item["code"] for item in result["diagnostics"]})
+
+    def test_task_evidence_checks_current_deliverable_paths(self) -> None:
+        tests = self.repository / "tests"
+        tests.mkdir()
+        target = tests / "test_service.py"
+        target.write_text("def test_service(): pass\n", encoding="utf-8")
+        deleted = self.repository / "old.txt"
+        task = evidence_task()
+        task["deliverables"].extend(
+            [
+                {
+                    "repository": "service",
+                    "kind": "Verify",
+                    "path": "tests",
+                    "symbol": None,
+                    "line": 3,
+                },
+                {
+                    "repository": "service",
+                    "kind": "Delete",
+                    "path": "old.txt",
+                    "symbol": None,
+                    "line": 4,
+                },
+            ]
+        )
+        evidence = workspace_verification.describe_task_evidence_document(
+            task_evidence()
+        )["latestByTask"]["T01"]
+
+        valid = workspace_verification.evaluate_task_evidence(
+            task, evidence, {"service": self.repository}
+        )
+        target.unlink()
+        deleted.write_text("still here\n", encoding="utf-8")
+        invalid = workspace_verification.evaluate_task_evidence(
+            task, evidence, {"service": self.repository}
+        )
+
+        self.assertTrue(valid["trusted"])
+        codes = {item["code"] for item in invalid["diagnostics"]}
+        self.assertIn("TASK_DELIVERABLE_MISSING", codes)
+        self.assertIn("TASK_DELETED_PATH_PRESENT", codes)
 
     def test_snapshot_cli_reports_current_maintenance_feature_state(self) -> None:
         feature = self.repository / "docs/development/features/demo-feature"

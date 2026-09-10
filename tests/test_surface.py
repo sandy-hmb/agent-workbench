@@ -278,6 +278,10 @@ class SurfaceTest(unittest.TestCase):
             "**接口**",
             "**实施步骤**",
             "**验证**",
+            "完成门禁",
+            "目标仓",
+            "验证性质",
+            "具体失败场景",
             "连续执行",
         ):
             self.assertIn(field, plan)
@@ -323,10 +327,23 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("全部任务做一次代码事实预检", plan_skill)
         self.assertIn("普通代码漂移", plan_skill)
         self.assertIn("任务边界、验证强度", plan_skill)
+        self.assertIn("task-evidence-v1", plan_skill)
+        self.assertIn("唯一目标仓", plan_skill)
+        self.assertIn("持久化", plan_skill)
         self.assertIn("--task T01", execute_skill)
         self.assertIn("--check", execute_skill)
+        self.assertIn("instructionContext", execute_skill)
+        self.assertIn("首次编辑", execute_skill)
+        self.assertIn("任务证据", execute_skill)
+        self.assertIn("trustedProgress", execute_skill)
         self.assertIn("覆盖验收", verify_skill)
         self.assertIn("执行情况", verify_skill)
+        self.assertIn("可信完成", verify_skill)
+        self.assertIn("待外部验证", verify_skill)
+        self.assertNotIn(
+            "为非平凡行为增加最小失败检查，并确认失败原因正确",
+            plan,
+        )
 
     def test_worktree_requires_explicit_user_request(self):
         paths = (

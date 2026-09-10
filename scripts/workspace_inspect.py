@@ -30,7 +30,7 @@ from workspace_model import WorkspaceError, effective_branch_policy, load_worksp
 from workspace_model import VERSION
 from workspace_extension import _read_lock, extension_status
 from workspace_paths import features_root, state_root, workflow_file, workflow_runs_root
-from workspace_status import _single_feature_progress, artifact_summary, document_reviews, plan_analysis, plan_progress, verification_record
+from workspace_status import _single_feature_progress, _task_evidence_state, artifact_summary, document_reviews, plan_analysis, plan_progress, verification_record
 from workspace_verification import describe_verification_document, feature_code_state, verification_passed
 from workspace_workflow import CORE_WORKFLOW, FINGERPRINT_RE, RUN_FIELDS, RUN_STATUSES, STAGE_RECORD_FIELDS, _resolve, _stage_fingerprint, _valid_run_id
 from workflow_model import load_core_workflow, load_overlay, resolve_stages
@@ -291,13 +291,30 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
     branches, bases = dict(item.get("branches", [])), dict(item.get("baseBranches", []))
     plan_path = feature / "plans" / "implementation.md"
     plan_text = _read(plan_path, root, deadline=deadline).decode("utf-8") if plan_path.is_file() else None
-    plan = plan_analysis(plan_path, plan_text)
+    plan = plan_analysis(
+        plan_path, plan_text, repositories=set(item["repositories"])
+    )
     reviews, _, _ = document_reviews(feature, readme_text)
     verification_path = feature / "testing" / "verification.md"
     verification_text = _read(verification_path, root, deadline=deadline).decode("utf-8") if verification_path.is_file() else None
     verification = verification_record(feature, verification_text)
     progress = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
-    return {"slug": item["featureSlug"], "title": title, "titleSource": title_source, "status": item["status"], "path": item["path"], "lastUpdated": item["lastUpdated"], "repositoryBindings": [{"repository": repo, "workBranch": branches.get(repo), "baseBranch": bases.get(repo), "source": "README.md"} for repo in item["repositories"]], "planSummary": {"exists": plan_path.is_file(), **progress, "diagnostics": plan["diagnostics"]}, "documentReviews": reviews, "verificationSummary": {"exists": verification is not None, "codeState": "not_checked"}}
+    trusted, _, evidence_diagnostics = _task_evidence_state(
+        root, _mode(root), item, plan, verification_path
+    )
+    plan_summary = {
+        "exists": plan_path.is_file(),
+        **progress,
+        "diagnostics": [*plan["diagnostics"], *evidence_diagnostics],
+    }
+    if plan["completionPolicy"] == "task-evidence-v1":
+        plan_summary.update(
+            {
+                "completionPolicy": plan["completionPolicy"],
+                "trustedProgress": trusted,
+            }
+        )
+    return {"slug": item["featureSlug"], "title": title, "titleSource": title_source, "status": item["status"], "path": item["path"], "lastUpdated": item["lastUpdated"], "repositoryBindings": [{"repository": repo, "workBranch": branches.get(repo), "baseBranch": bases.get(repo), "source": "README.md"} for repo in item["repositories"]], "planSummary": plan_summary, "documentReviews": reviews, "verificationSummary": {"exists": verification is not None, "codeState": "not_checked"}}
 
 
 def workspace(root: Path, deadline: Deadline | None = None) -> dict[str, object]:
@@ -369,10 +386,40 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
     items, bad = _features(root, deadline)
     item = next((x for x in items if x["featureSlug"] == slug), None)
     if item is None: raise InspectError("INSPECT_NOT_FOUND", f"需求不存在：{slug}")
-    directory = _feature_dir(root, slug); revision = _feature_revision(directory, root, deadline); summary = _summary(root, item, deadline); plan_path = directory / "plans" / "implementation.md"; plan_bytes = _read(plan_path, root, deadline=deadline) if plan_path.is_file() else None; plan = plan_analysis(plan_path, plan_bytes.decode("utf-8") if plan_bytes else None)
+    directory = _feature_dir(root, slug); revision = _feature_revision(directory, root, deadline); summary = _summary(root, item, deadline); plan_path = directory / "plans" / "implementation.md"; plan_bytes = _read(plan_path, root, deadline=deadline) if plan_path.is_file() else None; plan = plan_analysis(plan_path, plan_bytes.decode("utf-8") if plan_bytes else None, repositories=set(item["repositories"]))
     readme_text = _read(directory / "README.md", root, deadline=deadline).decode("utf-8")
     title, _, description = _title_description(directory / "README.md", root, readme_text, deadline)
-    tasks = [{k: task.get(k) for k in ("id", "title", "completed", "dependencies", "references", "startLine", "endLine")} | {"path": "plans/implementation.md", "revision": _revision(plan_bytes) if plan_bytes else None} for task in plan["tasks"]]
+    verification_path = directory / "testing/verification.md"
+    _, evidence_results, _ = _task_evidence_state(
+        root, _mode(root), item, plan, verification_path
+    )
+    evidence_by_task = {result["taskId"]: result for result in evidence_results}
+    tasks = []
+    for task in plan["tasks"]:
+        evidence = evidence_by_task.get(task["id"])
+        value = {
+                key: task.get(key)
+                for key in ("id", "title", "completed", "dependencies", "references",
+                            "startLine", "endLine")
+            }
+        if plan["completionPolicy"] == "task-evidence-v1":
+            value.update(
+                {
+                    "repository": task["repository"],
+                    "validationKind": task["validationKind"],
+                    "deliverables": task["deliverables"],
+                    "trusted": evidence["trusted"] if evidence is not None else None,
+                    "evidenceSource": evidence["source"] if evidence is not None else None,
+                    "evidenceDiagnostics": evidence["diagnostics"] if evidence is not None else [],
+                }
+            )
+        value.update(
+            {
+                "path": "plans/implementation.md",
+                "revision": _revision(plan_bytes) if plan_bytes else None,
+            }
+        )
+        tasks.append(value)
     files = [_file_info(directory, rel, root, deadline) for rel in sorted(_linked_files(directory, root, deadline))]
     if item["status"] == "done":
         progression = {"state": "historical", "currentStage": None, "nextActions": [], "blockers": []}
@@ -380,6 +427,8 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
         p = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
         reviews, _, recorded = document_reviews(directory, readme_text)
         known = {**item, "progress": p, "documentReviews": reviews, "documentReviewsRecorded": recorded, "planExists": plan_path.is_file(), "designExists": (directory / "design/design.md").is_file(), "verificationPassed": False}
+        if plan["completionPolicy"] == "task-evidence-v1":
+            known.update({"completionPolicy": plan["completionPolicy"], "trustedProgress": summary["planSummary"]["trustedProgress"], "taskEvidence": evidence_results})
         existing = _single_feature_progress(known, mode=_mode(root))
         progression = {"state": "needs_code_check" if existing["currentStage"] in {"feature.verify", "feature.submit-test", "feature.complete"} else "known", "currentStage": existing["currentStage"], "nextActions": existing["nextActions"], "blockers": existing["blockers"]}
     if _feature_revision(directory, root, deadline) != revision: raise InspectError("INSPECT_INPUT_CHANGED", "Feature 读取期间发生变化", source=str(directory))
@@ -462,7 +511,19 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
     if not states:
         item = next((x for x in _features(root, deadline)[0] if x["featureSlug"] == slug), None)
         states = [{"repository": name, "state": "not_checked", "reasonCodes": [], "recordedFingerprint": None, "currentFingerprint": None, "currentHead": None, "source": "record"} for name in item["repositories"]] if item else []
-    return {"slug": slug, "featureRevision": detail["featureRevision"], "documentRevision": described["documentRevision"] if document_text else None, "batches": described["batches"], "latestBatchId": described["latestBatchId"], "selectedBatch": described["selectedBatch"], "checkMode": "code_checked" if check_code else "records_only", "repositoryStates": states, "applicability": applicability, "progression": detail["progression"]}
+    result = {"slug": slug, "featureRevision": detail["featureRevision"], "documentRevision": described["documentRevision"] if document_text else None, "batches": described["batches"], "latestBatchId": described["latestBatchId"], "selectedBatch": described["selectedBatch"], "checkMode": "code_checked" if check_code else "records_only", "repositoryStates": states, "applicability": applicability, "progression": detail["progression"]}
+    if detail["summary"]["planSummary"].get("completionPolicy") == "task-evidence-v1":
+        result["taskEvidence"] = [
+            {
+                "taskId": task["id"],
+                "trusted": task["trusted"],
+                "source": task["evidenceSource"],
+                "diagnostics": task["evidenceDiagnostics"],
+            }
+            for task in detail["tasks"]
+            if task["evidenceSource"] is not None
+        ]
+    return result
 
 
 def workflow(root: Path, deadline: Deadline | None = None) -> dict[str, object]:

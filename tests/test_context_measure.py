@@ -243,6 +243,59 @@ class TaskScopedContextTest(unittest.TestCase):
         for required in ("R2", "D1", "D2", "T03", "T01", "T02", "回调测试"):
             self.assertIn(required, scoped)
 
+    def test_progressive_instruction_loading_reuses_session_sources(self):
+        sources = {
+            "workspace": "工作区共享约束：数据安全、授权边界和跨仓规则。\n" * 20,
+            "repository": "目标仓规范入口：目录、测试命令和专项规范索引。\n" * 20,
+            "entity": "持久化实体规范：字段、审计信息和业务注释。\n" * 10,
+            "openapi": "接口规范：参数校验、契约文档和错误响应。\n" * 10,
+            "notice": "通知规范：业务上下文、防重和失败处理。\n" * 10,
+            "job": "调度规范：分页、并发和重试边界。\n" * 10,
+        }
+        tasks = [
+            {"id": "T01", "required": ["workspace", "repository", "entity"]},
+            {"id": "T02", "required": ["workspace", "repository", "openapi"]},
+            {"id": "T03", "required": ["workspace", "repository", "notice", "job"]},
+            {"id": "T04", "required": ["workspace", "repository", "entity"]},
+        ]
+        all_sources = list(sources)
+        repeated_reads = [name for _ in tasks for name in all_sources]
+        loaded = set()
+        progressive_reads = []
+        for task in tasks:
+            additions = [name for name in task["required"] if name not in loaded]
+            progressive_reads.extend(additions)
+            loaded.update(additions)
+            self.assertTrue(set(task["required"]).issubset(loaded))
+
+        repeated_text = "\n".join(sources[name] for name in repeated_reads)
+        progressive_text = "\n".join(sources[name] for name in progressive_reads)
+        expected = json.loads(
+            (
+                ROOT
+                / "docs/development/features/execution-plan-reliability/testing/context-comparison.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(all_sources * len(tasks), repeated_reads)
+        self.assertEqual(all_sources, progressive_reads)
+        self.assertEqual(
+            context_measure.estimate_tokens(repeated_text),
+            expected["fullReloadEveryTask"]["measurement"],
+        )
+        self.assertEqual(
+            context_measure.estimate_tokens(progressive_text),
+            expected["progressiveSession"]["measurement"],
+        )
+        self.assertLess(
+            expected["progressiveSession"]["measurement"]["estTokens"],
+            expected["fullReloadEveryTask"]["measurement"]["estTokens"],
+        )
+        self.assertEqual(
+            "静态估算，不代表真实模型账单",
+            expected["limitation"],
+        )
+
 
 class DocumentLayoutTest(unittest.TestCase):
     def test_simple_plan_keeps_a_shallow_structure(self):
