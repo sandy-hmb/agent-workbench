@@ -23,13 +23,7 @@ python3 scripts/workspace_status.py --root . --json
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 -m py_compile scripts/*.py migrations/*.py
-python3 -m json.tool schemas/workspace.schema.json
-python3 -m json.tool schemas/workspace-input.schema.json
-python3 -m json.tool schemas/workspace-init-input.schema.json
-python3 -m json.tool schemas/workspace-extension.schema.json
-python3 -m json.tool schemas/extensions-lock.schema.json
-python3 -m json.tool schemas/provider-result.schema.json
-python3 -m json.tool schemas/workspace-workflow.schema.json
+for schema in schemas/*.json; do python3 -m json.tool "$schema" >/dev/null; done
 python3 -m json.tool upgrades/manifest.json
 python3 -m json.tool workflows/feature-development.json
 python3 scripts/workspace_doctor.py --root .

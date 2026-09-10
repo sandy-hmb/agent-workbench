@@ -70,6 +70,18 @@ class SurfaceTest(unittest.TestCase):
         self.assertEqual(b"@AGENTS.md\n", (ROOT / "CLAUDE.md").read_bytes())
         self.assertEqual(b"@./AGENTS.md\n", (ROOT / "GEMINI.md").read_bytes())
 
+    def test_agents_stays_within_doctor_size_budget(self):
+        import workspace_doctor
+
+        size = (ROOT / "AGENTS.md").stat().st_size
+        self.assertLess(
+            size,
+            workspace_doctor.AGENTS_MAX_BYTES,
+            f"AGENTS.md 已达 {size} 字节，超过 doctor 的 "
+            f"{workspace_doctor.AGENTS_MAX_BYTES} 字节硬限；"
+            "请把非核心内容迁移到 docs/ 或对应 SKILL.md。",
+        )
+
     def test_claude_skill_adapters_are_relative_symlinks(self):
         for name in SKILLS:
             with self.subTest(skill=name):
@@ -588,13 +600,7 @@ class SurfaceTest(unittest.TestCase):
             "python -m unittest discover -s tests -p 'test_*.py'",
             "python -m py_compile scripts/*.py migrations/*.py",
             "python scripts/workspace_doctor.py --root .",
-            "python -m json.tool schemas/workspace.schema.json",
-            "python -m json.tool schemas/workspace-input.schema.json",
-            "python -m json.tool schemas/workspace-init-input.schema.json",
-            "python -m json.tool schemas/workspace-extension.schema.json",
-            "python -m json.tool schemas/extensions-lock.schema.json",
-            "python -m json.tool schemas/provider-result.schema.json",
-            "python -m json.tool schemas/workspace-workflow.schema.json",
+            'for schema in schemas/*.json; do python -m json.tool "$schema" >/dev/null; done',
             "python -m json.tool upgrades/manifest.json",
             "python -m json.tool workflows/feature-development.json",
         ):
@@ -737,17 +743,12 @@ class SurfaceTest(unittest.TestCase):
                     self.assertNotIn(private_identifier, content)
                 self.assertNotRegex(content, r"\.codex-plugin|marketplace|plugins/cache")
 
-    def test_input_schemas_distinguish_add_repo_from_init(self):
+    def test_workspace_input_schema_keeps_local_section_optional(self):
         shared = json.loads(
             (ROOT / "schemas/workspace-input.schema.json").read_text(encoding="utf-8")
         )
-        initialization = json.loads(
-            (ROOT / "schemas/workspace-init-input.schema.json").read_text(encoding="utf-8")
-        )
         self.assertIn("local", shared["properties"])
         self.assertNotIn("local", shared["required"])
-        self.assertEqual("workspace-input.schema.json", initialization["allOf"][0]["$ref"])
-        self.assertEqual(1, len(initialization["allOf"]))
         safe_name = "^[A-Za-z0-9][A-Za-z0-9._-]*$"
         local = shared["properties"]["local"]["properties"]
         self.assertEqual(safe_name, local["branchOwner"]["pattern"])

@@ -70,7 +70,8 @@ def workflow_run_file(root: Path, run_id: str) -> Path:
 
 
 def migration_marker_file(root: Path) -> Path:
-    return state_root(root) / ".migration-v1-to-v2.json"
+    # 版本无关的迁移进行中标记；来源与目标版本记录在文件内容里，而不是文件名上。
+    return state_root(root) / ".migration-marker.json"
 
 
 def cache_root(root: Path) -> Path:

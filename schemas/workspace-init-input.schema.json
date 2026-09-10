@@ -1,7 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "workspace-init-input.schema.json",
-  "allOf": [
-    {"$ref": "workspace-input.schema.json"}
-  ]
-}

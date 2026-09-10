@@ -24,14 +24,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: schemas
         run: |
-          python -m json.tool schemas/workspace.schema.json
-          python -m json.tool schemas/workspace-input.schema.json
-          python -m json.tool schemas/workspace-init-input.schema.json
-          python -m json.tool schemas/workspace-extension.schema.json
-          python -m json.tool schemas/extensions-lock.schema.json
-          python -m json.tool schemas/provider-result.schema.json
-          python -m json.tool schemas/workspace-workflow.schema.json
-          python -m json.tool schemas/inspect-result.schema.json
+          for schema in schemas/*.json; do python -m json.tool "$schema" >/dev/null; done
           python -m json.tool upgrades/manifest.json
           python -m json.tool workflows/feature-development.json
       - name: py_compile

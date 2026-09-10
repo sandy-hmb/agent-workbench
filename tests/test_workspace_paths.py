@@ -54,7 +54,7 @@ class WorkspacePathsTest(unittest.TestCase):
             resolved / ".workspace/runs/demo.json", workflow_run_file(root, "demo")
         )
         self.assertEqual(
-            resolved / ".workspace/.migration-v1-to-v2.json",
+            resolved / ".workspace/.migration-marker.json",
             migration_marker_file(root),
         )
         self.assertEqual(resolved / ".workspace/extensions/.state/cache", cache_root(root))
