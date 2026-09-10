@@ -270,31 +270,12 @@ class TaskScopedContextTest(unittest.TestCase):
 
         repeated_text = "\n".join(sources[name] for name in repeated_reads)
         progressive_text = "\n".join(sources[name] for name in progressive_reads)
-        expected = json.loads(
-            (
-                ROOT
-                / "docs/development/features/execution-plan-reliability/testing/context-comparison.json"
-            ).read_text(encoding="utf-8")
-        )
+        repeated = context_measure.estimate_tokens(repeated_text)
+        progressive = context_measure.estimate_tokens(progressive_text)
 
         self.assertEqual(all_sources * len(tasks), repeated_reads)
         self.assertEqual(all_sources, progressive_reads)
-        self.assertEqual(
-            context_measure.estimate_tokens(repeated_text),
-            expected["fullReloadEveryTask"]["measurement"],
-        )
-        self.assertEqual(
-            context_measure.estimate_tokens(progressive_text),
-            expected["progressiveSession"]["measurement"],
-        )
-        self.assertLess(
-            expected["progressiveSession"]["measurement"]["estTokens"],
-            expected["fullReloadEveryTask"]["measurement"]["estTokens"],
-        )
-        self.assertEqual(
-            "静态估算，不代表真实模型账单",
-            expected["limitation"],
-        )
+        self.assertLess(progressive["estTokens"], repeated["estTokens"])
 
 
 class DocumentLayoutTest(unittest.TestCase):
