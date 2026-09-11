@@ -482,14 +482,14 @@ class WorkspaceStatusTest(unittest.TestCase):
         self.assertIsNone(tasks[2]["id"])
         self.assertFalse(any(item["severity"] == "error" for item in analysis["diagnostics"]))
 
-    def test_plan_analysis_parses_task_evidence_v1_contract(self):
+    def test_plan_analysis_accepts_registered_repository_name_with_underscore(self):
         plan = self.root / "plan.md"
         plan.write_text(
             "# 实施计划\n\n"
             "- 完成门禁：`task-evidence-v1`\n\n"
             "- [ ] T01 实现服务\n\n"
             "  依赖：无\n"
-            "  目标仓：`service`\n"
+            "  目标仓：`crm_java-master`\n"
             "  验证性质：行为\n\n"
             "  **文件**\n\n"
             "  - Modify：`src/service.py`（`Service#run`）\n"
@@ -497,23 +497,25 @@ class WorkspaceStatusTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-        analysis = workspace_status.plan_analysis(plan, repositories={"service"})
+        analysis = workspace_status.plan_analysis(
+            plan, repositories={"crm_java-master"}
+        )
 
         self.assertEqual("task-evidence-v1", analysis["completionPolicy"])
         task = analysis["tasks"][0]
-        self.assertEqual("service", task["repository"])
+        self.assertEqual("crm_java-master", task["repository"])
         self.assertEqual("行为", task["validationKind"])
         self.assertEqual(
             [
                 {
-                    "repository": "service",
+                    "repository": "crm_java-master",
                     "kind": "Modify",
                     "path": "src/service.py",
                     "symbol": "Service#run",
                     "line": 13,
                 },
                 {
-                    "repository": "service",
+                    "repository": "crm_java-master",
                     "kind": "Test",
                     "path": "tests/test_service.py",
                     "symbol": "ServiceTest#test_run",

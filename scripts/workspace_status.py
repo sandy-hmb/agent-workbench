@@ -415,7 +415,6 @@ def plan_analysis(
         )
         repository_valid = (
             repository is not None
-            and SLUG_RE.fullmatch(repository) is not None
             and (repositories is None or repository in repositories)
         )
         if not repository_valid:
