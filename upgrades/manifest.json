@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "1.3.0",
+  "kitVersion": "1.4.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "1.4.0",
+      "summary": "workspace.json 主版本升级为 2；继续使用前请先预览并应用工作区迁移，迁移会备份状态并重建生成的上下文文件。",
+      "runbook": "docs/guides/first-feature.md"
+    },
     {
       "sinceVersion": "1.1.0",
       "summary": "若本地 Extension 会写入需求相关文件，请审阅其 SKILL.md 的输出位置、文件归属和重复运行处理。",

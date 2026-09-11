@@ -33,6 +33,7 @@ SKILLS = (
     "workspace-submit-test",
     "workspace-extension",
     "workspace-update",
+    "workspace-instruction",
 )
 
 
@@ -335,6 +336,66 @@ class WorkspaceDoctorTest(unittest.TestCase):
         self.assertEqual(1, len(invalid))
         self.assertIn("docs/features/demo-feature", invalid[0].message)
         self.assertIn("README.md", invalid[0].message)
+
+    def test_workspace_agents_duplicate_lines_are_info_only(self):
+        self.initialize()
+        root_line = "- 共享规则：只读且就近优先。"
+        (self.root / "AGENTS.md").write_text(root_line + "\n", encoding="utf-8")
+        (self.root / ".workspace/AGENTS.md").write_text(
+            "# 用户治理工作区\n\n" + root_line + "\n", encoding="utf-8"
+        )
+
+        findings = workspace_doctor.audit(self.root)
+        matches = [item for item in findings if item.code == "WORKSPACE_AGENTS_DUPLICATE"]
+        self.assertEqual(1, len(matches))
+        self.assertEqual("INFO", matches[0].level)
+        self.assertFalse([item for item in matches if item.level == "ERROR"])
+
+    def test_workspace_agents_template_drift_is_info_only(self):
+        self.initialize()
+        legacy = (ROOT / "migrations/legacy/workspace_agents_v1.md").read_text(
+            encoding="utf-8"
+        )
+        (self.root / ".workspace/AGENTS.md").write_text(legacy, encoding="utf-8")
+
+        findings = workspace_doctor.audit(self.root)
+        drift = [item for item in findings if item.code == "WORKSPACE_AGENTS_TEMPLATE_DRIFT"]
+        self.assertEqual(1, len(drift))
+        self.assertEqual("INFO", drift[0].level)
+
+    def test_nonstandard_source_instruction_is_info_only(self):
+        repo = repository()
+        repo["sourceInstruction"] = "README.md"
+        self.initialize(repo=repo)
+        service = self.parent / "service"
+        subprocess.run(["git", "init", "-q", str(service)], check=True)
+        subprocess.run(
+            ["git", "-C", str(service), "remote", "add", "origin", repo["remote"]],
+            check=True,
+        )
+        (service / "README.md").write_text("# Service\n", encoding="utf-8")
+
+        findings = workspace_doctor.audit(self.root)
+        nonstandard = [
+            item for item in findings if item.code == "SOURCE_INSTRUCTION_NONSTANDARD"
+        ]
+        self.assertEqual(1, len(nonstandard))
+        self.assertEqual("INFO", nonstandard[0].level)
+
+    def test_healthy_workspace_has_no_new_layer_findings(self):
+        self.initialize()
+
+        codes = {
+            item.code
+            for item in workspace_doctor.audit(self.root)
+            if item.code
+            in {
+                "WORKSPACE_AGENTS_DUPLICATE",
+                "WORKSPACE_AGENTS_TEMPLATE_DRIFT",
+                "SOURCE_INSTRUCTION_NONSTANDARD",
+            }
+        }
+        self.assertEqual(set(), codes)
 
     def test_initialized_workspace_rejects_symlinked_feature_readme(self):
         self.initialize()

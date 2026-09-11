@@ -5,7 +5,7 @@
   "additionalProperties": true,
   "required": ["version", "workspace", "context", "branchPolicy", "extensions", "repositories"],
   "properties": {
-    "version": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"const": 1}, "minor": {"type": "integer"}}},
+    "version": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"const": 2}, "minor": {"type": "integer"}}},
     "workspace": {
       "type": "object",
       "additionalProperties": false,

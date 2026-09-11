@@ -32,6 +32,7 @@ python3 scripts/kit.py doctor --root .
 - [本地 Extension](docs/guides/local-extensions.md)：按需接入本地 Provider 或 Action。
 - [自定义工作流](docs/guides/custom-workflows.md)：为已确认的本地 Action 配置 Stage Overlay。
 - [Agent 兼容性](docs/reference/agent-compatibility.md)：读取入口和兄弟仓访问范围。
+- [指令分层参考](docs/reference/instruction-layers.md)：规则轴、事实轴、作用域和迁移判据。
 
 ## IDE 插件与周边生态
 
@@ -45,7 +46,7 @@ python3 scripts/kit.py doctor --root .
 
 日常开发：`workspace-init`、`workspace-repo-onboarding`、`workspace-feature-design`、`workspace-writing-plan`、`workspace-execute-plan`、`workspace-verify`、`workspace-sync-base`、`workspace-submit-test`。
 
-按需分析：`workspace-cross-repo-analysis`、`workspace-api-contract`、`workspace-feature-workflow`。
+按需分析：`workspace-cross-repo-analysis`、`workspace-api-contract`、`workspace-feature-workflow`、`workspace-instruction`。
 
 本地维护：`workspace-extension`、`workspace-update`。
 

@@ -937,6 +937,42 @@ class WorkspaceStatusTest(unittest.TestCase):
         self.assertEqual({"enabled": False}, value["workflow"])
         self.assertEqual({"errors": 0, "warnings": 0, "info": 1}, value["doctor"])
 
+    def test_status_context_sources_flag_leaves_default_output_unchanged(self):
+        self.initialize_workspace()
+
+        def run(extra: list[str]) -> tuple[int, str]:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = workspace_status.main(
+                    ["--root", str(self.root), "--json", *extra]
+                )
+            return code, output.getvalue()
+
+        default_code, default = run([])
+        sources_code, flagged = run(["--context-sources"])
+        self.assertEqual(default_code, sources_code)
+        with_sources = json.loads(flagged)
+        sources = with_sources.pop("contextSources")
+
+        self.assertEqual(
+            default,
+            json.dumps(with_sources, ensure_ascii=False) + "\n",
+        )
+        self.assertEqual(
+            {"path": ".workspace/CONTEXT.md", "exists": True},
+            sources["workspace"],
+        )
+        self.assertEqual(
+            [
+                {
+                    "repository": "service",
+                    "path": ".workspace/docs/repositories/service.md",
+                    "exists": True,
+                }
+            ],
+            sources["repositories"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

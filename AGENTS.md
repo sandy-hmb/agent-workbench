@@ -13,7 +13,7 @@
 - 不存在 `.workspace/workspace.json` 时，先按 status 的 `nextActions` 初始化工作区；私有维护记录存在时才位于被忽略的 `docs/development/features/<feature-slug>/`。
 - 存在 `.workspace/workspace.json` 时，先读取 `.workspace/AGENTS.md`、相关 `.workspace/docs/repositories/<repo>.md`、仓内规范和当前需求；标准需求位于 `.workspace/docs/features/<feature-slug>/`。
 - 根目录不保存工作区运行时状态；只使用 `.workspace/`。
-- 新会话先按 status 读取当前需求；展开任务后按 `instructionContext` 读取工作区、目标仓和就近规范入口，再按实际改动类型读取入口明确索引的专项规范，在首次编辑对应代码前完成。同一会话中内容和作用域未变化的规范可复用；切换仓、路径或职责时补读。未知命令或参数才查 `--help`；调用面变化时运行 `python3 scripts/kit.py describe --json`。
+- 新会话先按 status 读取当前需求；展开任务后按 `instructionContext.rules` 的 kit → workspace → repository → scoped 顺序读取规则，越接近改动路径优先级越高且只能单调收窄。CONTEXT 与仓 profile 是事实轴，按需用 `status --context-sources` 定位；再读取规则入口明确索引的专项规范，首次编辑前完成。同会话可复用未变化内容，切换仓、路径或职责时补读。未知命令或参数才查 `--help`；调用面变化时运行 `python3 scripts/kit.py describe --json`。
 - 日常使用不读脚本源码或维护者记录；用户明确批准的公共 Kit 维护任务可定向读取当前 feature、相关实现及调用方。文档按 runbook 指针按需读取。
 
 ## 工作边界
@@ -27,13 +27,13 @@
 
 ## 需求门禁
 
-局部单仓实现、没有外部契约或核心状态变化、无需新增依赖且可定向验证的改动可走轻量路径。其他改动使用标准需求目录。标准流程依次维护 `requirements/requirements.md`、`design/design.md` 和 `plans/implementation.md`：需求记录做什么和验收，设计记录技术方案与理由，实施计划记录可执行任务。README 只维护目标摘要、文档入口、审阅状态、阻塞与下一步；验证记录只保存当前代码状态的真实证据。行为使用稳定 R 编号，设计关键章节可使用 D 编号，计划任务使用 `- [ ] T01`；跨阶段引用权威定义，避免复制正文。实施计划必须通过明确的文件引用和执行信息脱离历史对话续接，不复制需求或设计全文。
+局部单仓实现、没有外部契约或核心状态变化、无需新增依赖且可定向验证的改动可走轻量路径。其他改动使用标准需求目录，依次维护 `requirements/requirements.md`、`design/design.md` 和 `plans/implementation.md`：需求记录做什么和验收，设计记录技术方案与理由，实施计划记录可执行任务。行为使用稳定 R 编号，设计关键章节可使用 D 编号，计划任务使用 `- [ ] T01`；跨阶段引用权威定义，避免复制正文。实施计划必须通过明确的文件引用和执行信息脱离历史对话续接，不复制需求或设计全文。
 
-Requirements 和 Design 先讨论会实质改变结果的未决项；每轮问题数量、选项和模式降级规则由 `workspace-feature-design` 定义。结论收敛后必须单独取得生成确认，未回复、含糊回复或仅要求开始工作不视为确认；写入并自审后将 README 对应审阅状态标为“待审阅”，用户批准实际文件后标为“已批准”。`design/design.md` 和全部设计附件组成一个 Design 审阅包；新建、删除或实质修改任一附件时，默认将 README 的设计审阅和已有计划审阅一并改为“待审阅”，待用户批准整个审阅包后才标记设计“已批准”。唯一例外：尚未生成计划时按 `workspace-writing-plan` 的定向修订规则取得用户明确选择，写回并自审后设计审阅保持“已批准”；未披露或超出选择的变化仍退回审阅。书面设计获批后由 `workspace-writing-plan` 直接生成计划草案，不重复确认摘要；实际计划、基线、分支和执行方式获批后才更新为 `development`。历史 feature 缺少审阅状态时显示“未记录”，不据此推断批准或重置生命周期。
+Requirements 和 Design 先讨论会实质改变结果的未决项；提问轮次、选项与模式降级规则由 `workspace-feature-design` 定义。结论收敛后必须单独取得生成确认，未回复、含糊回复或仅要求开始工作不视为确认；写入并自审后将 README 对应审阅状态标为“待审阅”，用户批准实际文件后标为“已批准”。设计正文与全部附件构成一个审阅包，新建、删除或实质修改任一附件时，设计审阅与已有计划审阅一并退回“待审阅”；唯一例外的定向修订规则见 `workspace-writing-plan`。历史 feature 缺少审阅状态时显示“未记录”，不据此推断批准或重置生命周期。
 
-Requirements 开头说明目标，只维护范围、行为与验收、边界、假设和来源，不写技术方案。默认只有完整、自包含的 `design/design.md` 主入口；它先说明目标、选定方案和关键约束，有真实取舍时比较方案，其余结构按需。附件扩展主设计，不替代或抽空主设计。复杂数据模型或接口经确认才拆为 `design/data-model.md` 或 `design/api-integration.md`；其他附件也须有独立读者、审阅或维护理由。只有关键决策使用 D01-DNN；D01-DNN 的规范定义只位于主设计，附件用稳定锚点展开。
+Requirements 开头说明目标，只维护范围、行为与验收、边界、假设和来源，不写技术方案。默认只有完整、自包含的 `design/design.md` 主入口；附件扩展主设计，不替代或抽空主设计，复杂数据模型或接口经确认才拆为 `design/data-model.md` 或 `design/api-integration.md`，其他附件须有独立读者、审阅或维护理由。只有关键决策使用 D01-DNN；D01-DNN 的规范定义只位于主设计，附件用稳定锚点展开。
 
-Design 和 Plan 按读者需要组织 Markdown：先给方案或交付结果，再按需使用表格、步骤、列表和验证区块。新计划使用 `task-evidence-v1`；每项声明唯一目标仓、验证性质、完整文件与稳定符号、依赖、具体失败场景、单动作步骤和可观察通过条件，跨仓任务拆分。计划不复制或绑定仓规范；任务验证后写精简证据，只有可信完成才解锁依赖。计划优先引用主设计 D 编号，细节再引用附件；只保留一个含顶层复选框的主文件。
+新计划使用 `task-evidence-v1`；每项声明唯一目标仓、验证性质、完整文件与稳定符号、依赖、具体失败场景、单动作步骤和可观察通过条件，跨仓任务拆分。计划不复制或绑定仓规范；任务验证后写精简证据，只有可信完成才解锁依赖。计划优先引用主设计 D 编号，细节再引用附件；只保留一个含顶层复选框的主文件。
 
 默认采用 TDD，但测试按可观察行为和风险决定：行为变化先写最小失败测试；声明式变化采用最小有效检查；持久化变化覆盖实际结构与写入路径。目标测试缺失、零执行或跳过时不得完成任务。需要另行授权的数据库、Provider、部署或联调作为外部待验证项，不阻塞无关本地任务。
 
@@ -41,7 +41,7 @@ Design 和 Plan 按读者需要组织 Markdown：先给方案或交付结果，�
 
 ## Skill 路由
 
-初始化或接入仓使用 `workspace-init`；业务仓规范使用 `workspace-repo-onboarding`；跨仓分析使用 `workspace-cross-repo-analysis`；需求与书面设计使用 `workspace-feature-design`；实施计划使用 `workspace-writing-plan`；计划执行使用 `workspace-execute-plan`；接口契约使用 `workspace-api-contract`；功能阶段扩展使用 `workspace-feature-workflow`；验证使用 `workspace-verify`；同步基线使用 `workspace-sync-base`；测试交付使用 `workspace-submit-test`；本地 Extension 使用 `workspace-extension`；公共更新使用 `workspace-update`。
+`workspace-init` 初始化或接入仓；`workspace-repo-onboarding` 业务仓规范；`workspace-cross-repo-analysis` 跨仓分析；`workspace-feature-design` 需求与书面设计；`workspace-writing-plan` 实施计划；`workspace-execute-plan` 计划执行；`workspace-api-contract` 接口契约；`workspace-feature-workflow` 功能阶段扩展；`workspace-verify` 验证；`workspace-sync-base` 同步基线；`workspace-submit-test` 测试交付；`workspace-instruction` 分层规则；`workspace-extension` 本地 Extension；`workspace-update` 公共更新。
 
 每个 Skill 只拥有其说明中列出的副作用。没有 Skill 发现能力时，把对应 `.agents/skills/<name>/SKILL.md` 当普通 runbook 读取；Provider 必须来自当前作用域唯一、已锁定的绑定。配置和 manifest 不得包含密码、令牌、私钥或带凭据地址。
 

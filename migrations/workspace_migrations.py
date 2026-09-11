@@ -14,13 +14,17 @@ from workspace_model import (
     WorkspaceError,
     atomic_write_many,
     parse_json_bytes,
+    parse_workspace,
+    render_context,
+    render_repository_profile,
     workspace_schema_version,
 )
 from workspace_paths import state_root
 
 
 WorkspaceFiles = dict[str, bytes]
-Transform = Callable[[WorkspaceFiles], WorkspaceFiles]
+TransformResult = WorkspaceFiles | tuple[WorkspaceFiles, list[str]]
+Transform = Callable[[WorkspaceFiles], TransformResult]
 
 
 @dataclass(frozen=True)
@@ -50,7 +54,75 @@ def _json(value: object) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
-MIGRATION_STEPS: tuple[MigrationStep, ...] = ()
+LEGACY_TEMPLATE = Path(__file__).resolve().parent / "legacy/workspace_agents_v1.md"
+CURRENT_TEMPLATE = Path(__file__).resolve().parents[1] / "templates/workspace/AGENTS.md"
+
+
+def _legacy_prefix() -> str:
+    content = LEGACY_TEMPLATE.read_text(encoding="utf-8")
+    return content.split("\n## ", 1)[0].rstrip("\n") + "\n"
+
+
+def _migrate_agents(content: bytes) -> tuple[bytes, list[str]]:
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content, ["AGENTS.md"]
+    marker = text.find("\n## ")
+    prefix = text if marker < 0 else text[:marker] + "\n"
+    suffix = "" if marker < 0 else text[marker + 1 :]
+    try:
+        legacy = _legacy_prefix()
+        current = CURRENT_TEMPLATE.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise WorkspaceError(f"迁移模板不可读：{exc}") from exc
+    if text.startswith(legacy):
+        return (current + text[len(legacy) :]).encode("utf-8"), []
+    if not prefix.startswith("# 用户治理工作区\n"):
+        return content, ["AGENTS.md"]
+
+    legacy_lines = {
+        line.strip()
+        for line in legacy.splitlines()
+        if line.strip().startswith("-")
+    }
+    custom = [
+        line.rstrip("\r\n")
+        for line in prefix.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and line.strip() not in legacy_lines
+    ]
+    migrated = current.rstrip("\n")
+    if custom:
+        migrated += "\n\n## 本工作区保留的自定义条款\n\n" + "\n".join(custom)
+    if suffix:
+        migrated += "\n\n" + suffix
+    else:
+        migrated += "\n"
+    return migrated.encode("utf-8"), []
+
+
+def _migrate_v1(files: WorkspaceFiles) -> TransformResult:
+    result = dict(files)
+    manual_review: list[str] = []
+    if "AGENTS.md" in result:
+        result["AGENTS.md"], review = _migrate_agents(result["AGENTS.md"])
+        manual_review.extend(review)
+
+    registry = parse_json_bytes(result["workspace.json"], ".workspace/workspace.json")
+    registry["version"] = {"major": 2, "minor": 0}
+    workspace = parse_workspace(registry, Path("/migration"), validate_extension_refs=False)
+    result["workspace.json"] = _json(registry)
+    result["CONTEXT.md"] = render_context(workspace).encode("utf-8")
+    for repository in workspace.repositories:
+        result[repository.instruction] = render_repository_profile(
+            workspace, repository
+        ).encode("utf-8")
+    return (result, manual_review)
+
+
+MIGRATION_STEPS: tuple[MigrationStep, ...] = (
+    MigrationStep(1, 2, "workspace-v1-to-v2", _migrate_v1),
+)
 
 
 def workspace_version(root: Path) -> int:
@@ -111,8 +183,13 @@ def _plan(root: Path, target_version: int, steps: Sequence[MigrationStep]) -> tu
     files = _read_files(root)
     source = workspace_version(root)
     selected = _steps_between(source, target_version, steps)
+    manual_review: list[str] = []
     for step in selected:
-        files = dict(step.transform(dict(files)))
+        transformed = step.transform(dict(files))
+        if isinstance(transformed, tuple):
+            transformed, review = transformed
+            manual_review.extend(review)
+        files = dict(transformed)
         if not all(isinstance(path, str) and isinstance(content, bytes) for path, content in files.items()):
             raise WorkspaceError(f"迁移步骤 {step.name} 必须返回文件字节映射")
         files = {_relative(path): content for path, content in files.items()}
@@ -129,6 +206,8 @@ def _plan(root: Path, target_version: int, steps: Sequence[MigrationStep]) -> tu
             for path, content in sorted(files.items())
         ],
     }
+    if manual_review:
+        summary["manualReview"] = sorted(set(manual_review))
     digest = hashlib.sha256(
         json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -136,9 +215,41 @@ def _plan(root: Path, target_version: int, steps: Sequence[MigrationStep]) -> tu
 
 
 def preview(
-    root: Path, *, target_version: int, steps: Sequence[MigrationStep] = MIGRATION_STEPS
+    root: Path,
+    *,
+    target_version: int,
+    steps: Sequence[MigrationStep] = MIGRATION_STEPS,
+    include_diff: bool = False,
 ) -> dict[str, object]:
-    return _plan(Path(root).resolve(), target_version, steps)[0]
+    root = Path(root).resolve()
+    before = _read_files(root) if include_diff else None
+    plan, files = _plan(root, target_version, steps)
+    if before is not None:
+        changes = []
+        for path in sorted(set(before) | set(files)):
+            old = before.get(path, b"")
+            new = files.get(path, b"")
+            if old == new:
+                continue
+            try:
+                old_text = old.decode("utf-8")
+                new_text = new.decode("utf-8")
+            except UnicodeDecodeError:
+                diff = "（二进制或非 UTF-8 文件，无法显示文本差异）"
+            else:
+                import difflib
+
+                diff = "".join(
+                    difflib.unified_diff(
+                        old_text.splitlines(keepends=True),
+                        new_text.splitlines(keepends=True),
+                        fromfile=f"current/{path}",
+                        tofile=f"migrated/{path}",
+                    )
+                )
+            changes.append({"path": path, "diff": diff})
+        plan = {**plan, "diff": changes}
+    return plan
 
 
 def _backup(state: Path, backup_dir: Path | None) -> Path:

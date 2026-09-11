@@ -6,7 +6,7 @@
   "description": "Temporary setup input. Omitted derived and shared fields are completed by workspace_setup.py.",
   "required": ["workspace", "repositories"],
   "properties": {
-    "version": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"const": 1}, "minor": {"type": "integer"}}},
+    "version": {"type": "object", "required": ["major", "minor"], "additionalProperties": true, "properties": {"major": {"enum": [1, 2]}, "minor": {"type": "integer"}}},
     "workspace": {"type": "object", "description": "Human-readable workspace identity.", "additionalProperties": false, "required": ["name"], "properties": {"name": {"type": "string", "minLength": 1, "description": "Workspace name shown in generated context."}}},
     "context": {"type": "object", "properties": {"termRouter": {"$ref": "#/$defs/termRouter"}}},
     "branchPolicy": {"$ref": "#/$defs/branchPolicy"},

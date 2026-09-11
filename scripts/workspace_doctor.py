@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -77,6 +78,7 @@ REQUIRED_SKILLS = frozenset(
         "workspace-submit-test",
         "workspace-extension",
         "workspace-update",
+        "workspace-instruction",
     }
 )
 
@@ -117,6 +119,15 @@ REMEDIATIONS: dict[str, Remediation] = {
     ),
     "AGENTS_READ_FAILED": Remediation(
         "manual", "确认 AGENTS.md 是普通文件、未被替换为符号链接，且可用 UTF-8 正常读取。"
+    ),
+    "WORKSPACE_AGENTS_DUPLICATE": Remediation(
+        "manual", "删除工作区 AGENTS.md 中与根规范重复的规则，或保留更具体的收紧内容。"
+    ),
+    "WORKSPACE_AGENTS_TEMPLATE_DRIFT": Remediation(
+        "manual", "运行工作区迁移或重新初始化生成段，并先保留用户自定义条款。"
+    ),
+    "SOURCE_INSTRUCTION_NONSTANDARD": Remediation(
+        "manual", "将 sourceInstruction 指向仓库 AGENTS.md，或确认该入口确实是规范文件。"
     ),
     "CLIENT_ADAPTER_INVALID": Remediation(
         "manual",
@@ -301,6 +312,68 @@ def _check_generated_workspace(workspace: Workspace, findings: list[Finding]) ->
             "REPOSITORY_PROFILE_INVALID",
             findings,
         )
+
+
+def _check_instruction_layers(
+    root: Path, workspace: Workspace, findings: list[Finding]
+) -> None:
+    workspace_agents = state_root(root) / "AGENTS.md"
+    root_agents = root / "AGENTS.md"
+    if workspace_agents.is_file() and not workspace_agents.is_symlink() and root_agents.is_file():
+        try:
+            root_lines = root_agents.read_text(encoding="utf-8").splitlines()
+            workspace_lines = workspace_agents.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError):
+            root_lines = workspace_lines = []
+        worktree = "未明确要求 worktree 时"
+        duplicates = []
+        for line in workspace_lines:
+            if not line.strip() or worktree in line:
+                continue
+            ratio = max(
+                (difflib.SequenceMatcher(None, line.strip(), candidate.strip()).ratio()
+                 for candidate in root_lines if candidate.strip()),
+                default=0,
+            )
+            if ratio >= 0.9:
+                duplicates.append(line.strip())
+        if duplicates:
+            findings.append(
+                finding(
+                    "INFO",
+                    "WORKSPACE_AGENTS_DUPLICATE",
+                    f"工作区 AGENTS.md 与根规范存在高相似规则（共 {len(duplicates)} 条）：{duplicates[0]}",
+                )
+            )
+
+        try:
+            template = (
+                Path(__file__).resolve().parents[1] / "templates/workspace/AGENTS.md"
+            ).read_text(encoding="utf-8")
+            expected = template.split("\n## ", 1)[0].rstrip("\n") + "\n"
+            actual_text = workspace_agents.read_text(encoding="utf-8")
+            actual = actual_text.split("\n## ", 1)[0].rstrip("\n") + "\n"
+            if actual != expected:
+                findings.append(
+                    finding(
+                        "INFO",
+                        "WORKSPACE_AGENTS_TEMPLATE_DRIFT",
+                        "工作区 AGENTS.md 的模板段落后于当前模板；用户段未参与比较",
+                    )
+                )
+        except (OSError, UnicodeError):
+            pass
+
+    for repository in workspace.repositories:
+        source = repository.source_instruction
+        if source is not None and Path(source).name != "AGENTS.md":
+            findings.append(
+                finding(
+                    "INFO",
+                    "SOURCE_INSTRUCTION_NONSTANDARD",
+                    f"{repository.path} 的 sourceInstruction 指向非规范文件名：{source}",
+                )
+            )
 
 
 def _check_feature_metadata(workspace: Workspace, findings: list[Finding]) -> None:
@@ -846,7 +919,7 @@ def audit(
         version = workspace_schema_version(root)
     except WorkspaceError as exc:
         return [finding("ERROR", "REGISTRY_INVALID", str(exc))]
-    if version < VERSION:
+    if version < VERSION and (state / "AGENTS.md").is_file():
         return [
             finding(
                 "ERROR",
@@ -936,6 +1009,7 @@ def audit(
         _check_generated_workspace(workspace, findings)
     except WorkspaceError as exc:
         findings.append(finding("ERROR", "GENERATED_CONTENT_INVALID", str(exc)))
+    _check_instruction_layers(root, workspace, findings)
     _check_feature_metadata(workspace, findings)
     for item in workspace.repositories:
         if target is not None and item != target:

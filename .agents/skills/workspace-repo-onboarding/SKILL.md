@@ -18,6 +18,10 @@ description: Inspect a registered sibling repository after clone and register or
 4. 写入缺失的 `AGENTS.md` 后，或用户确认复用已有文件后，可更新被 `.gitignore` 忽略的本地输入配置，把对应 `repositories[].sourceInstruction` 设为 `AGENTS.md`。未获业务仓写入或复用确认时，不更新输入配置。
 5. 回到 `workspace-init preview --json`，让治理仓生成物通过 `previewHash` 审核后再 apply。
 
+## 分层规范入口
+
+根 `AGENTS.md` 约束公共 Kit，`.workspace/AGENTS.md` 约束工作区，仓根和就近目录的 `AGENTS.md` 约束单仓或目录；`CONTEXT.md` 与仓 profile 属于事实轴，不写操作规则。`sourceInstruction` 应优先指向普通 `AGENTS.md`，若实际指向 README 或 CLAUDE，登记时提示用户确认，不自动修改业务仓。
+
 ## 生成 `AGENTS.md` 的内容
 
 生成内容必须短、事实优先，未知信息直接省略，不写占位符。至少覆盖：

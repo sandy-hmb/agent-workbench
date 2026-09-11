@@ -105,11 +105,26 @@ class SchemaValidationTest(unittest.TestCase):
             },
             schema,
         )
+        state_schema = json.loads(
+            (Path(__file__).resolve().parents[1] / "schemas/workspace.schema.json").read_text()
+        )
+        with self.assertRaises(SchemaValidationError):
+            validate(
+                {
+                    "version": {"major": 1, "minor": 0},
+                    "workspace": {"name": "Legacy"},
+                    "context": {},
+                    "branchPolicy": {},
+                    "extensions": {"providers": {}, "config": {}},
+                    "repositories": [],
+                },
+                state_schema,
+            )
 
     def test_term_router_schema_is_strict_without_restricting_other_context_fields(self):
         root = Path(__file__).resolve().parents[1]
         workspace = {
-            "version": {"major": 1, "minor": 0},
+            "version": {"major": 2, "minor": 0},
             "workspace": {"name": "Demo"},
             "context": {
                 "description": "neutral context remains allowed",
@@ -140,7 +155,7 @@ class SchemaValidationTest(unittest.TestCase):
     def test_workspace_schema_matches_remote_and_branch_policy_runtime_boundaries(self):
         kit_root = Path(__file__).resolve().parents[1]
         base = {
-            "version": {"major": 1, "minor": 0},
+            "version": {"major": 2, "minor": 0},
             "workspace": {"name": "Demo"},
             "context": {},
             "branchPolicy": {

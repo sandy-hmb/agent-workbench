@@ -55,6 +55,7 @@ COMPONENTS: dict[str, dict[str, object]] = {
     },
     "describe_json": {"kind": "command", "argv": ["kit.py", "describe", "--json"]},
     "brief_text": {"kind": "command", "argv": ["kit.py", "brief"], "optional": True},
+    "brief_task": {"kind": "command", "argv": ["kit.py", "brief"], "optional": True},
 }
 
 PATHS: dict[str, list[str]] = {
@@ -64,6 +65,7 @@ PATHS: dict[str, list[str]] = {
     "standard": ["status_json", "skill_feature_design"],
     "plan": ["status_json", "skill_writing_plan"],
     "implement": ["status_json", "skill_execute_plan"],
+    "implement_task": ["status_json", "skill_execute_plan", "brief_task"],
     "verify": ["skill_verify", "status_json"],
     "resume": ["status_json", "brief_text"],
 }
@@ -75,6 +77,7 @@ PATH_LABELS = {
     "standard": "标准需求",
     "plan": "实施计划",
     "implement": "执行计划",
+    "implement_task": "执行计划（展开任务与规范链）",
     "verify": "验证",
     "resume": "续接需求",
 }
@@ -132,7 +135,9 @@ def measure_component(component_id: str, component: dict[str, object], root: Pat
     return measurement
 
 
-def _brief_slug(root: Path, status: object) -> str | None:
+def _brief_slug(root: Path, status: object, feature: str | None = None) -> str | None:
+    if feature is not None:
+        return feature
     if not isinstance(status, dict):
         return None
     features = status.get("features")
@@ -151,6 +156,88 @@ def _brief_slug(root: Path, status: object) -> str | None:
     return active if active in slugs else None
 
 
+def _instruction_sources(root: Path, payload: object) -> list[dict[str, object]]:
+    """列出规则链各条目的实际读取成本；路径不可读时省略该条目。"""
+    if not isinstance(payload, dict):
+        return []
+    entries: list[str] = []
+    # 兼容扁平 rules 与早期嵌套形状，只取可读的仓内相对路径
+    for rule in payload.get("rules", []) if isinstance(payload.get("rules"), list) else []:
+        if isinstance(rule, dict) and isinstance(rule.get("path"), str):
+            entries.append(rule["path"])
+    for item in payload.get("workspace", []) if isinstance(payload.get("workspace"), list) else []:
+        if isinstance(item, dict) and isinstance(item.get("path"), str):
+            entries.append(item["path"])
+    for repository in (
+        payload.get("repositories", []) if isinstance(payload.get("repositories"), list) else []
+    ):
+        if not isinstance(repository, dict):
+            continue
+        for key in ("governance", "sourceInstruction"):
+            if isinstance(repository.get(key), str):
+                entries.append(repository[key])
+        scoped = repository.get("scopedInstructions")
+        entries.extend(item for item in scoped if isinstance(item, str)) if isinstance(scoped, list) else None
+
+    sources = []
+    seen = set()
+    for relative in entries:
+        if relative in seen:
+            continue
+        seen.add(relative)
+        target = root / relative
+        try:
+            text = target.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        sources.append({"path": relative, "estTokens": estimate_tokens(text)["estTokens"]})
+    return sources
+
+
+def _measure_brief_task(root: Path, slug: str | None) -> dict[str, object]:
+    """展开当前任务，测量任务正文与规范链的合计读取成本。"""
+    component = COMPONENTS["brief_task"]
+    if slug is None:
+        return _not_applicable_component(component, "无法确定唯一需求")
+
+    execution = _run_readonly(
+        ["kit.py", "brief", slug, "--execution", "--json"], root
+    )
+    try:
+        current = json.loads(execution.stdout).get("currentTask")
+    except (json.JSONDecodeError, AttributeError):
+        current = None
+    task_id = current.get("id") if isinstance(current, dict) else None
+    if not isinstance(task_id, str):
+        return _not_applicable_component(component, "当前没有可展开的任务")
+
+    argv = ["kit.py", "brief", slug, "--task", task_id, "--execution", "--check", "--json"]
+    result = _run_readonly(argv, root)
+    measurement = estimate_tokens(result.stdout)
+    brief_tokens = measurement["estTokens"]
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        payload = None
+    sources = _instruction_sources(
+        root, payload.get("instructionContext") if isinstance(payload, dict) else None
+    )
+    measurement.update(
+        {
+            "kind": "command",
+            "source": "python3 scripts/" + " ".join(argv),
+            "exitCode": result.returncode,
+            "rawStdout": result.stdout,
+            "applicable": True,
+            "taskId": task_id,
+            "briefEstTokens": brief_tokens,
+            "instructionSources": sources,
+            "estTokens": brief_tokens + sum(item["estTokens"] for item in sources),
+        }
+    )
+    return measurement
+
+
 def _not_applicable_component(component: dict[str, object], reason: str) -> dict[str, object]:
     measurement = estimate_tokens("")
     argv = component["argv"]
@@ -162,6 +249,8 @@ def _not_applicable_component(component: dict[str, object], reason: str) -> dict
             "rawStdout": "",
             "applicable": False,
             "reason": reason,
+            "briefEstTokens": 0,
+            "instructionSources": [],
         }
     )
     return measurement
@@ -189,10 +278,10 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def build_report(root: Path) -> dict[str, object]:
+def build_report(root: Path, feature: str | None = None) -> dict[str, object]:
     components: dict[str, object] = {}
     for component_id, component in COMPONENTS.items():
-        if component_id == "brief_text":
+        if component_id in {"brief_text", "brief_task"}:
             continue
         components[component_id] = measure_component(component_id, component, root)
 
@@ -203,7 +292,7 @@ def build_report(root: Path) -> dict[str, object]:
             status = json.loads(status_raw)
         except json.JSONDecodeError:
             pass
-    slug = _brief_slug(root, status)
+    slug = _brief_slug(root, status, feature)
     brief = COMPONENTS["brief_text"]
     if slug is None:
         components["brief_text"] = _not_applicable_component(brief, "无法确定唯一需求")
@@ -212,6 +301,7 @@ def build_report(root: Path) -> dict[str, object]:
             "brief_text", {**brief, "argv": [*brief["argv"], slug]}, root
         )
         components["brief_text"]["applicable"] = True
+    components["brief_task"] = _measure_brief_task(root, slug)
 
     paths: dict[str, object] = {}
     for path_name, component_ids in PATHS.items():
@@ -348,6 +438,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="测量 Agent 典型路径的上下文消耗基线（只读，零依赖）。")
     parser.add_argument("--root", default=str(ROOT), help="Kit 根目录（默认脚本所在项目目录）")
     parser.add_argument("--json", action="store_true", help="输出机器可读 JSON")
+    parser.add_argument(
+        "--feature",
+        help="显式指定需求短名；多需求工作区无法自动选择时用它测量 brief 相关路径",
+    )
     return parser
 
 
@@ -355,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     root = Path(args.root).resolve()
-    report = build_report(root)
+    report = build_report(root, args.feature)
 
     if args.json:
         print(json.dumps(_json_safe(report), ensure_ascii=False, indent=2, sort_keys=True))

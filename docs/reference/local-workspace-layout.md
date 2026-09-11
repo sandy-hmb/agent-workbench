@@ -19,7 +19,7 @@
 
 ## 状态版本与迁移
 
-`.workspace/workspace.json` 的 `version.major` 是状态格式版本。首发格式为 1，当前没有注册迁移步骤；`python3 scripts/workspace_migrate.py preview --root . --json` 会返回当前版本和空步骤列表。未来需要升级时，先运行 preview，再以返回的 `previewHash` 和独立备份目录执行 apply。不要手工改写版本号或 lock 文件。
+`.workspace/workspace.json` 的 `version.major` 是状态格式版本，当前版本为 2。v1 工作区先运行 `python3 scripts/workspace_migrate.py preview --root . --json --diff`，核对后用返回的 `previewHash` 和独立备份目录执行 apply；不要手工改写版本号或 lock 文件。分层规则与事实入口见[指令分层参考](instruction-layers.md)。
 
 ## 三份上下文文件的分工
 

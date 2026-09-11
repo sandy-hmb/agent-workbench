@@ -89,6 +89,7 @@ class MaintenanceBriefTest(unittest.TestCase):
         state = self.root / ".workspace"
         service = self.root.parent / "service"
         worker = self.root.parent / "worker"
+        (self.root / "AGENTS.md").write_text("# Kit rules\n", encoding="utf-8")
         service.mkdir()
         worker.mkdir()
         (service / "module").mkdir()
@@ -100,7 +101,7 @@ class MaintenanceBriefTest(unittest.TestCase):
         (state / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 2, "minor": 0},
                     "workspace": {"name": "Demo"},
                     "context": {},
                     "branchPolicy": {},
@@ -647,17 +648,17 @@ class MaintenanceBriefTest(unittest.TestCase):
         )
 
         context = result["instructionContext"]
+        self.assertEqual("monotonic-narrowing", context["policy"])
         self.assertEqual(
-            [{"path": "AGENTS.md", "scope": "workspace"}],
-            context["workspace"],
+            [(1, "kit", "AGENTS.md"), (4, "scoped", "src/module/AGENTS.md")],
+            [
+                (rule["level"], rule["scope"], rule["path"])
+                for rule in context["rules"]
+            ],
         )
-        self.assertEqual(
-            ["src/module/AGENTS.md"],
-            context["repositories"][0]["scopedInstructions"],
-        )
-        self.assertIsNone(context["repositories"][0]["sourceInstruction"])
+        self.assertTrue(all(rule["estTokens"] > 0 for rule in context["rules"]))
 
-    def test_task_instruction_context_orders_workspace_repository_and_scoped_sources(self) -> None:
+    def test_instruction_rules_are_ordered_by_narrowing_level(self) -> None:
         import kit_feature_brief
 
         self.write_workspace_task()
@@ -667,23 +668,48 @@ class MaintenanceBriefTest(unittest.TestCase):
         )
 
         context = result["instructionContext"]
+        self.assertEqual("monotonic-narrowing", context["policy"])
         self.assertEqual(
-            [".workspace/AGENTS.md", ".workspace/CONTEXT.md"],
-            [item["path"] for item in context["workspace"]],
+            [1, 2, 3, 4],
+            [rule["level"] for rule in context["rules"]],
         )
-        self.assertEqual(1, len(context["repositories"]))
-        repository = context["repositories"][0]
-        self.assertEqual("service", repository["repository"])
         self.assertEqual(
-            ".workspace/docs/repositories/service.md",
-            repository["governance"],
+            [
+                "AGENTS.md",
+                ".workspace/AGENTS.md",
+                "../service/AGENTS.md",
+                "../service/module/AGENTS.md",
+            ],
+            [rule["path"] for rule in context["rules"]],
         )
-        self.assertEqual("../service/AGENTS.md", repository["sourceInstruction"])
         self.assertEqual(
-            ["../service/module/AGENTS.md"],
-            repository["scopedInstructions"],
+            [None, None, "service", "service"],
+            [rule.get("repository") for rule in context["rules"]],
         )
+        self.assertTrue(all(rule["estTokens"] > 0 for rule in context["rules"]))
+        self.assertNotIn("CONTEXT.md", json.dumps(context))
+        self.assertNotIn("docs/repositories/service.md", json.dumps(context))
         self.assertNotIn("worker", json.dumps(context))
+
+    def test_missing_workspace_context_is_not_an_error(self) -> None:
+        import kit_feature_brief
+
+        self.write_workspace_task()
+        (self.root / ".workspace/CONTEXT.md").unlink()
+        (self.root / ".workspace/docs/repositories/service.md").unlink()
+
+        result = kit_feature_brief.brief_result(
+            self.root, "demo-feature", "T01"
+        )
+
+        self.assertNotIn(
+            "INSTRUCTION_SOURCE_MISSING",
+            {item["code"] for item in result["documentDiagnostics"]},
+        )
+        self.assertEqual(
+            [1, 2, 3, 4],
+            [rule["level"] for rule in result["instructionContext"]["rules"]],
+        )
 
     def test_task_instruction_context_rejects_missing_or_unsafe_required_sources(self) -> None:
         import kit_feature_brief
@@ -1083,6 +1109,99 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertEqual("RUN", result["executionDecision"])
         self.assertFalse(result["confirmationRequired"])
         self.assertTrue(result["readyTasks"])
+
+    def test_task_instruction_errors_fail_check_exit_code(self) -> None:
+        import kit_feature_brief
+
+        _, service = self.write_workspace_task()
+        (service / "AGENTS.md").unlink()
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = kit_feature_brief.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "demo-feature",
+                    "--task",
+                    "T01",
+                    "--execution",
+                    "--check",
+                    "--json",
+                ]
+            )
+
+        self.assertEqual(1, code)
+        result = json.loads(output.getvalue())
+        self.assertIn(
+            "INSTRUCTION_SOURCE_MISSING",
+            {item["code"] for item in result["documentDiagnostics"]},
+        )
+        self.assertEqual("RUN", result["executionDecision"])
+
+    def test_execution_projection_keeps_only_loop_fields(self) -> None:
+        import kit_feature_brief
+
+        self.write_workspace_task()
+
+        def run(args: list[str]) -> tuple[int, dict]:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = kit_feature_brief.main(
+                    ["--root", str(self.root), "demo-feature", *args]
+                )
+            return code, json.loads(output.getvalue())
+
+        code, projected = run(
+            ["--task", "T01", "--execution", "--json", "--projection", "execution"]
+        )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            {
+                "featureSlug",
+                "selectedTask",
+                "readyTasks",
+                "executionDecision",
+                "confirmationRequired",
+                "taskBlockers",
+                "instructionContext",
+                "trustedProgress",
+                "documentDiagnostics",
+            },
+            set(projected),
+        )
+        self.assertTrue(
+            all(item["severity"] == "error" for item in projected["documentDiagnostics"])
+        )
+        self.assertEqual("T01", projected["selectedTask"]["id"])
+        self.assertNotIn("currentTask", projected)
+
+        # 展开非当前任务时 currentTask 不是子集，必须保留
+        plan = self.root / ".workspace/docs/features/demo-feature/plans/implementation.md"
+        plan.write_text(
+            plan.read_text(encoding="utf-8")
+            + "\n- [ ] T02 后续任务\n\n"
+            "  依赖：T01\n"
+            "  目标仓：`service`\n"
+            "  验证性质：行为\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`module/other.py`（`Service#next`）\n",
+            encoding="utf-8",
+        )
+        _, other = run(
+            ["--task", "T02", "--execution", "--json", "--projection", "execution"]
+        )
+        self.assertEqual("T02", other["selectedTask"]["id"])
+        self.assertEqual("T01", other["currentTask"]["id"])
+
+        _, full_default = run(["--task", "T01", "--execution", "--json"])
+        _, full_explicit = run(
+            ["--task", "T01", "--execution", "--json", "--projection", "full"]
+        )
+        full_default.pop("recentCommits")
+        full_explicit.pop("recentCommits")
+        self.assertEqual(full_default, full_explicit)
+        self.assertIn("verificationTail", full_default)
 
     def test_cli_accepts_task_option(self) -> None:
         import kit_feature_brief

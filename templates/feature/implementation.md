@@ -12,7 +12,7 @@
 
 ## 执行概览
 
-记录 feature slug、目标仓、基线、工作分支、当前工作目录和执行方式。新会话的读取命令与共同必读文件也放在这里。计划不复制或绑定项目规范；执行时通过 `brief --task` 返回的 `instructionContext` 渐进读取。
+记录 feature slug、目标仓、基线、工作分支、当前工作目录和执行方式。新会话的读取命令与共同必读文件也放在这里。计划不复制或绑定项目规范；执行时按 `brief --task` 返回的 `instructionContext.rules` 单调收窄顺序读取规则，事实入口由 `status --context-sources` 提供。
 
 ### 全局约束
 

@@ -67,6 +67,14 @@ class ComponentsAndPathsTest(unittest.TestCase):
             ["status_json", "skill_execute_plan"], context_measure.PATHS["implement"]
         )
         self.assertIn("resume", context_measure.PATHS)
+        self.assertEqual(
+            ["kit.py", "brief"],
+            context_measure.COMPONENTS["brief_task"]["argv"],
+        )
+        self.assertEqual(
+            ["status_json", "skill_execute_plan", "brief_task"],
+            context_measure.PATHS["implement_task"],
+        )
 
     def test_file_components_exist(self):
         for component_id, component in context_measure.COMPONENTS.items():
@@ -140,6 +148,78 @@ class BuildReportTest(unittest.TestCase):
         self.assertEqual(
             self.report["repoState"]["activeFeatureCount"],
             len(parsed.get("features", [])),
+        )
+
+
+class ImplementTaskObservationTest(unittest.TestCase):
+    """implement_task 路径必须覆盖任务展开与规范链的真实读取成本。"""
+
+    def _report(self, *, current_task, instruction_context):
+        brief_task_payload = json.dumps(
+            {
+                "selectedTask": {"id": "T01", "body": "任务正文" * 20},
+                "instructionContext": instruction_context,
+            },
+            ensure_ascii=False,
+        )
+
+        def readonly(argv, root):
+            if argv == ["workspace_status.py", "--root", ".", "--json"]:
+                return subprocess.CompletedProcess(
+                    argv, 0,
+                    json.dumps({"mode": "maintenance", "features": [{"featureSlug": "demo"}]}),
+                    "",
+                )
+            if argv[:2] == ["kit.py", "brief"] and "--task" in argv:
+                return subprocess.CompletedProcess(argv, 0, brief_task_payload, "")
+            if argv[:2] == ["kit.py", "brief"] and "--execution" in argv:
+                return subprocess.CompletedProcess(
+                    argv, 0, json.dumps({"currentTask": current_task}), ""
+                )
+            if argv[:2] == ["kit.py", "brief"]:
+                return subprocess.CompletedProcess(argv, 0, "demo（development）\n", "")
+            return subprocess.CompletedProcess(argv, 0, "{}", "")
+
+        with mock.patch.object(context_measure, "_run_readonly", side_effect=readonly) as run:
+            report = context_measure.build_report(ROOT)
+        return report, run
+
+    def test_expands_current_task_and_adds_instruction_source_tokens(self):
+        report, run = self._report(
+            current_task={"id": "T01"},
+            instruction_context={
+                "rules": [
+                    {"level": 1, "scope": "kit", "path": "AGENTS.md"},
+                    {"level": 2, "scope": "workspace", "path": "CONTRIBUTING.md"},
+                ]
+            },
+        )
+
+        component = report["components"]["brief_task"]
+        self.assertTrue(component["applicable"])
+        self.assertTrue(
+            any("--task" in call.args[0] for call in run.call_args_list),
+            "必须实际展开当前任务",
+        )
+
+        # 规范链条目的 token 必须计入，而不是只算 brief 自身输出
+        sources = component["instructionSources"]
+        self.assertEqual(["AGENTS.md", "CONTRIBUTING.md"], [item["path"] for item in sources])
+        self.assertTrue(all(item["estTokens"] > 0 for item in sources))
+        self.assertEqual(
+            component["estTokens"],
+            component["briefEstTokens"] + sum(item["estTokens"] for item in sources),
+        )
+        self.assertIn("implement_task", report["paths"])
+
+    def test_without_current_task_is_not_applicable(self):
+        report, _ = self._report(current_task=None, instruction_context=None)
+
+        component = report["components"]["brief_task"]
+        self.assertFalse(component["applicable"])
+        self.assertEqual(0, component["estTokens"])
+        self.assertEqual(
+            ["brief_task"], report["paths"]["implement_task"]["notApplicable"]
         )
 
 

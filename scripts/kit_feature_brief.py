@@ -19,6 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from workspace_local import load_local_settings  # noqa: E402
+from context_measure import estimate_tokens  # noqa: E402
 from workspace_model import (  # noqa: E402
     WorkspaceError,
     is_independent_git,
@@ -45,6 +46,18 @@ FEATURE_FILES = {
 }
 PENDING_TASK_LIMIT = 10
 VERIFICATION_SUMMARY_LIMIT = 1200
+EXECUTION_PROJECTION_FIELDS = (
+    "featureSlug",
+    "currentTask",
+    "selectedTask",
+    "readyTasks",
+    "executionDecision",
+    "confirmationRequired",
+    "taskBlockers",
+    "instructionContext",
+    "trustedProgress",
+    "documentDiagnostics",
+)
 MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 EXPLICIT_ANCHOR_RE = re.compile(r"\bid=[\"']([^\"']+)[\"']")
@@ -470,7 +483,7 @@ def _ordinary_file(base: Path, path: Path) -> bool:
 
 def _scoped_instruction_paths(
     root: Path, repository_root: Path, task: dict[str, object], excluded: set[Path]
-) -> tuple[list[str], list[dict[str, object]]]:
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     paths = []
     diagnostics = []
     for deliverable in task.get("deliverables", []):
@@ -509,9 +522,29 @@ def _scoped_instruction_paths(
             if candidate.resolve() in excluded or not _ordinary_file(repository_root, candidate):
                 continue
             relative = Path(os.path.relpath(candidate, root)).as_posix()
-            if relative not in paths:
-                paths.append(relative)
+            if relative not in {item["path"] for item in paths}:
+                paths.append(
+                    _instruction_rule(
+                        root, 4, "scoped", relative, str(task["repository"])
+                    )
+                )
     return paths, diagnostics
+
+
+def _instruction_rule(
+    root: Path,
+    level: int,
+    scope: str,
+    path: str,
+    repository: str | None = None,
+) -> dict[str, object]:
+    rule: dict[str, object] = {"level": level, "scope": scope, "path": path}
+    if repository is not None:
+        rule["repository"] = repository
+    rule["estTokens"] = estimate_tokens(
+        (root / path).read_text(encoding="utf-8")
+    )["estTokens"]
+    return rule
 
 
 def _instruction_context(
@@ -526,64 +559,40 @@ def _instruction_context(
     if not isinstance(repository_name, str):
         return None, []
     diagnostics = []
-    if mode == "maintenance":
-        agents = root / "AGENTS.md"
-        workspace_entries = []
-        if _ordinary_file(root, agents):
-            workspace_entries.append({"path": "AGENTS.md", "scope": "workspace"})
-        else:
-            diagnostics.append(
-                _instruction_diagnostic(
-                    "INSTRUCTION_SOURCE_MISSING",
-                    "AGENTS.md",
-                    "维护仓根规范入口不存在或不安全",
-                )
-            )
-        scoped, scoped_diagnostics = _scoped_instruction_paths(
-            root, root, task, {agents.resolve()}
-        )
-        diagnostics.extend(scoped_diagnostics)
-        return {
-            "workspace": workspace_entries,
-            "repositories": [
-                {
-                    "repository": repository_name,
-                    "governance": None,
-                    "sourceInstruction": None,
-                    "scopedInstructions": scoped,
-                }
-            ],
-        }, diagnostics
-
-    workspace_entries = []
-    for relative, scope in (
-        (".workspace/AGENTS.md", "workspace"),
-        (".workspace/CONTEXT.md", "workspace-context"),
-    ):
-        candidate = root / relative
-        if _ordinary_file(root, candidate):
-            workspace_entries.append({"path": relative, "scope": scope})
-        else:
-            diagnostics.append(
-                _instruction_diagnostic(
-                    "INSTRUCTION_SOURCE_MISSING",
-                    relative,
-                    f"工作区规范入口不存在或不安全：{relative}",
-                )
-            )
-
-    repository = resolve_repository(workspace_model.repositories, repository_name)
-    repository_root = repository_path(workspace_model, repository)
-    governance = state_root(root) / repository.instruction
-    governance_path = f".workspace/{repository.instruction}"
-    if not _ordinary_file(state_root(root), governance):
+    kit_agents = root / "AGENTS.md"
+    rules = []
+    if _ordinary_file(root, kit_agents):
+        rules.append(_instruction_rule(root, 1, "kit", "AGENTS.md"))
+    else:
         diagnostics.append(
             _instruction_diagnostic(
                 "INSTRUCTION_SOURCE_MISSING",
-                governance_path,
-                f"仓库治理入口不存在或不安全：{governance_path}",
+                "AGENTS.md",
+                "Kit 根规范入口不存在或不安全",
             )
         )
+    if mode == "maintenance":
+        scoped, scoped_diagnostics = _scoped_instruction_paths(
+            root, root, task, {kit_agents.resolve()}
+        )
+        diagnostics.extend(scoped_diagnostics)
+        return {"policy": "monotonic-narrowing", "rules": [*rules, *scoped]}, diagnostics
+
+    workspace_path = ".workspace/AGENTS.md"
+    workspace_agents = root / workspace_path
+    if _ordinary_file(root, workspace_agents):
+        rules.append(_instruction_rule(root, 2, "workspace", workspace_path))
+    else:
+        diagnostics.append(
+            _instruction_diagnostic(
+                "INSTRUCTION_SOURCE_MISSING",
+                workspace_path,
+                f"工作区规范入口不存在或不安全：{workspace_path}",
+            )
+        )
+
+    repository = resolve_repository(workspace_model.repositories, repository_name)
+    repository_root = repository_path(workspace_model, repository)
     source = (
         repository_root / repository.source_instruction
         if repository.source_instruction is not None
@@ -600,22 +609,16 @@ def _instruction_context(
                 f"仓库规范入口不存在或不安全：{repository.source_instruction}",
             )
         )
+    elif source_path is not None:
+        rules.append(
+            _instruction_rule(root, 3, "repository", source_path, repository_name)
+        )
     excluded = {source.resolve()} if source is not None else set()
     scoped, scoped_diagnostics = _scoped_instruction_paths(
         root, repository_root, task, excluded
     )
     diagnostics.extend(scoped_diagnostics)
-    return {
-        "workspace": workspace_entries,
-        "repositories": [
-            {
-                "repository": repository_name,
-                "governance": governance_path,
-                "sourceInstruction": source_path,
-                "scopedInstructions": scoped,
-            }
-        ],
-    }, diagnostics
+    return {"policy": "monotonic-narrowing", "rules": [*rules, *scoped]}, diagnostics
 
 
 def brief_result(
@@ -762,6 +765,31 @@ def _render_text(result: dict[str, object]) -> None:
             print(f"  ({entry['note']})")
 
 
+def _project(result: dict[str, object], projection: str) -> dict[str, object]:
+    """按投影裁剪输出；full 返回原结果，不改变 brief_result 的形状。"""
+    if projection != "execution":
+        return result
+    projected = {
+        field: result[field] for field in EXECUTION_PROJECTION_FIELDS if field in result
+    }
+    selected = projected.get("selectedTask")
+    current = projected.get("currentTask")
+    if (
+        isinstance(selected, dict)
+        and isinstance(current, dict)
+        and selected.get("id") is not None
+        and selected.get("id") == current.get("id")
+    ):
+        # 展开的就是当前任务时，currentTask 是 selectedTask 的摘要子集，省略无信息损失。
+        projected.pop("currentTask")
+    diagnostics = projected.get("documentDiagnostics")
+    if isinstance(diagnostics, list):
+        projected["documentDiagnostics"] = [
+            item for item in diagnostics if item.get("severity") == "error"
+        ]
+    return projected
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -769,6 +797,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--task", dest="task_id", help="展开指定编号任务的正文与引用")
     parser.add_argument("--check", action="store_true", help="检查已有文档的本地结构与引用")
     parser.add_argument("--execution", action="store_true", help="补充连续执行决策与可执行队列")
+    parser.add_argument(
+        "--projection",
+        choices=("full", "execution"),
+        default="full",
+        help="execution 只保留执行循环消费的字段",
+    )
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -780,8 +814,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 1
+    projected = _project(result, args.projection)
     if args.json:
-        print(json.dumps(result, ensure_ascii=False))
+        print(json.dumps(projected, ensure_ascii=False))
     else:
         _render_text(result)
     if args.check and any(item["severity"] == "error" for item in result["documentDiagnostics"]):

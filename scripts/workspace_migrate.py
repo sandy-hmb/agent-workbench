@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     preview = commands.add_parser("preview", help="只读预览 workspace 状态迁移")
     preview.add_argument("--root", type=Path, default=ROOT)
     preview.add_argument("--json", action="store_true")
+    preview.add_argument("--diff", action="store_true", help="在预览中包含文本差异")
     apply = commands.add_parser("apply", help="原子写入 .workspace 状态树")
     apply.add_argument("--root", type=Path, default=ROOT)
     apply.add_argument("--preview-hash", required=True)
@@ -39,7 +40,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = (
-            preview(args.root, target_version=VERSION)
+            preview(args.root, target_version=VERSION, include_diff=args.diff)
             if args.command == "preview"
             else apply(
                 args.root,

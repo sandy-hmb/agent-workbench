@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workspace Instruction"
+  short_description: "Maintain layered workspace instruction rules"
+  default_prompt: "Use $workspace-instruction to classify, inspect, or maintain layered workspace instructions."

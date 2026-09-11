@@ -26,6 +26,10 @@ description: Initialize a governance workspace or register a sibling repository 
 
    每个仓 registry 中的 `instruction` 字段固定为 `docs/repositories/<path>.md`，运行时相对于 `.workspace` 解析；业务仓内的 `AGENTS.md`、`CLAUDE.md` 或 `README` 等补充规范登记在可选 `sourceInstruction`。个人设置来自 `.workspace/workspace.local.json`；`add-repo` 未提供 `local` 时继承现有值。
 
+## 分层规范入口
+
+根 `AGENTS.md` 写 Kit 通用规则，`.workspace/AGENTS.md` 写本工作区新增或收紧规则，业务仓及其目录的 `AGENTS.md` 写局部规则；`CONTEXT.md` 和仓 profile 只保存事实。规范入口应是可读的普通 `AGENTS.md`，`sourceInstruction` 指向 README 等其他文件时保留并提示，不自动改写。
+
 2. 展示工作区身份、登记项、候选兄弟仓和精确 clone 清单；只有 clone 清单非空时询问一次网络授权。没有 Skill 机制时本文件按普通 runbook 读取。
 3. 用户确认后，只运行对应的 `clone`：
 

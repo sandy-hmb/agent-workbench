@@ -10,6 +10,7 @@ from urllib.parse import unquote
 
 
 ROOT = Path(__file__).resolve().parents[1]
+AGENTS_SOFT_LIMIT_BYTES = 7700
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import workspace_setup  # noqa: E402
@@ -30,6 +31,7 @@ SKILLS = (
     "workspace-submit-test",
     "workspace-extension",
     "workspace-update",
+    "workspace-instruction",
 )
 
 
@@ -80,6 +82,13 @@ class SurfaceTest(unittest.TestCase):
             f"AGENTS.md 已达 {size} 字节，超过 doctor 的 "
             f"{workspace_doctor.AGENTS_MAX_BYTES} 字节硬限；"
             "请把非核心内容迁移到 docs/ 或对应 SKILL.md。",
+        )
+        # 软上限：为分层规则等后续常驻内容保留余量，超支在硬限前先红
+        self.assertLessEqual(
+            size,
+            AGENTS_SOFT_LIMIT_BYTES,
+            f"AGENTS.md 已达 {size} 字节，超过 {AGENTS_SOFT_LIMIT_BYTES} 字节软上限；"
+            "根规范只保留全局规则，阶段细节归各 SKILL.md。",
         )
 
     def test_claude_skill_adapters_are_relative_symlinks(self):
@@ -404,6 +413,20 @@ class SurfaceTest(unittest.TestCase):
             "当前任务、阻塞类别、实际证据、已完成的安全步骤和最小用户决策",
             execute,
         )
+
+    def test_instruction_context_docs_define_monotonic_narrowing(self):
+        paths = (
+            ROOT / "AGENTS.md",
+            ROOT / ".agents/skills/workspace-execute-plan/SKILL.md",
+            ROOT / "docs/guides/first-feature.md",
+            ROOT / "templates/feature/implementation.md",
+            ROOT / "templates/workspace/AGENTS.md",
+        )
+        for path in paths:
+            with self.subTest(path=path.relative_to(ROOT)):
+                content = path.read_text(encoding="utf-8")
+                if "instructionContext" in content:
+                    self.assertIn("单调收窄", content)
 
     def test_add_repo_apply_regenerates_generated_context_safely(self):
         content = (ROOT / ".agents/skills/workspace-init/SKILL.md").read_text(

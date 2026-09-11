@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared schema, validation, and rendering for workspace.json version 1."""
+"""Shared schema, validation, and rendering for workspace.json version 2."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from typing import Mapping, Sequence
 import re
 
 
-VERSION = 1
+VERSION = 2
 VERSION_VALUE = {"major": VERSION, "minor": 0}
 JSON_MAX_NESTING = 256
 BRANCH_TYPES = frozenset({"feature", "fix", "hotfix", "refactor", "docs", "chore"})
@@ -507,11 +507,11 @@ def parse_workspace(
     if (
         not isinstance(version, dict)
         or type(version.get("major")) is not int
-        or version["major"] != VERSION
+        or version["major"] not in {1, VERSION}
         or type(version.get("minor")) is not int
         or version["minor"] < 0
     ):
-        raise WorkspaceError(f"workspace.json version.major 必须为 {VERSION}")
+        raise WorkspaceError(f"workspace.json version.major 必须为 1 或 {VERSION}")
     context = raw.get("context", {})
     if not isinstance(context, dict):
         raise WorkspaceError("context 必须是 JSON 对象")

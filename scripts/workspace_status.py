@@ -1066,7 +1066,42 @@ def _migration_required_status(findings: list[object]) -> dict[str, object]:
     }
 
 
-def status_result(root: Path) -> dict[str, object]:
+def _context_sources(root: Path) -> dict[str, object]:
+    state = state_root(root)
+    context = state / "CONTEXT.md"
+    result: dict[str, object] = {
+        "workspace": {
+            "path": ".workspace/CONTEXT.md",
+            "exists": context.is_file() and not context.is_symlink(),
+        },
+        "repositories": [],
+    }
+    try:
+        repositories = read_json(workspace_file(root)).get("repositories", [])
+    except (OSError, UnicodeError, WorkspaceError):
+        repositories = []
+    for repository in repositories if isinstance(repositories, list) else []:
+        if not isinstance(repository, dict):
+            continue
+        name = repository.get("path")
+        instruction = repository.get("instruction")
+        if not isinstance(name, str) or not isinstance(instruction, str):
+            continue
+        relative = PurePosixPath(instruction)
+        if relative.is_absolute() or ".." in relative.parts:
+            continue
+        path = state / relative
+        result["repositories"].append(
+            {
+                "repository": name,
+                "path": f".workspace/{relative.as_posix()}",
+                "exists": path.is_file() and not path.is_symlink(),
+            }
+        )
+    return result
+
+
+def status_result(root: Path, *, context_sources: bool = False) -> dict[str, object]:
     root = root.resolve()
     if not root.is_dir():
         raise ValueError(f"治理仓目录不存在：{root}")
@@ -1083,8 +1118,14 @@ def status_result(root: Path) -> dict[str, object]:
         mode = "maintenance"
     else:
         try:
-            if workspace_schema_version(root) < VERSION:
-                return _migration_required_status(findings)
+            if (
+                workspace_schema_version(root) < VERSION
+                and (state_root(root) / "AGENTS.md").is_file()
+            ):
+                result = _migration_required_status(findings)
+                if context_sources:
+                    result["contextSources"] = _context_sources(root)
+                return result
         except WorkspaceError:
             pass
         try:
@@ -1110,6 +1151,8 @@ def status_result(root: Path) -> dict[str, object]:
                 result["blockers"] = list(codes)
                 result["confirmation"] = _confirmation("semantic")
                 result["schemaVersion"] = STATUS_SCHEMA_VERSION
+                if context_sources:
+                    result["contextSources"] = _context_sources(root)
                 return result
             raise
         registered = {repository.path for repository in workspace_model.repositories}
@@ -1158,6 +1201,8 @@ def status_result(root: Path) -> dict[str, object]:
     }
     if degraded_features:
         result["degradedFeatures"] = degraded_features
+    if context_sources:
+        result["contextSources"] = _context_sources(root)
     return result
 
 
@@ -1222,6 +1267,16 @@ def _render_text(result: dict[str, object]) -> None:
         f"Doctor：ERROR={doctor['errors']} WARN={doctor['warnings']} "
         f"INFO={doctor['info']}"
     )
+    sources = result.get("contextSources")
+    if isinstance(sources, dict):
+        print("事实入口：")
+        workspace = sources["workspace"]
+        print(f"- {workspace['path']}：{'存在' if workspace['exists'] else '缺失'}")
+        for repository in sources["repositories"]:
+            print(
+                f"- {repository['repository']} {repository['path']}："
+                f"{'存在' if repository['exists'] else '缺失'}"
+            )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1233,13 +1288,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="治理仓目录（默认脚本所在项目目录）",
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--context-sources",
+        action="store_true",
+        help="显示 CONTEXT.md 与仓库 profile 的事实入口",
+    )
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = status_result(args.root)
+        result = status_result(args.root, context_sources=args.context_sources)
         if args.json:
             print(json.dumps(result, ensure_ascii=False))
         else:
