@@ -310,13 +310,14 @@ class SurfaceTest(unittest.TestCase):
             "**接口**",
             "**实施步骤**",
             "**验证**",
-            "完成门禁",
+            "completion-policy: task-evidence-v1",
             "目标仓",
             "验证性质",
             "具体失败场景",
             "连续执行",
         ):
             self.assertIn(field, plan)
+        self.assertNotIn("- 完成门禁", plan)
         self.assertNotRegex(plan, r"(?m)^[ \t]+- \[[ x]\]")
         self.assertIn("data-model.md#d01-字段设计", plan)
         self.assertIn("## 执行概览", plan)

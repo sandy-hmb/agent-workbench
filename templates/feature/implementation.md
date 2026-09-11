@@ -1,6 +1,6 @@
 # {title} 实施计划
 
-- 完成门禁：`task-evidence-v1`
+<!-- completion-policy: task-evidence-v1 -->
 
 **目标：** 用一句话说明全部任务完成后的结果。
 

@@ -486,7 +486,7 @@ class WorkspaceStatusTest(unittest.TestCase):
         plan = self.root / "plan.md"
         plan.write_text(
             "# 实施计划\n\n"
-            "- 完成门禁：`task-evidence-v1`\n\n"
+            "<!-- completion-policy: task-evidence-v1 -->\n\n"
             "- [ ] T01 实现服务\n\n"
             "  依赖：无\n"
             "  目标仓：`crm_java-master`\n"

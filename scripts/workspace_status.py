@@ -62,7 +62,10 @@ DEPENDENCY_RE = re.compile(r"^\s*依赖：\s*(.*?)\s*$")
 TASK_ID_IN_TEXT_RE = re.compile(r"(?<![A-Za-z0-9_])T\d{2,}(?![A-Za-z0-9_])")
 TASK_RANGE_RE = re.compile(r"\b(T\d{2,})\s*(?:-|–|—|~|至)\s*(T\d{2,})\b")
 MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
-COMPLETION_POLICY_RE = re.compile(r"^\s*-\s*完成门禁：\s*`?([^`\s]+)`?\s*$")
+COMPLETION_POLICY_RE = re.compile(
+    r"^\s*(?:-\s*完成门禁：\s*`?([^`\s]+)`?|"
+    r"<!--\s*completion-policy:\s*([^>\s]+)\s*-->)\s*$"
+)
 TASK_REPOSITORY_RE = re.compile(r"^\s*目标仓：\s*`?([^`\s]+)`?\s*$")
 VALIDATION_KIND_RE = re.compile(r"^\s*验证性质：\s*(.*?)\s*$")
 DELIVERABLE_RE = re.compile(
@@ -287,7 +290,7 @@ def plan_analysis(
     lines = (path.read_text(encoding="utf-8") if text is None else text).splitlines()
     fenced, diagnostics = _fenced_lines(lines, path)
     policy_matches = [
-        (line_number, match.group(1))
+        (line_number, match.group(1) or match.group(2))
         for line_number, line in enumerate(lines, start=1)
         if line_number not in fenced and (match := COMPLETION_POLICY_RE.match(line))
     ]
