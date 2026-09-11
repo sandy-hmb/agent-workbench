@@ -351,6 +351,8 @@
               "feature",
               "document",
               "verification",
+              "handoff",
+              "search",
               "workflow",
               "runs",
               "run"
@@ -1862,6 +1864,85 @@
       },
       "additionalProperties": true
     },
+    "handoffSource": {
+      "type": "object",
+      "required": ["kind", "path", "revision", "startLine", "endLine"],
+      "properties": {
+        "kind": {"enum": ["document", "rule", "verification"]},
+        "path": {"type": "string"},
+        "revision": {"$ref": "#/$defs/revision"},
+        "startLine": {"type": "integer"},
+        "endLine": {"type": "integer"},
+        "level": {"type": "integer"},
+        "scope": {"type": "string"},
+        "repository": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "handoffTask": {
+      "type": ["object", "null"],
+      "required": ["id", "title", "path", "startLine", "endLine", "dependencies", "references", "body", "referenceIds"],
+      "properties": {
+        "id": {"type": ["string", "null"]},
+        "title": {"type": "string"},
+        "path": {"type": "string"},
+        "startLine": {"type": "integer"},
+        "endLine": {"type": "integer"},
+        "dependencies": {"type": "array", "items": {"type": "string"}},
+        "references": {"type": "array", "items": {"type": "string"}},
+        "body": {"type": "string"},
+        "referenceIds": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["slug", "title", "status", "documentReviews", "progression", "currentTask", "dependencies", "latestVerification", "sources", "content", "estimatedTokens", "featureRevision"],
+      "properties": {
+        "slug": {"type": "string"},
+        "title": {"type": "string"},
+        "status": {"type": "string"},
+        "documentReviews": {"type": "object"},
+        "progression": {"$ref": "#/$defs/progression"},
+        "currentTask": {"$ref": "#/$defs/handoffTask"},
+        "dependencies": {"type": "array", "items": {"type": "object"}},
+        "latestVerification": {"type": ["object", "null"]},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/handoffSource"}},
+        "content": {"type": "string"},
+        "estimatedTokens": {"type": "integer"},
+        "featureRevision": {"$ref": "#/$defs/revision"}
+      },
+      "additionalProperties": true
+    },
+    "searchItem": {
+      "type": "object",
+      "required": ["slug", "title", "status", "lastUpdated", "repositories", "path", "line", "heading", "snippet", "revision", "matchKind"],
+      "properties": {
+        "slug": {"type": "string"},
+        "title": {"type": "string"},
+        "status": {"type": "string"},
+        "lastUpdated": {"type": "string"},
+        "repositories": {"type": "array", "items": {"type": "string"}},
+        "path": {"type": "string"},
+        "line": {"type": "integer"},
+        "heading": {"type": ["string", "null"]},
+        "snippet": {"type": "string"},
+        "revision": {"$ref": "#/$defs/revision"},
+        "matchKind": {"enum": ["title", "heading", "body"]}
+      },
+      "additionalProperties": true
+    },
+    "search": {
+      "type": "object",
+      "required": ["query", "items", "counts", "page"],
+      "properties": {
+        "query": {"type": "string"},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/searchItem"}},
+        "counts": {"$ref": "#/$defs/counts"},
+        "page": {"$ref": "#/$defs/page"}
+      },
+      "additionalProperties": true
+    },
     "run": {
       "type": "object",
       "required": [
@@ -1941,6 +2022,8 @@
         "feature",
         "document",
         "verification",
+        "handoff",
+        "search",
         "workflow",
         "runs",
         "run",

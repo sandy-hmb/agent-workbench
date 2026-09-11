@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "source": "真实 CLI 对临时合成工作区的响应",
   "regenerate": "python3 -B tests/test_inspect_examples.py --update-examples",
@@ -15,6 +15,8 @@
     "feature",
     "document",
     "verification",
+    "handoff",
+    "search",
     "workflow",
     "runs",
     "run"

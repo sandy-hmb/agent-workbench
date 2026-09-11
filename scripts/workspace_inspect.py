@@ -25,8 +25,10 @@ if str(SCRIPT_DIR) not in sys.path:
 from feature_context import FEATURE_STATUSES, feature_metadata, list_features_lenient, summary_payload
 from extension_registry import discover_extensions
 from extension_model import extension_digest
+from context_measure import estimate_tokens
+from kit_feature_brief import brief_result
 from workspace_local import load_local_settings
-from workspace_model import WorkspaceError, effective_branch_policy, load_workspace, parse_json_bytes, parse_workspace, read_json, repository_path
+from workspace_model import WorkspaceError, effective_branch_policy, load_workspace, parse_json_bytes, parse_workspace, read_json, repository_path, resolve_repository
 from workspace_model import VERSION
 from workspace_extension import _read_lock, extension_status
 from workspace_paths import features_root, state_root, workflow_file, workflow_runs_root
@@ -36,10 +38,12 @@ from workspace_workflow import CORE_WORKFLOW, FINGERPRINT_RE, RUN_FIELDS, RUN_ST
 from workflow_model import load_core_workflow, load_overlay, resolve_stages
 
 API_MAJOR = 1
+API_MINOR = 1
 MAX_FILE = 1024 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
 MAX_PAGE = 200
 MAX_SCAN = 10_000
+MAX_SEARCH_BYTES = 16 * 1024 * 1024
 NORMAL_TIMEOUT = 10.0
 CODE_TIMEOUT = 30.0
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml", ".sql", ".csv"}
@@ -47,6 +51,7 @@ STANDARD_FILES = {"README.md", "requirements/requirements.md", "design/design.md
 H1 = re.compile(r"^#\s+(.+?)\s*$")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 LINK = re.compile(r"\]\(([^)#]+)(?:#[^)]+)?\)")
+REFERENCE_ID = re.compile(r"(?<![A-Za-z0-9_])([RD]\d+(?:\.\d+)?)(?![A-Za-z0-9_])", re.IGNORECASE)
 
 
 class InspectError(ValueError):
@@ -321,7 +326,7 @@ def workspace(root: Path, deadline: Deadline | None = None) -> dict[str, object]
     mode = _mode(root)
     version_file = root / "VERSION"
     kit_version = _read(version_file, root, deadline=deadline).decode("utf-8").strip() if version_file.is_file() else f"{VERSION}.0"
-    protocol = {"operations": ["workspace", "features", "feature", "document", "verification", "workflow", "runs", "run"], "apiVersion": {"major": 1, "minor": 0}, "limits": {"maxFileBytes": MAX_FILE, "maxResponseBytes": MAX_RESPONSE, "maxPageSize": MAX_PAGE, "maxDirectoryEntries": MAX_SCAN}, "kitVersion": kit_version}
+    protocol = {"operations": ["workspace", "features", "feature", "document", "verification", "handoff", "search", "workflow", "runs", "run"], "apiVersion": {"major": API_MAJOR, "minor": API_MINOR}, "limits": {"maxFileBytes": MAX_FILE, "maxResponseBytes": MAX_RESPONSE, "maxPageSize": MAX_PAGE, "maxDirectoryEntries": MAX_SCAN}, "kitVersion": kit_version}
     if mode == "maintenance":
         return {"mode": mode, "identity": {"name": root.name}, "repositories": [{"id": root.name, "role": "kit", "absolutePath": str(root), "aliases": [], "category": "kit", "description": "agent-workbench Kit", "availability": "present", "effectiveBranchPolicy": None, "policySources": {}}], "localContext": {"activeFeature": None, "branchOwner": None, "primaryRole": None, "sources": {}}, "configuration": {"providers": {}, "repositoryOverrides": {}, "unknownExtensionConfig": {"keys": [], "valuesOmitted": True}}, "protocol": protocol}
     # Inspect may show unknown extension configuration, but must never echo its values.
@@ -451,6 +456,464 @@ def document(root: Path, slug: str, relative: str, revision: str | None, deadlin
     try: content = data.decode("utf-8")
     except UnicodeDecodeError as exc: raise InspectError("INSPECT_INVALID_DATA", "document 不是 UTF-8 文本", source=relative) from exc
     return {"slug": slug, "path": relative, "mediaType": "text/markdown" if path.suffix == ".md" else "text/plain", "revision": current, "bytes": len(data), "lineCount": len(content.splitlines()), "content": content}
+
+
+def _source(
+    path: Path,
+    *,
+    root: Path,
+    feature_root: Path,
+    kind: str,
+    deadline: Deadline,
+    allowed_roots: Sequence[Path] = (),
+) -> tuple[dict[str, object], str]:
+    path = path.resolve()
+    boundaries = [feature_root, root, *allowed_roots]
+    boundary = next(
+        (
+            candidate.resolve()
+            for candidate in boundaries
+            if path.resolve().is_relative_to(candidate.resolve())
+        ),
+        None,
+    )
+    if boundary is None:
+        raise InspectError("INSPECT_UNSAFE_PATH", "接手来源不在允许目录内", source=str(path))
+    data = _read(path, boundary, deadline=deadline)
+    try:
+        content = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise InspectError("INSPECT_INVALID_DATA", "接手来源不是 UTF-8 文本", source=str(path)) from exc
+    relative = (
+        path.relative_to(feature_root).as_posix()
+        if path.is_relative_to(feature_root)
+        else Path(os.path.relpath(path, root)).as_posix()
+    )
+    return {
+        "kind": kind,
+        "path": relative,
+        "revision": _revision(data),
+        "startLine": 1,
+        "endLine": max(1, len(content.splitlines())),
+    }, content
+
+
+def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object]:
+    detail = feature(root, slug, deadline)
+    directory = _feature_dir(root, slug)
+    compact = (
+        brief_result(root, slug, execution=True)
+        if detail["summary"]["status"] != "done"
+        else {}
+    )
+    current = compact.get("currentTask")
+    current_task = None
+    relevant_paths = {
+        "README.md",
+        "requirements/requirements.md",
+        "design/design.md",
+        "plans/implementation.md",
+    }
+    if isinstance(current, dict):
+        plan_path = directory / "plans/implementation.md"
+        plan_data = _read(plan_path, root, deadline=deadline)
+        lines = plan_data.decode("utf-8").splitlines()
+        start, end = int(current["startLine"]), int(current["endLine"])
+        body = "\n".join(lines[start - 1:end])
+        current_task = {
+            **current,
+            "body": body,
+            "referenceIds": sorted(set(REFERENCE_ID.findall(body)), key=str.casefold),
+        }
+        for reference in current.get("references", []):
+            target = str(reference).split("#", 1)[0]
+            if not target or "://" in target:
+                continue
+            resolved = (plan_path.parent / target).resolve()
+            if (
+                resolved.is_relative_to(directory)
+                and resolved.suffix.lower() == ".md"
+                and resolved.is_file()
+                and not resolved.is_symlink()
+            ):
+                relevant_paths.add(resolved.relative_to(directory).as_posix())
+
+    allowed_roots: list[Path] = []
+    repository = current.get("repository") if isinstance(current, dict) else None
+    if _mode(root) == "workspace" and isinstance(repository, str):
+        model = load_workspace(root)
+        repo = next((item for item in model.repositories if item.path == repository), None)
+        if repo is not None:
+            allowed_roots.append(repository_path(model, repo))
+
+    sources = []
+    for relative in sorted(relevant_paths):
+        path = directory / relative
+        if not path.is_file() or path.is_symlink():
+            continue
+        source, _ = _source(
+            path,
+            root=root,
+            feature_root=directory,
+            kind="document",
+            deadline=deadline,
+        )
+        sources.append(source)
+    instruction = compact.get("instructionContext")
+    rules = instruction.get("rules", []) if isinstance(instruction, dict) else []
+    for rule in rules:
+        if not isinstance(rule, dict) or not isinstance(rule.get("path"), str):
+            continue
+        source, _ = _source(
+            root / rule["path"],
+            root=root,
+            feature_root=directory,
+            kind="rule",
+            deadline=deadline,
+            allowed_roots=allowed_roots,
+        )
+        source.update(
+            {key: rule[key] for key in ("level", "scope", "repository") if key in rule}
+        )
+        sources.append(source)
+
+    task_by_id = {task.get("id"): task for task in detail["tasks"]}
+    dependencies = [] if current_task is None else [
+        {
+            "id": dependency,
+            "title": task_by_id.get(dependency, {}).get("title"),
+            "completed": task_by_id.get(dependency, {}).get("completed"),
+            "trusted": task_by_id.get(dependency, {}).get("trusted"),
+        }
+        for dependency in current_task.get("dependencies", [])
+    ]
+
+    verification_path = directory / "testing/verification.md"
+    latest_verification = None
+    if verification_path.is_file() and not verification_path.is_symlink():
+        verification_data = _read(verification_path, root, deadline=deadline)
+        verification_text = verification_data.decode("utf-8")
+        selected = describe_verification_document(verification_text)["selectedBatch"]
+        if selected is not None:
+            latest_verification = {
+                key: selected.get(key)
+                for key in (
+                    "recordedAt",
+                    "recordedResult",
+                    "recordedReview",
+                    "completeness",
+                    "source",
+                )
+            }
+        sources.append(
+            {
+                "kind": "verification",
+                "path": "testing/verification.md",
+                "revision": _revision(verification_data),
+                "startLine": 1,
+                "endLine": max(1, len(verification_text.splitlines())),
+            }
+        )
+
+    summary = detail["summary"]
+    progression = detail["progression"]
+    description = detail.get("description")
+    goal = description.get("content") if isinstance(description, dict) else None
+    markdown = [
+        f"# {summary['title']}",
+        "",
+        f"- Feature：`{slug}`",
+        f"- 状态：`{summary['status']}`",
+        f"- 当前阶段：`{progression['currentStage'] or '无'}`",
+    ]
+    if goal:
+        markdown.extend(["", goal])
+    if current_task is not None:
+        markdown.extend(["", "## 当前任务", "", current_task["body"]])
+    if dependencies:
+        markdown.extend(
+            ["", "## 直接依赖", ""]
+            + [
+                f"- {item['id']}：{item['title'] or '未找到'}（{'已完成' if item['completed'] else '未完成'}）"
+                for item in dependencies
+            ]
+        )
+    if progression["blockers"]:
+        markdown.extend(["", "## 阻塞", ""] + [f"- {item}" for item in progression["blockers"]])
+    if progression["nextActions"]:
+        markdown.extend(
+            ["", "## 下一步", ""]
+            + [f"- {item['reason']}" for item in progression["nextActions"]]
+        )
+    if latest_verification is not None:
+        markdown.extend(
+            [
+                "",
+                "## 最近验证",
+                "",
+                f"- 结果：{latest_verification['recordedResult']}",
+                f"- 时间：{latest_verification['recordedAt']}",
+            ]
+        )
+    markdown.extend(
+        ["", "## 必读来源", ""]
+        + [f"- `{item['path']}` @ `{item['revision']}`" for item in sources]
+    )
+    content = "\n".join(markdown).rstrip() + "\n"
+    for item in sources:
+        source_path = (
+            root / str(item["path"])
+            if item["kind"] == "rule"
+            else directory / str(item["path"])
+        )
+        current_source, _ = _source(
+            source_path,
+            root=root,
+            feature_root=directory,
+            kind=str(item["kind"]),
+            deadline=deadline,
+            allowed_roots=allowed_roots,
+        )
+        if current_source["revision"] != item["revision"]:
+            raise InspectError(
+                "INSPECT_INPUT_CHANGED",
+                "接手来源在生成期间发生变化",
+                source=str(source_path),
+            )
+    if _feature_revision(directory, root, deadline) != detail["featureRevision"]:
+        raise InspectError(
+            "INSPECT_INPUT_CHANGED", "接手包生成期间 Feature 发生变化", source=str(directory)
+        )
+    return {
+        "slug": slug,
+        "title": summary["title"],
+        "status": summary["status"],
+        "documentReviews": summary["documentReviews"],
+        "progression": progression,
+        "currentTask": current_task,
+        "dependencies": dependencies,
+        "latestVerification": latest_verification,
+        "sources": sources,
+        "content": content,
+        "estimatedTokens": estimate_tokens(content)["estTokens"],
+        "featureRevision": detail["featureRevision"],
+    }
+
+
+def handoff(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str, object]:
+    deadline = deadline or Deadline(NORMAL_TIMEOUT)
+    for attempt in range(2):
+        try:
+            return _handoff_once(root, slug, deadline)
+        except InspectError as exc:
+            if exc.code != "INSPECT_INPUT_CHANGED" or attempt:
+                raise
+    raise AssertionError("unreachable")
+
+
+def _searchable_paths(feature_root: Path, root: Path, deadline: Deadline) -> list[str]:
+    paths = {
+        relative
+        for relative in _linked_files(feature_root, root, deadline)
+        if relative.endswith(".md")
+        and relative in STANDARD_FILES
+        and (feature_root / relative).is_file()
+        and not (feature_root / relative).is_symlink()
+    }
+    design = feature_root / "design"
+    if design.is_dir() and not design.is_symlink():
+        for path in _scan(design.glob("*.md"), deadline):
+            if path.is_file() and not path.is_symlink():
+                paths.add(path.relative_to(feature_root).as_posix())
+    return sorted(paths)
+
+
+def search(
+    root: Path,
+    query: str,
+    repository: str | None,
+    status: str | None,
+    offset: int,
+    limit: int,
+    deadline: Deadline | None = None,
+) -> dict[str, object]:
+    deadline = deadline or Deadline(NORMAL_TIMEOUT)
+    terms = [term.casefold() for term in query.split() if term]
+    if not terms or len(query) > 200 or len(terms) > 10:
+        raise InspectError(
+            "INSPECT_INVALID_ARGUMENT", "query 必须包含 1 到 10 个关键词且不超过 200 字符"
+        )
+    if status is not None and status not in FEATURE_STATUSES:
+        raise InspectError("INSPECT_INVALID_ARGUMENT", "status 无效")
+    if offset < 0 or not 1 <= limit <= 50:
+        raise InspectError("INSPECT_INVALID_ARGUMENT", "分页参数无效")
+    if repository is not None:
+        if _mode(root) == "maintenance":
+            if repository != root.name:
+                raise InspectError("INSPECT_INVALID_ARGUMENT", "repo 不属于当前工作区")
+        else:
+            try:
+                repository = resolve_repository(load_workspace(root).repositories, repository).path
+            except WorkspaceError as exc:
+                raise InspectError("INSPECT_INVALID_ARGUMENT", str(exc)) from exc
+
+    values, bad = _features(root, deadline)
+    diagnostics = [
+        _diag("INSPECT_INVALID_DATA", item["error"], item["path"]) for item in bad
+    ]
+    matches = []
+    revisions = []
+    consumed = 0
+    scanned = 0
+    stopped = False
+    for item in values:
+        if status is not None and item["status"] != status:
+            continue
+        if repository is not None and repository not in item["repositories"]:
+            continue
+        directory = root / str(item["path"])
+        try:
+            readme_text = _read(directory / "README.md", root, deadline=deadline).decode("utf-8")
+            title = _title_description(
+                directory / "README.md", root, readme_text, deadline
+            )[0]
+            paths = _searchable_paths(directory, root, deadline)
+        except (InspectError, OSError, UnicodeError, ValueError):
+            diagnostics.append(
+                _diag("INSPECT_INVALID_DATA", "无法读取需求记录", str(item["path"]))
+            )
+            continue
+        for relative in paths:
+            scanned += 1
+            if scanned > MAX_SCAN:
+                diagnostics.append(
+                    _diag("INSPECT_LIMIT_EXCEEDED", "搜索文件数量超过限制")
+                )
+                stopped = True
+                break
+            try:
+                data = _read(directory / relative, root, deadline=deadline)
+                consumed += len(data)
+                if consumed > MAX_SEARCH_BYTES:
+                    diagnostics.append(
+                        _diag("INSPECT_LIMIT_EXCEEDED", "搜索累计读取超过限制")
+                    )
+                    stopped = True
+                    break
+                text = data.decode("utf-8")
+            except (InspectError, OSError, UnicodeError) as exc:
+                code = exc.code if isinstance(exc, InspectError) else "INSPECT_INVALID_DATA"
+                diagnostics.append(
+                    _diag(code, "无法搜索文档", f"{item['path']}/{relative}")
+                )
+                continue
+            revision = _revision(data)
+            revisions.append((item["featureSlug"], relative, revision))
+            folded = text.casefold()
+            if not all(term in folded for term in terms):
+                continue
+            lines = text.splitlines()
+            title_line = lines[0].lstrip("# ").casefold() if lines else ""
+            headings = [
+                (number, line.lstrip("# ").strip())
+                for number, line in enumerate(lines, 1)
+                if line.startswith("#")
+            ]
+            heading_match = next(
+                (
+                    (number, line)
+                    for number, line in headings
+                    if all(term in line.casefold() for term in terms)
+                ),
+                None,
+            )
+            if all(term in title_line for term in terms):
+                match_kind, line_number, heading = (
+                    "title",
+                    1,
+                    lines[0].lstrip("# ") if lines else title,
+                )
+            elif heading_match is not None:
+                match_kind, line_number, heading = (
+                    "heading",
+                    heading_match[0],
+                    heading_match[1],
+                )
+            else:
+                line_number = next(
+                    (
+                        number
+                        for number, line in enumerate(lines, 1)
+                        if any(term in line.casefold() for term in terms)
+                    ),
+                    1,
+                )
+                match_kind = "body"
+                heading = next(
+                    (line for number, line in reversed(headings) if number <= line_number),
+                    None,
+                )
+            matching_lines = [line.strip() for line in lines if any(term in line.casefold() for term in terms)]
+            snippet = "\n".join(matching_lines[:3]).strip()[:500]
+            matches.append(
+                {
+                    "slug": item["featureSlug"],
+                    "title": title,
+                    "status": item["status"],
+                    "lastUpdated": item["lastUpdated"],
+                    "repositories": item["repositories"],
+                    "path": relative,
+                    "line": line_number,
+                    "heading": heading,
+                    "snippet": snippet,
+                    "revision": revision,
+                    "matchKind": match_kind,
+                }
+            )
+        if stopped:
+            break
+    rank = {"title": 0, "heading": 1, "body": 2}
+    matches.sort(
+        key=lambda item: (
+            rank[item["matchKind"]],
+            -int(str(item["lastUpdated"]).replace("-", ""))
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(item["lastUpdated"]))
+            else 0,
+            str(item["slug"]),
+            str(item["path"]),
+            int(item["line"]),
+        )
+    )
+    collection_revision = _revision(
+        json.dumps(
+            {
+                "query": terms,
+                "repository": repository,
+                "status": status,
+                "sources": revisions,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    )
+    return {
+        "query": query,
+        "items": matches[offset:offset + limit],
+        "counts": {
+            "parsed": len(matches),
+            "diagnostics": len(diagnostics),
+            "documents": scanned,
+        },
+        "page": {
+            "offset": offset,
+            "limit": limit,
+            "total": len(matches),
+            "hasMore": offset + limit < len(matches),
+        },
+        "diagnostics": diagnostics,
+        "_collectionRevision": collection_revision,
+    }
 
 
 def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | None = None) -> dict[str, object]:
@@ -629,6 +1092,8 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
     elif op == "feature": data = feature(root, args.slug, deadline)
     elif op == "document": data = document(root, args.slug, args.path, args.revision, deadline)
     elif op == "verification": data = verification(root, args.slug, args.check_code, deadline)
+    elif op == "handoff": data = handoff(root, args.slug, deadline)
+    elif op == "search": data = search(root, args.query, args.repo, args.status, args.offset, args.limit, deadline)
     elif op == "workflow": data = workflow(root, deadline)
     elif op == "runs": data = runs(root, args.feature, args.offset, args.limit, deadline)
     else: data = run(root, args.run_id, deadline)
@@ -636,7 +1101,7 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
     collection_revision = data.pop("_collectionRevision", None) if isinstance(data, dict) else None
     diagnostics = data.pop("diagnostics", []) if isinstance(data, dict) else []
     revision = collection_revision or _revision(json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode())
-    return {"apiVersion": {"major": API_MAJOR, "minor": 0}, "operation": op, "status": "partial" if diagnostics else "ok", "observedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "root": str(root), "revision": revision, "data": data, "diagnostics": diagnostics}
+    return {"apiVersion": {"major": API_MAJOR, "minor": API_MINOR}, "operation": op, "status": "partial" if diagnostics else "ok", "observedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "root": str(root), "revision": revision, "data": data, "diagnostics": diagnostics}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -644,6 +1109,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("workspace"); f = sub.add_parser("features"); f.add_argument("--status"); f.add_argument("--offset", type=int, default=0); f.add_argument("--limit", type=int, default=100)
     x = sub.add_parser("feature"); x.add_argument("slug"); d = sub.add_parser("document"); d.add_argument("slug"); d.add_argument("--path", required=True); d.add_argument("--revision")
     v = sub.add_parser("verification"); v.add_argument("slug"); v.add_argument("--check-code", action="store_true")
+    h = sub.add_parser("handoff"); h.add_argument("slug")
+    s = sub.add_parser("search"); s.add_argument("--query", required=True); s.add_argument("--repo"); s.add_argument("--status"); s.add_argument("--offset", type=int, default=0); s.add_argument("--limit", type=int, default=20)
     sub.add_parser("workflow"); rs = sub.add_parser("runs"); rs.add_argument("--feature"); rs.add_argument("--offset", type=int, default=0); rs.add_argument("--limit", type=int, default=100); r = sub.add_parser("run"); r.add_argument("run_id")
     return p
 
@@ -659,8 +1126,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if exc.code == 0:
                 return 0
             raw = list(sys.argv[1:] if argv is None else argv)
-            operation = next((value for value in raw if value in {"workspace", "features", "feature", "document", "verification", "workflow", "runs", "run"}), None)
-            print(json.dumps({"apiVersion":{"major":1,"minor":0},"operation":operation,"status":"error","observedAt":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),"root":None,"revision":None,"data":None,"diagnostics":[_diag("INSPECT_INVALID_ARGUMENT","参数无效")]}, ensure_ascii=False, separators=(",", ":")))
+            operation = next((value for value in raw if value in {"workspace", "features", "feature", "document", "verification", "handoff", "search", "workflow", "runs", "run"}), None)
+            print(json.dumps({"apiVersion":{"major":API_MAJOR,"minor":API_MINOR},"operation":operation,"status":"error","observedAt":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),"root":None,"revision":None,"data":None,"diagnostics":[_diag("INSPECT_INVALID_ARGUMENT","参数无效")]}, ensure_ascii=False, separators=(",", ":")))
             return 2
         result = execute(args); text = json.dumps(result, ensure_ascii=False, separators=(",", ":"));
         if len(text.encode()) > MAX_RESPONSE: raise InspectError("INSPECT_LIMIT_EXCEEDED", "响应超过 8 MiB 限制")
@@ -672,10 +1139,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if candidate.is_dir() and not candidate.is_symlink():
                 root = str(candidate.resolve())
         code = 2 if exc.code in {"INSPECT_UNSUPPORTED_VERSION", "INSPECT_INVALID_ARGUMENT"} else 1
-        print(json.dumps({"apiVersion": {"major": API_MAJOR, "minor": 0}, "operation": getattr(args, "operation", None), "status": "error", "observedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "root": root, "revision": None, "data": None, "diagnostics": [_diag(exc.code, str(exc), exc.source)]}, ensure_ascii=False, separators=(",", ":"))); return code
+        print(json.dumps({"apiVersion": {"major": API_MAJOR, "minor": API_MINOR}, "operation": getattr(args, "operation", None), "status": "error", "observedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "root": root, "revision": None, "data": None, "diagnostics": [_diag(exc.code, str(exc), exc.source)]}, ensure_ascii=False, separators=(",", ":"))); return code
     except (OSError, UnicodeError, ValueError, WorkspaceError) as exc:
         root = str(Path(args.root).resolve()) if args is not None and Path(args.root).is_dir() and not Path(args.root).is_symlink() else None
-        print(json.dumps({"apiVersion": {"major": API_MAJOR, "minor": 0}, "operation": getattr(args, "operation", None), "status": "error", "observedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "root": root, "revision": None, "data": None, "diagnostics": [_diag("INSPECT_INVALID_DATA", str(exc))]}, ensure_ascii=False, separators=(",", ":"))); return 1
+        print(json.dumps({"apiVersion": {"major": API_MAJOR, "minor": API_MINOR}, "operation": getattr(args, "operation", None), "status": "error", "observedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "root": root, "revision": None, "data": None, "diagnostics": [_diag("INSPECT_INVALID_DATA", str(exc))]}, ensure_ascii=False, separators=(",", ":"))); return 1
 
 
 if __name__ == "__main__": raise SystemExit(main())

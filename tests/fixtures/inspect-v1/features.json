@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "operation": "features",
   "status": "ok",
@@ -29,13 +29,13 @@
           "exists": true,
           "completed": 1,
           "total": 2,
+          "diagnostics": [],
           "completionPolicy": "task-evidence-v1",
           "trustedProgress": {
             "applicable": true,
             "completed": 1,
             "total": 2
-          },
-          "diagnostics": []
+          }
         },
         "documentReviews": {
           "requirements": "已批准",

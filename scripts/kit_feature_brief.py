@@ -48,6 +48,9 @@ PENDING_TASK_LIMIT = 10
 VERIFICATION_SUMMARY_LIMIT = 1200
 EXECUTION_PROJECTION_FIELDS = (
     "featureSlug",
+    "currentStage",
+    "nextActions",
+    "blockers",
     "currentTask",
     "selectedTask",
     "readyTasks",

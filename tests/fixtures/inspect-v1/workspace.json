@@ -1,13 +1,13 @@
 {
   "apiVersion": {
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "operation": "workspace",
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:87b329f29e4de632883a460896af38fdf0d5e3a09ae5673c0d90f9ede611b295",
+  "revision": "sha256:3e48e0b6a3a555303df90c6615f2afc67792e9f205f574f2a9457ca4546adee5",
   "data": {
     "mode": "workspace",
     "identity": {
@@ -41,24 +41,24 @@
         },
         "policySources": {
           "workBase": {
-            "source": "kit-default",
-            "path": "VERSION",
-            "pointer": null
+            "source": "workspace",
+            "path": ".workspace/workspace.json",
+            "pointer": "/branchPolicy/workBase"
           },
           "testTarget": {
-            "source": "kit-default",
-            "path": "VERSION",
-            "pointer": null
+            "source": "workspace",
+            "path": ".workspace/workspace.json",
+            "pointer": "/branchPolicy/testTarget"
           },
           "hotfixBase": {
-            "source": "kit-default",
-            "path": "VERSION",
-            "pointer": null
+            "source": "workspace",
+            "path": ".workspace/workspace.json",
+            "pointer": "/branchPolicy/hotfixBase"
           },
           "namePattern": {
-            "source": "kit-default",
-            "path": "VERSION",
-            "pointer": null
+            "source": "workspace",
+            "path": ".workspace/workspace.json",
+            "pointer": "/branchPolicy/namePattern"
           }
         }
       }
@@ -96,13 +96,15 @@
         "feature",
         "document",
         "verification",
+        "handoff",
+        "search",
         "workflow",
         "runs",
         "run"
       ],
       "apiVersion": {
         "major": 1,
-        "minor": 0
+        "minor": 1
       },
       "limits": {
         "maxFileBytes": 1048576,
@@ -110,7 +112,7 @@
         "maxPageSize": 200,
         "maxDirectoryEntries": 10000
       },
-      "kitVersion": "1.0"
+      "kitVersion": "2.0"
     }
   },
   "diagnostics": []

@@ -1,0 +1,43 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 1
+  },
+  "operation": "search",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:80481157097b95679a1ecbf8111ce430145d64520c2ca98d3edf1b0ac0c8c27a",
+  "data": {
+    "query": "demo",
+    "items": [
+      {
+        "slug": "demo",
+        "title": "合成需求",
+        "status": "development",
+        "lastUpdated": "2026-09-08",
+        "repositories": [
+          "service"
+        ],
+        "path": "README.md",
+        "line": 5,
+        "heading": "合成需求",
+        "snippet": "- 工作分支：service -> feature/demo",
+        "revision": "sha256:44baa70da87ce5abc7df6c5cf8195729e04a44e18cd779dc16a603de161891cf",
+        "matchKind": "body"
+      }
+    ],
+    "counts": {
+      "parsed": 1,
+      "diagnostics": 0,
+      "documents": 6
+    },
+    "page": {
+      "offset": 0,
+      "limit": 20,
+      "total": 1,
+      "hasMore": false
+    }
+  },
+  "diagnostics": []
+}

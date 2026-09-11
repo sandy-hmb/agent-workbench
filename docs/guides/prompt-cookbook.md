@@ -14,14 +14,12 @@
 
 ### 审查需求文档后的批准指令
 ```markdown
-我已阅读并审阅了 requirements/requirements.md。
-需求范围与验收标准符合预期，予以批准。请更新需求审阅状态并进入技术方案设计阶段（design/design.md）。如有关键架构取舍请提出。
+确认。请进入技术方案设计；有关键取舍时再询问我。
 ```
 
 ### 审查设计方案后的批准指令
 ```markdown
-我已审阅 design/design.md 技术方案，同意推荐的设计决策。
-设计予以批准。请根据设计文档生成可执行的实施计划（plans/implementation.md），采用标准的 task-evidence-v1 格式拆解任务。
+ok，请生成实施计划。
 ```
 
 ---
@@ -30,13 +28,7 @@
 
 ### 批准实施计划并启动开发
 ```markdown
-我已审阅实施计划 plans/implementation.md。任务拆解合理，分支策略确认无误。
-计划已批准，请将状态更新为 development。
-请按照 TDD 原则逐项执行任务：
-- 先写最小失败测试；
-- 编写实现并通过测试；
-- 捕获代码快照并记录任务证据；
-- 只要 executionDecision 为 RUN，请连续自动推进下一个任务，不要打扰我；遇到真实阻塞时再暂停汇报。
+确认，按已展示的计划和执行条件开始开发；遇到真实阻塞时再暂停。
 ```
 
 ---
@@ -57,7 +49,7 @@
 这是一个新会话。请按以下顺序恢复当前进度：
 1. 运行 `python3 scripts/kit.py status --root . --json` 查看工作区；
 2. 读取当前活跃需求以及 plans/implementation.md；
-3. 展开当前未完成的下一个任务上下文（`kit brief <slug> --task <id>`）；
+3. 展开当前未完成的下一个任务上下文（`kit brief <slug> --task <id> --execution --check --json --projection execution`）；
 4. 检查前置依赖是否满足，若满足请直接继续执行。
 ```
 

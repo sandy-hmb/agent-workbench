@@ -134,7 +134,7 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("python3 scripts/feature_context.py create <slug>", design)
         self.assertIn("`artifacts/sql/`", design)
         self.assertIn("只创建", design)
-        self.assertIn("用户确认后才创建", design)
+        self.assertIn("结论收敛后直接", design)
         for path in (
             "`.workspace/docs/features/<slug>/README.md`",
             "`requirements/requirements.md`",
@@ -155,7 +155,9 @@ class SurfaceTest(unittest.TestCase):
             "`Q1-A,C`",
             "原生交互工具可用",
             "结束当前轮次并等待用户回复",
-            "确认生成",
+            "不再为生成文件单独请求确认",
+            "无附加条件的“确认”“ok”“可以”“好的”“批准”",
+            "于同一轮生成实施计划草案",
             "审阅实际文件",
             "用户场景",
             "边界情况",

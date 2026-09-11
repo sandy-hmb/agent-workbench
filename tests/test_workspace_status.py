@@ -343,6 +343,8 @@ class WorkspaceStatusTest(unittest.TestCase):
 
         result = workspace_status.status_result(self.root)
         self.assertIn("审阅实际需求文件", result["nextActions"][0]["reason"])
+        self.assertTrue(result["confirmation"]["required"])
+        self.assertEqual("semantic", result["nextActions"][0]["confirmation"])
 
         readme.write_text(
             readme.read_text(encoding="utf-8").replace("需求审阅：待审阅", "需求审阅：已批准"),
@@ -350,6 +352,8 @@ class WorkspaceStatusTest(unittest.TestCase):
         )
         result = workspace_status.status_result(self.root)
         self.assertIn("生成设计文档", result["nextActions"][0]["reason"])
+        self.assertFalse(result["confirmation"]["required"])
+        self.assertEqual("local", result["nextActions"][0]["confirmation"])
 
         design = feature / "design/design.md"
         design.parent.mkdir()
@@ -360,6 +364,7 @@ class WorkspaceStatusTest(unittest.TestCase):
         )
         result = workspace_status.status_result(self.root)
         self.assertIn("审阅实际设计文件", result["nextActions"][0]["reason"])
+        self.assertTrue(result["confirmation"]["required"])
 
         readme.write_text(
             readme.read_text(encoding="utf-8").replace("设计审阅：待审阅", "设计审阅：已批准"),
@@ -367,6 +372,8 @@ class WorkspaceStatusTest(unittest.TestCase):
         )
         result = workspace_status.status_result(self.root)
         self.assertIn("生成实施计划", result["nextActions"][0]["reason"])
+        self.assertFalse(result["confirmation"]["required"])
+        self.assertEqual("local", result["nextActions"][0]["confirmation"])
 
         plan = feature / "plans/implementation.md"
         plan.write_text("- [ ] T01 实现\n", encoding="utf-8")
@@ -376,10 +383,22 @@ class WorkspaceStatusTest(unittest.TestCase):
         )
         result = workspace_status.status_result(self.root)
         self.assertIn("审阅并批准实际计划", result["nextActions"][0]["reason"])
+        self.assertTrue(result["confirmation"]["required"])
         self.assertEqual(
             {"requirements": "已批准", "design": "已批准", "plan": "待审阅"},
             result["features"][0]["documentReviews"],
         )
+
+        readme.write_text(
+            readme.read_text(encoding="utf-8").replace(
+                "计划审阅：待审阅", "计划审阅：已批准"
+            ),
+            encoding="utf-8",
+        )
+        result = workspace_status.status_result(self.root)
+        self.assertIn("更新状态为 development", result["nextActions"][0]["reason"])
+        self.assertFalse(result["confirmation"]["required"])
+        self.assertEqual("local", result["nextActions"][0]["confirmation"])
 
     def test_document_review_diagnostics_do_not_infer_missing_files_are_approved(self):
         feature = self.write_feature(

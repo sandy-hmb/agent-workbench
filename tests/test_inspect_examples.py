@@ -1,4 +1,4 @@
-"""八项操作的真实 CLI 契约样例；仅使用临时合成工作区。"""
+"""十项操作的真实 CLI 契约样例；仅使用临时合成工作区。"""
 from __future__ import annotations
 
 import hashlib
@@ -67,7 +67,9 @@ class InspectExamplesTest(unittest.TestCase):
         values = {}
         for args in [("workspace",), ("features",), ("feature", "demo"),
             ("document", "demo", "--path", "plans/implementation.md"),
-            ("verification", "demo"), ("workflow",), ("runs",), ("run", "demo-run")]:
+            ("verification", "demo"), ("handoff", "demo"),
+            ("search", "--query", "demo"), ("workflow",), ("runs",),
+            ("run", "demo-run")]:
             result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/kit.py"), "inspect",
                 "--root", str(self.root), "--json", *args], text=True, capture_output=True,
                 timeout=15, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", GIT_OPTIONAL_LOCKS="0"))
@@ -123,10 +125,10 @@ def update_examples():
             response["observedAt"] = "2026-09-08T10:00:00Z"
             text = json.dumps(response, ensure_ascii=False, indent=2).replace(str(fixture.root.parent), "/synthetic")
             (destination / f"{operation}.json").write_text(text + "\n")
-        manifest = {"apiVersion": {"major": 1, "minor": 0}, "source": "真实 CLI 对临时合成工作区的响应",
+        manifest = {"apiVersion": {"major": 1, "minor": 1}, "source": "真实 CLI 对临时合成工作区的响应",
             "regenerate": "python3 -B tests/test_inspect_examples.py --update-examples",
             "normalization": ["临时根路径替换为 /synthetic", "observedAt 固定为样例时间"],
-            "operations": ["workspace", "features", "feature", "document", "verification", "workflow", "runs", "run"]}
+            "operations": ["workspace", "features", "feature", "document", "verification", "handoff", "search", "workflow", "runs", "run"]}
         (destination / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     finally:
         fixture.doCleanups()

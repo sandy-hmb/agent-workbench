@@ -115,6 +115,7 @@ class BuildReportTest(unittest.TestCase):
             "paths",
             "allSkills",
             "scripts",
+            "flowScenario",
         }
         self.assertEqual(expected, set(self.report.keys()))
 
@@ -201,6 +202,13 @@ class ImplementTaskObservationTest(unittest.TestCase):
             any("--task" in call.args[0] for call in run.call_args_list),
             "必须实际展开当前任务",
         )
+        task_calls = [
+            call.args[0]
+            for call in run.call_args_list
+            if "--task" in call.args[0]
+        ]
+        self.assertTrue(any(["--projection", "execution"] == call[-2:] for call in task_calls))
+        self.assertTrue(any("--projection" not in call for call in task_calls))
 
         # 规范链条目的 token 必须计入，而不是只算 brief 自身输出
         sources = component["instructionSources"]
@@ -211,6 +219,11 @@ class ImplementTaskObservationTest(unittest.TestCase):
             component["briefEstTokens"] + sum(item["estTokens"] for item in sources),
         )
         self.assertIn("implement_task", report["paths"])
+        self.assertEqual(3, report["flowScenario"]["taskCount"])
+        self.assertEqual("static estimate", report["flowScenario"]["kind"])
+        self.assertGreaterEqual(
+            component["fullBriefEstTokens"], component["briefEstTokens"]
+        )
 
     def test_without_current_task_is_not_applicable(self):
         report, _ = self._report(current_task=None, instruction_context=None)

@@ -1,0 +1,118 @@
+{
+  "apiVersion": {
+    "major": 1,
+    "minor": 1
+  },
+  "operation": "handoff",
+  "status": "ok",
+  "observedAt": "2026-09-08T10:00:00Z",
+  "root": "/synthetic/kit",
+  "revision": "sha256:8100b239616b4fb3af457c8c61e21fbafec85b0e3528835621ee7fe812c99793",
+  "data": {
+    "slug": "demo",
+    "title": "合成需求",
+    "status": "development",
+    "documentReviews": {
+      "requirements": "已批准",
+      "design": "已批准",
+      "plan": "已批准"
+    },
+    "progression": {
+      "state": "known",
+      "currentStage": "feature.implement",
+      "nextActions": [
+        {
+          "stage": "feature.implement",
+          "runbook": ".agents/skills/workspace-execute-plan/SKILL.md",
+          "reason": "继续需求 demo",
+          "confirmation": "local"
+        }
+      ],
+      "blockers": []
+    },
+    "currentTask": {
+      "id": "T02",
+      "title": "读取结果",
+      "path": "plans/implementation.md",
+      "startLine": 16,
+      "endLine": 24,
+      "dependencies": [
+        "T01"
+      ],
+      "references": [],
+      "repository": "service",
+      "validationKind": "声明式",
+      "deliverables": [
+        {
+          "repository": "service",
+          "kind": "Modify",
+          "path": "source.txt",
+          "symbol": null,
+          "line": 24
+        }
+      ],
+      "body": "- [ ] T02 读取结果\n\n  依赖：T01\n  目标仓：`service`\n  验证性质：声明式\n\n  **文件**\n\n  - Modify：`source.txt`",
+      "referenceIds": []
+    },
+    "dependencies": [
+      {
+        "id": "T01",
+        "title": "创建样例",
+        "completed": true,
+        "trusted": true
+      }
+    ],
+    "latestVerification": {
+      "recordedAt": "2026-09-08T10:00:00Z",
+      "recordedResult": "passed",
+      "recordedReview": "passed",
+      "completeness": "complete",
+      "source": {
+        "path": "testing/verification.md",
+        "startLine": 17,
+        "endLine": 27
+      }
+    },
+    "sources": [
+      {
+        "kind": "document",
+        "path": "README.md",
+        "revision": "sha256:44baa70da87ce5abc7df6c5cf8195729e04a44e18cd779dc16a603de161891cf",
+        "startLine": 1,
+        "endLine": 12
+      },
+      {
+        "kind": "document",
+        "path": "design/design.md",
+        "revision": "sha256:4ca61455e8a3d9f053742db4646bcfa8df4d9a1bd1f93739f6217c9021703c14",
+        "startLine": 1,
+        "endLine": 3
+      },
+      {
+        "kind": "document",
+        "path": "plans/implementation.md",
+        "revision": "sha256:789c1ed33ea97697110d7988cf664b2777816633e9e30f69b92eff007290c21e",
+        "startLine": 1,
+        "endLine": 24
+      },
+      {
+        "kind": "document",
+        "path": "requirements/requirements.md",
+        "revision": "sha256:3ae6e6225f8f573f38e68fbd6dcdb2b758b112568631ce814a00ee7f8b098cc1",
+        "startLine": 1,
+        "endLine": 3
+      },
+      {
+        "kind": "verification",
+        "path": "testing/verification.md",
+        "revision": "sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd",
+        "startLine": 1,
+        "endLine": 27
+      }
+    ],
+    "content": "# 合成需求\n\n- Feature：`demo`\n- 状态：`development`\n- 当前阶段：`feature.implement`\n\n这是可重复生成的公开样例。\n\n## 当前任务\n\n- [ ] T02 读取结果\n\n  依赖：T01\n  目标仓：`service`\n  验证性质：声明式\n\n  **文件**\n\n  - Modify：`source.txt`\n\n## 直接依赖\n\n- T01：创建样例（已完成）\n\n## 下一步\n\n- 继续需求 demo\n\n## 最近验证\n\n- 结果：passed\n- 时间：2026-09-08T10:00:00Z\n\n## 必读来源\n\n- `README.md` @ `sha256:44baa70da87ce5abc7df6c5cf8195729e04a44e18cd779dc16a603de161891cf`\n- `design/design.md` @ `sha256:4ca61455e8a3d9f053742db4646bcfa8df4d9a1bd1f93739f6217c9021703c14`\n- `plans/implementation.md` @ `sha256:789c1ed33ea97697110d7988cf664b2777816633e9e30f69b92eff007290c21e`\n- `requirements/requirements.md` @ `sha256:3ae6e6225f8f573f38e68fbd6dcdb2b758b112568631ce814a00ee7f8b098cc1`\n- `testing/verification.md` @ `sha256:314a064db3c2fdfc22a8583438c09eb12d6c5cd6b895575e0cf0ae30cfe5dcdd`\n",
+    "estimatedTokens": 264,
+    "featureRevision": "sha256:bfbe28ef5836360ee52b73032b779d85398144700a97dbc5b1599e04217d5333"
+  },
+  "diagnostics": []
+}

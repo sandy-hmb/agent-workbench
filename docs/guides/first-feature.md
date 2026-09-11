@@ -54,20 +54,22 @@ sequenceDiagram
 
     Note over H, R: 阶段 1：需求与方案收敛 (Planning)
     H->>A: 提出功能诉求："我想加一个支付重试机制"
-    A->>K: kit.py feature create & registry branch
-    A->>H: 澄清关键未决项，输出 Requirements & Design 草案
-    H->>A: 审阅通过："设计批准"
+    A->>H: 澄清关键未决项
+    A->>K: 生成 Requirements 草案
+    H->>A: 审阅通过："确认"
+    A->>A: 无新阻塞时生成 Design 草案
+    H->>A: 审阅通过："ok"
     A->>A: 生成 plans/implementation.md (拆解为 T01, T02...)
     H->>A: 审阅通过："计划批准，开始执行"
 
     Note over H, R: 阶段 2：任务驱动与 TDD 执行 (Development)
     loop 每个任务 (T01, T02...)
-        A->>K: kit.py brief <slug> --task <id> --json (获取局部依赖与规范)
+        A->>K: kit.py brief <slug> --task <id> --execution --check --json --projection execution
         A->>R: 先编写最小失败测试，再编写业务实现
         A->>R: 执行本地测试，确保退出状态正常
         A->>K: kit.py verify snapshot (捕获代码状态快照)
         A->>A: 勾选任务，写入 task-evidence-v1 证据
-        A->>K: kit.py brief --execution (检查推进状态)
+        A->>K: kit.py brief --execution --check --json --projection execution
         Note over A: 若返回 RUN：连续自动进入下一任务，不打扰人类<br>若返回 BLOCKED：停止并向人类呈现明确决策点
     end
 
@@ -77,7 +79,7 @@ sequenceDiagram
     H->>K: kit.py feature set-status <slug> done
 ```
 
-需求目标、场景、范围、边界、验收和假设收敛并明确确认生成后，先创建：
+需求目标、场景、范围、边界、验收和假设收敛后，直接创建草案：
 
 ```text
 .workspace/docs/features/payments-retry/
@@ -93,9 +95,9 @@ sequenceDiagram
 - 书面设计获批后，`workspace-writing-plan` 直接创建并自审 `plans/implementation.md` 草案，不重复确认计划摘要。新计划声明 `task-evidence-v1`；每项使用顶层 `- [ ] T01`，并记录交付结果、R/D 依据、唯一目标仓、验证性质、完整 Files 与稳定符号、Interfaces、依赖、具体失败场景、单动作步骤和具体验证。跨仓交付拆为不同任务；持久化任务不能只靠编译或纯 Mock。计划不复制或绑定项目规范。使用者审阅实际计划、基线、分支和执行方式并明确批准后，更新 README 的计划审阅和状态为 `development`。
 - 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态、覆盖验收和执行情况，不使用占位内容。
 
-Requirements 和 Design 只询问会实质改变结果的问题，每轮最多三个；原生交互可用时提供推荐、备选和自定义输入，否则一次提出一个文字问题并等待回复。结论收敛后单独确认生成，未回复不是确认。Plan 只在存在关键阻塞时提问，设计获批后直接生成草案，批准实际文件后才执行。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
+Requirements 和 Design 只询问会实质改变结果的问题，每轮最多三个；原生交互可用时提供推荐、备选和自定义输入，否则一次提出一个文字问题并等待回复。结论收敛后直接生成草案并请使用者审阅；只有一个明确审阅对象时，“确认”“ok”“可以”“好的”“批准”等简短肯定回复均可批准。获批后在没有新阻塞时同一轮进入下一阶段；计划批准后直接开始已授权的本地执行，除非使用者明确要求只审阅或暂不执行。行为变化先写最小失败测试；配置、文档或已有结构检查覆盖充分的改动采用最小有效验证。实现期间把计划项逐项勾选。
 
-计划获批后由 `workspace-execute-plan` 逐项执行：展开当前任务后按 `instructionContext.rules` 的 kit → workspace → repository → scoped 单调收窄顺序读取规则，事实轴按需用 `status --context-sources` 定位；首次编辑目标仓前完成，同会话复用未变化内容。完成任务验证后记录执行数、跳过数、退出状态、交付核对和代码快照，再勾选任务并用 `trustedProgress` 判断是否解锁依赖。一次一个可验证任务不是会话边界；有下一项依赖满足的未完成任务时直接继续。只有全部任务完成或所有剩余任务真实阻塞时才能结束；新计划的“完成”还要求全部任务可信。
+计划获批后由 `workspace-execute-plan` 逐项执行：使用 `brief <slug> --task <id> --execution --check --json --projection execution` 展开当前任务，再按 `instructionContext.rules` 的 kit → workspace → repository → scoped 单调收窄顺序读取规则，事实轴按需用 `status --context-sources` 定位；首次编辑目标仓前完成，同会话复用未变化内容。完成任务验证后记录执行数、跳过数、退出状态、交付核对和代码快照，再勾选任务并用精简投影判断是否解锁依赖。一次一个可验证任务不是会话边界；有下一项依赖满足的未完成任务时直接继续。只有全部任务完成或所有剩余任务真实阻塞时才能结束；新计划的“完成”还要求全部任务可信。
 
 需要临时 SQL、DDL、DML 或交付 fixture 时，将其放在当前需求的 `artifacts/`，SQL 使用 `artifacts/sql/`。数据模型、迁移顺序、兼容和回退策略默认写在主设计文档的数据库章节；业务正式数据库迁移和自动化测试必需 fixture 必须随业务仓版本化。
 

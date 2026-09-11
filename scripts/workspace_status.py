@@ -816,25 +816,35 @@ def _single_feature_progress(
         if feature["status"] == "planning":
             if requirements_review == "未生成":
                 reason = f"需求 {feature['featureSlug']} 的需求记录尚未生成；讨论并确认范围后生成需求文档"
+                confirmation = "local"
             elif requirements_review != "已批准":
                 reason = f"需求 {feature['featureSlug']} 的需求文件已存在；审阅实际需求文件后讨论方案"
+                confirmation = "semantic"
             elif design_review == "未生成":
                 reason = f"需求 {feature['featureSlug']} 的需求文件已批准；讨论并确认方案后生成设计文档"
+                confirmation = "local"
             elif design_review != "已批准":
                 reason = f"需求 {feature['featureSlug']} 的设计文档已存在；审阅实际设计文件后生成实施计划"
+                confirmation = "semantic"
             elif plan_review == "未生成":
                 reason = f"需求 {feature['featureSlug']} 的设计文件已批准；生成实施计划草案"
+                confirmation = "local"
             elif plan_review != "已批准":
                 reason = f"需求 {feature['featureSlug']} 的实施计划已存在；审阅并批准实际计划、基线、分支和执行方式后更新为 development"
+                confirmation = "semantic"
             elif not plan_exists or progress["total"] == 0:
                 reason = f"需求 {feature['featureSlug']} 的已批准计划缺少可执行任务；先修复计划格式或内容"
+                confirmation = "local"
             else:
                 reason = f"需求 {feature['featureSlug']} 的计划已批准；更新状态为 development 后执行"
+                confirmation = "local"
             return {
                 "currentStage": "feature.design",
-                "nextActions": [_stage_action("feature.design", reason)],
+                "nextActions": [
+                    _stage_action("feature.design", reason, confirmation=confirmation)
+                ],
                 "blockers": [],
-                "confirmation": _confirmation("semantic"),
+                "confirmation": _confirmation(confirmation),
             }
         if design_review not in {"已批准", "未记录"}:
             return {

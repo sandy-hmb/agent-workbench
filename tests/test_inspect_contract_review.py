@@ -183,6 +183,79 @@ class InspectContractReviewTest(unittest.TestCase):
         self.assertEqual("error", response["status"])
         self.assertIn("INSPECT_LIMIT_EXCEEDED", [d["code"] for d in response["diagnostics"]])
 
+    def test_handoff_returns_current_task_progression_and_versioned_sources(self):
+        self.write(
+            f"{self.feature}/requirements/requirements.md",
+            "# 需求\n\n## R1 可观察行为\n\n订单查询必须隔离租户。\n",
+        )
+        self.write(
+            f"{self.feature}/design/design.md",
+            "# 设计\n\n<a id=\"d1\"></a>\n## D1 查询方案\n\n按租户过滤。\n",
+        )
+        self.write(
+            f"{self.feature}/plans/implementation.md",
+            "# 计划\n\n- [ ] T01 实现隔离查询\n\n"
+            "  依据：R1、[D1](../design/design.md#d1)\n"
+            "  依赖：无\n  目标仓：`service`\n  验证性质：行为\n\n"
+            "  **文件**\n\n  - Modify：`source.py`（`query`）\n",
+        )
+
+        response = self.query("handoff", "demo")
+        data = response["data"]
+
+        self.assertEqual("demo", data["slug"])
+        self.assertEqual("T01", data["currentTask"]["id"])
+        self.assertIn("T01 实现隔离查询", data["currentTask"]["body"])
+        self.assertEqual("feature.implement", data["progression"]["currentStage"])
+        sources = {item["path"]: item for item in data["sources"]}
+        for path in (
+            "README.md",
+            "requirements/requirements.md",
+            "design/design.md",
+            "plans/implementation.md",
+        ):
+            self.assertRegex(sources[path]["revision"], r"^sha256:[0-9a-f]{64}$")
+        self.assertGreater(data["estimatedTokens"], 0)
+        schema = json.loads((ROOT / "schemas/inspect-result.schema.json").read_text())
+        validate(data, {"$defs": schema["$defs"], "$ref": "#/$defs/handoff"})
+
+    def test_search_filters_history_and_reports_bad_documents_as_partial(self):
+        self.write(
+            f"{self.feature}/requirements/requirements.md",
+            "# 月度佣金\n\n## R1 租户核算\n\nPartner Commission 必须按租户隔离。\n",
+        )
+        history = ".workspace/docs/features/history"
+        self.write(
+            f"{history}/README.md",
+            "# 历史佣金\n\n- 状态：done\n- 涉及仓库：service\n"
+            "- 工作分支：service -> feature/history\n- 基线分支：service -> main\n"
+            "- 最后更新：2026-09-01\n",
+        )
+        self.write(
+            f"{history}/design/design.md",
+            "# 历史设计\n\n## Partner Commission\n\n使用旧佣金规则。\n",
+        )
+        bad = self.root / f"{history}/requirements/requirements.md"
+        bad.parent.mkdir(parents=True, exist_ok=True)
+        bad.write_bytes(b"\xff")
+
+        response = self.query(
+            "search", "--query", "partner commission", "--repo", "service",
+            "--offset", "0", "--limit", "1",
+        )
+
+        self.assertEqual("partial", response["status"])
+        self.assertEqual(1, len(response["data"]["items"]))
+        self.assertTrue(response["data"]["page"]["hasMore"])
+        self.assertEqual("heading", response["data"]["items"][0]["matchKind"])
+        self.assertIn("INSPECT_INVALID_DATA", {d["code"] for d in response["diagnostics"]})
+
+        done = self.query("search", "--query", "partner", "--status", "done")
+        self.assertEqual(["history"], sorted({item["slug"] for item in done["data"]["items"]}))
+        self.assertNotEqual(response["revision"], done["revision"])
+        schema = json.loads((ROOT / "schemas/inspect-result.schema.json").read_text())
+        validate(done["data"], {"$defs": schema["$defs"], "$ref": "#/$defs/search"})
+
     def test_scan_stops_at_the_entry_limit_without_consuming_the_directory(self):
         import workspace_inspect
         yielded = []

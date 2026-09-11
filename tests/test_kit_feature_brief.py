@@ -1159,6 +1159,9 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertEqual(
             {
                 "featureSlug",
+                "currentStage",
+                "nextActions",
+                "blockers",
                 "selectedTask",
                 "readyTasks",
                 "executionDecision",

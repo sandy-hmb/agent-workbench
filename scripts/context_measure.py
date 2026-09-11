@@ -56,6 +56,7 @@ COMPONENTS: dict[str, dict[str, object]] = {
     "describe_json": {"kind": "command", "argv": ["kit.py", "describe", "--json"]},
     "brief_text": {"kind": "command", "argv": ["kit.py", "brief"], "optional": True},
     "brief_task": {"kind": "command", "argv": ["kit.py", "brief"], "optional": True},
+    "handoff": {"kind": "command", "argv": ["kit.py", "inspect"], "optional": True},
 }
 
 PATHS: dict[str, list[str]] = {
@@ -201,7 +202,11 @@ def _measure_brief_task(root: Path, slug: str | None) -> dict[str, object]:
         return _not_applicable_component(component, "无法确定唯一需求")
 
     execution = _run_readonly(
-        ["kit.py", "brief", slug, "--execution", "--json"], root
+        [
+            "kit.py", "brief", slug, "--execution", "--json",
+            "--projection", "execution",
+        ],
+        root,
     )
     try:
         current = json.loads(execution.stdout).get("currentTask")
@@ -211,10 +216,18 @@ def _measure_brief_task(root: Path, slug: str | None) -> dict[str, object]:
     if not isinstance(task_id, str):
         return _not_applicable_component(component, "当前没有可展开的任务")
 
-    argv = ["kit.py", "brief", slug, "--task", task_id, "--execution", "--check", "--json"]
+    argv = [
+        "kit.py", "brief", slug, "--task", task_id, "--execution", "--check",
+        "--json", "--projection", "execution",
+    ]
+    full_argv = [
+        "kit.py", "brief", slug, "--task", task_id, "--execution", "--check", "--json",
+    ]
     result = _run_readonly(argv, root)
+    full_result = _run_readonly(full_argv, root)
     measurement = estimate_tokens(result.stdout)
     brief_tokens = measurement["estTokens"]
+    full_brief_tokens = estimate_tokens(full_result.stdout)["estTokens"]
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -231,11 +244,117 @@ def _measure_brief_task(root: Path, slug: str | None) -> dict[str, object]:
             "applicable": True,
             "taskId": task_id,
             "briefEstTokens": brief_tokens,
+            "fullBriefEstTokens": full_brief_tokens,
+            "savedBriefEstTokens": max(0, full_brief_tokens - brief_tokens),
             "instructionSources": sources,
             "estTokens": brief_tokens + sum(item["estTokens"] for item in sources),
         }
     )
     return measurement
+
+
+def _measure_handoff(
+    root: Path, slug: str | None, status: dict[str, object] | None
+) -> dict[str, object]:
+    component = COMPONENTS["handoff"]
+    if slug is None or not isinstance(status, dict):
+        return _not_applicable_component(component, "无法确定唯一需求")
+    argv = [
+        "kit.py", "inspect", "--root", ".", "--api-major", "1", "--json",
+        "handoff", slug,
+    ]
+    result = _run_readonly(argv, root)
+    response = estimate_tokens(result.stdout)
+    try:
+        payload = json.loads(result.stdout)
+        data = payload["data"]
+        sources = data["sources"]
+        feature = next(item for item in status["features"] if item["featureSlug"] == slug)
+    except (json.JSONDecodeError, KeyError, StopIteration, TypeError):
+        return _not_applicable_component(component, "当前 Kit 未返回有效接手包")
+    source_measurements = []
+    seen = set()
+    for source in sources:
+        if not isinstance(source, dict) or not isinstance(source.get("path"), str):
+            continue
+        path = (
+            root / source["path"]
+            if source.get("kind") == "rule"
+            else root / feature["path"] / source["path"]
+        ).resolve()
+        if path in seen:
+            continue
+        seen.add(path)
+        try:
+            tokens = estimate_tokens(path.read_text(encoding="utf-8"))["estTokens"]
+        except (OSError, UnicodeError):
+            continue
+        source_measurements.append(
+            {"path": source["path"], "kind": source.get("kind"), "estTokens": tokens}
+        )
+    response.update(
+        {
+            "kind": "command",
+            "source": "python3 scripts/" + " ".join(argv),
+            "exitCode": result.returncode,
+            "rawStdout": result.stdout,
+            "applicable": result.returncode == 0,
+            "responseEstTokens": response["estTokens"],
+            "sourceEstTokens": sum(item["estTokens"] for item in source_measurements),
+            "sources": source_measurements,
+            "estTokens": response["estTokens"]
+            + sum(item["estTokens"] for item in source_measurements),
+        }
+    )
+    return response
+
+
+def _flow_scenario(components: dict[str, object]) -> dict[str, object]:
+    """Estimate one handoff, three sequential tasks, and one fresh-session resume."""
+    status = int(components["status_json"]["estTokens"])
+    brief = components["brief_text"]
+    task = components["brief_task"]
+    if brief.get("applicable") is False or task.get("applicable") is False:
+        return {
+            "kind": "static estimate",
+            "taskCount": 3,
+            "applicable": False,
+            "reason": "当前没有可测量的唯一需求和任务",
+        }
+    brief_tokens = int(brief["estTokens"])
+    projected = int(task["briefEstTokens"])
+    full = int(task["fullBriefEstTokens"])
+    rules = sum(int(item["estTokens"]) for item in task["instructionSources"])
+    handoff = components.get("handoff", {})
+    sources = handoff.get("sources", []) if handoff.get("applicable") is True else []
+    document_sources = sum(
+        int(item["estTokens"]) for item in sources if item.get("kind") != "rule"
+    )
+    handoff_rules = sum(
+        int(item["estTokens"]) for item in sources if item.get("kind") == "rule"
+    )
+    handoff_response = (
+        int(handoff["responseEstTokens"])
+        if handoff.get("applicable") is True
+        else status + brief_tokens
+    )
+    baseline = 2 * (status + brief_tokens + document_sources) + 3 * (full + rules)
+    optimized = 2 * (handoff_response + document_sources + handoff_rules) + 3 * projected
+    return {
+        "kind": "static estimate",
+        "taskCount": 3,
+        "applicable": True,
+        "firstHandoffEstTokens": status + brief_tokens,
+        "newSessionResumeEstTokens": status + brief_tokens,
+        "baselineEstTokens": baseline,
+        "optimizedEstTokens": optimized,
+        "savedEstTokens": baseline - optimized,
+        "assumptions": [
+            "三个任务使用当前任务的输出体量作为固定样本",
+            "两次接手都读取相同的必要文档；旧路径每任务重复规则，新路径每个会话读取一次",
+            "不代表模型账单、缓存命中或工具内部读取成本",
+        ],
+    }
 
 
 def _not_applicable_component(component: dict[str, object], reason: str) -> dict[str, object]:
@@ -281,7 +400,7 @@ def _git(root: Path, *args: str) -> str:
 def build_report(root: Path, feature: str | None = None) -> dict[str, object]:
     components: dict[str, object] = {}
     for component_id, component in COMPONENTS.items():
-        if component_id in {"brief_text", "brief_task"}:
+        if component_id in {"brief_text", "brief_task", "handoff"}:
             continue
         components[component_id] = measure_component(component_id, component, root)
 
@@ -302,6 +421,7 @@ def build_report(root: Path, feature: str | None = None) -> dict[str, object]:
         )
         components["brief_text"]["applicable"] = True
     components["brief_task"] = _measure_brief_task(root, slug)
+    components["handoff"] = _measure_handoff(root, slug, status)
 
     paths: dict[str, object] = {}
     for path_name, component_ids in PATHS.items():
@@ -368,6 +488,7 @@ def build_report(root: Path, feature: str | None = None) -> dict[str, object]:
         "paths": paths,
         "allSkills": all_skills,
         "scripts": scripts_summary,
+        "flowScenario": _flow_scenario(components),
     }
 
 
@@ -421,6 +542,20 @@ def format_text(report: dict[str, object]) -> str:
     for item in scripts_summary["largest"]:
         lines.append(
             f"  {item['path']}\tbytes={item['bytes']}\tlines={item['lines']}\testTokens={item['estTokens']}"
+        )
+
+    scenario = report["flowScenario"]
+    lines.append("")
+    lines.append("-- 固定流程场景 --")
+    if scenario.get("applicable") is False:
+        lines.append(f"不适用：{scenario['reason']}")
+    else:
+        lines.append(
+            "三任务 + 新会话续接\tbaseline={baseline}\toptimized={optimized}\tsaved={saved}".format(
+                baseline=scenario["baselineEstTokens"],
+                optimized=scenario["optimizedEstTokens"],
+                saved=scenario["savedEstTokens"],
+            )
         )
 
     return "\n".join(lines) + "\n"

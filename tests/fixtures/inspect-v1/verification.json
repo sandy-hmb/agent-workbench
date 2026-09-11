@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "operation": "verification",
   "status": "ok",
@@ -54,18 +54,6 @@
         }
       ]
     },
-    "taskEvidence": [
-      {
-        "taskId": "T01",
-        "trusted": true,
-        "source": {
-          "path": "testing/verification.md",
-          "startLine": 1,
-          "endLine": 15
-        },
-        "diagnostics": []
-      }
-    ],
     "checkMode": "records_only",
     "repositoryStates": [
       {
@@ -91,7 +79,19 @@
         }
       ],
       "blockers": []
-    }
+    },
+    "taskEvidence": [
+      {
+        "taskId": "T01",
+        "trusted": true,
+        "source": {
+          "path": "testing/verification.md",
+          "startLine": 1,
+          "endLine": 15
+        },
+        "diagnostics": []
+      }
+    ]
   },
   "diagnostics": []
 }

@@ -17,15 +17,17 @@ python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json works
 | `feature <slug>` | 无 | summary、完整 tasks、files/artifacts、原文 description、progression、featureRevision |
 | `document <slug>` | `--path <relative>`、可选 `--revision <sha256>` | 原始 UTF-8 content、bytes、lineCount、mediaType、revision |
 | `verification <slug>` | 可选 `--check-code` | 批次定位、最新批次及检查、每仓代码状态、记录完整性与当前适用性 |
+| `handoff <slug>` | 无 | 即时生成的接手正文、当前任务、直接依赖、阶段、最近验证和带版本来源 |
+| `search` | `--query`，可选 `--repo`、`--status`、`--offset`、`--limit` | 当前工作区 Feature 文档的匹配片段、原文位置和分页 |
 | `workflow` | 无 | Core/Overlay 的解析顺序、当前声明、扩展与绑定摘要 |
 | `runs` | 可选 `--feature`、`--offset`、`--limit` | 独立 Run 列表、记录数量与分页 |
 | `run <id>` | 无 | 已校验 rawRecord、逐步骤记录及独立 configurationMatch |
 
-列表的 `data` 为 `{items, counts, page}`。默认每页 100 项，最多 200 项，按标识升序；`page` 包含 `offset, limit, total, hasMore`。完整筛选集合的 revision 在分页间稳定；读取期间发生变化，消费方应丢弃已合并页并有界重试。不能用一页数据推断整个工作区没有其他需求。
+列表的 `data` 为 `{items, counts, page}`。Feature/Run 默认每页 100 项、最多 200 项；搜索默认 20 条、最多 50 条。`page` 包含 `offset, limit, total, hasMore`。完整筛选集合的 revision 在分页间稳定；读取期间发生变化，消费方应丢弃已合并页并有界重试。不能用一页数据推断整个工作区没有其他需求。
 
 ## 响应与兼容
 
-每个响应有 `apiVersion, operation, status, observedAt, root, revision, data, diagnostics`。API 当前为 `{major: 1, minor: 0}`，`--api-major` 默认 1，消费方应显式指定。未知 major 返回错误；新 minor 的可选字段可以忽略，未知枚举不得当作成功。参数无法识别 operation 时错误信封的 operation 为 null。
+每个响应有 `apiVersion, operation, status, observedAt, root, revision, data, diagnostics`。API 当前为 `{major: 1, minor: 1}`，`--api-major` 默认 1，消费方应显式指定。未知 major 返回错误；新 minor 的可选字段可以忽略，未知枚举不得当作成功。参数无法识别 operation 时错误信封的 operation 为 null。
 
 - `status: ok`：读取成功，退出 0。
 - `status: partial`：保留成功记录并单列诊断，退出 0；不代表工作流成功。
@@ -44,13 +46,15 @@ Run 的 status 是保存值，running 不代表进程仍存活。`configurationM
 
 文档限于所选需求的标准文档、明确链接的安全附件和 artifacts 文本。绝对路径、父级跳转、符号链接、设备文件、非法 UTF-8、超限文件均不能作为成功正文。`INSPECT_REVISION_CHANGED` 表示原定位版本已变化，消费方应重读详情与文档再定位。原始 Markdown/HTML 是展示数据，消费方还需转义原始 HTML、禁自动加载图片及外部资源。
 
+接手包只汇总已有 Feature 文件和当前适用规则，不创建另一份持久状态，也不补造对话中的临时结论。搜索覆盖标准 Markdown 与 `design/*.md`，关键词按空白拆分、英文忽略大小写，同一文档需包含全部关键词；结果按标题、章节和正文命中排序，再按 Feature 更新时间排列。搜索不读取业务源码、缓存或二进制文件。
+
 ## 读取边界与错误
 
 普通请求预算 10 秒，代码核对 30 秒；消费方另留进程清理余量。单个文本/JSON 文件最多 1 MiB，响应最多 8 MiB，扫描目录项最多 10,000，显式指纹核对最多读取 64 MiB 与 10,000 个未跟踪文件。超限不能返回截断正文或半截指纹。操作是否成功以实际响应为准，不能用耗时/异常后空列表代替诊断。
 
 常用错误码包括 `INSPECT_INVALID_ARGUMENT`、`INSPECT_UNSUPPORTED_VERSION`、`INSPECT_INVALID_DATA`、`INSPECT_NOT_FOUND`、`INSPECT_UNSAFE_PATH`、`INSPECT_LIMIT_EXCEEDED`、`INSPECT_TIMEOUT`、`INSPECT_INPUT_CHANGED`、`INSPECT_REVISION_CHANGED`。坏记录可成为 partial 中的诊断，单资源不可读时为 error；消费方应保留上次成功内容并标记读取失败。
 
-[Schema](../../schemas/inspect-result.schema.json) 与 [八类合成响应](../../tests/fixtures/inspect-v1/manifest.json) 一同维护。样例由 `python3 -B tests/test_inspect_examples.py --update-examples` 对临时工作区调用真实 CLI 生成，仅规范化临时根路径和 observedAt；不含真实业务记录。`test_inspect_examples.py` 同时校验实时查询和发布样例，`test_inspect_compatibility.py` 对固定旧基线比较默认 status/brief 输出。
+[Schema](../../schemas/inspect-result.schema.json) 与十类合成响应一同维护。样例由 `python3 -B tests/test_inspect_examples.py --update-examples` 对临时工作区调用真实 CLI 生成，仅规范化临时根路径和 observedAt；不含真实业务记录。`test_inspect_examples.py` 同时校验实时查询和发布样例，`test_inspect_compatibility.py` 对固定旧基线比较默认 status/brief 输出。
 
 ## 客户端与 IDE 插件参考实现
 
