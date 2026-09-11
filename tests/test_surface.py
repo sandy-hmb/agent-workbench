@@ -428,6 +428,15 @@ class SurfaceTest(unittest.TestCase):
                 if "instructionContext" in content:
                     self.assertIn("单调收窄", content)
 
+    def test_workspace_template_keeps_category_examples_in_reference_docs(self):
+        template = (ROOT / "templates/workspace/AGENTS.md").read_text(encoding="utf-8")
+        reference = (ROOT / "docs/reference/instruction-layers.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("category=backend", template)
+        self.assertIn("category=backend", reference)
+        self.assertIn("不会按 category 自动过滤", reference)
+
     def test_add_repo_apply_regenerates_generated_context_safely(self):
         content = (ROOT / ".agents/skills/workspace-init/SKILL.md").read_text(
             encoding="utf-8"

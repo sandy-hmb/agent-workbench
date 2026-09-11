@@ -126,7 +126,7 @@ class WorkspaceMigrationsTest(unittest.TestCase):
         agents = (self.root / ".workspace/AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("## 本工作区保留的自定义条款", agents)
         self.assertIn("- custom rule", agents)
-        self.assertIn("按 category 标注作用域", agents)
+        self.assertNotIn("category=backend", agents)
 
     def test_unclassifiable_agents_are_preserved_and_marked_for_manual_review(self):
         original = b"\xff\xfe\x00\x01"

@@ -20,6 +20,16 @@
 | 3 | `<repo>/AGENTS.md` | 一个业务仓的工程、测试和目录约定 |
 | 4 | `<repo>/<dir>/AGENTS.md` | 一个目录或组件的局部规则 |
 
+`workspace.json` 的 `repositories[].category` 是仓库分类标签，例如 `backend`、`frontend` 或 `tool`。Kit 用它展示和组织仓库，不会按 category 自动过滤 `.workspace/AGENTS.md`；任务仍会加载完整的工作区规则。需要声明同类仓规则时，在当前工作区的 `.workspace/AGENTS.md` 明确写出作用域：
+
+```markdown
+## backend 类别通用规范
+
+适用于 `category=backend` 的业务仓。
+```
+
+公共模板不预设具体 category。只有当前工作区确有多仓共享规则时才增加这类小节；单仓规则写入该仓的 `AGENTS.md`。
+
 ## 事实轴
 
 `.workspace/CONTEXT.md` 保存跨仓业务事实，`.workspace/docs/repositories/<repo>.md` 保存仓 profile。它们是 `workspace.json` 的生成视图，不参与规则冲突判断；需要定位路径和存在性时使用：

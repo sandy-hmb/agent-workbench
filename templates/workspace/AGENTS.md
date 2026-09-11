@@ -7,7 +7,3 @@
 - 用户需求记录位于 `.workspace/docs/features/<feature-slug>/`。
 - 标准需求按根 `AGENTS.md` 的讨论门禁逐阶段生成文档；扩展输出位置和重跑方式由其 SKILL.md 声明，不预设扩展目录。
 - `workflow.enabled` 为 `true` 时，使用 `workspace-feature-workflow` 在当前 Core Stage 前后处理本地 Action；为 `false` 时不加载 Action。
-
-## 按 category 标注作用域：backend
-
-- 适用范围：`category=backend` 的业务仓；更具体目录中的 AGENTS.md 规则优先。
