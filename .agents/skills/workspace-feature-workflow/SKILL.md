@@ -34,7 +34,7 @@ python3 scripts/workspace_workflow.py plan \
 
 需要前置 Action 时使用 `--before`。plan 只返回待执行 Stage、一个 Action、确认摘要、Skill 路径、effects、参数和 plan hash，不返回整个 Extension 或历史日志。
 
-- `manual`：Action API v1 必须带 confirmation，才能进入 plan。使用 plan 的 `confirmation.title` 和 `confirmation.summary` 向用户展示将执行的操作，再展示非敏感 `with` 参数和 effects，等待用户明确执行或跳过。`planHash` 仅用于脚本防漂移校验，不要求用户复制、核对或回复该值。
+- `manual`：Action API v1 必须带 confirmation，才能进入 plan。使用 plan 的 `confirmation.title`、`confirmation.summary`、非敏感 `with` 参数和 effects 核对实际影响；已有授权明确覆盖同一目标、环境、参数和 effects 时直接继续，否则等待用户明确执行或跳过。`planHash` 只用于防漂移，不是新的确认对象。
 - `auto`：自动选中 Action；仅当 effects 包含未授权网络、远端 Git、外部环境或其他共享副作用时暂停授权。
 - Action 失败、中断或前置未完成时停止后续 Stage，不猜测重试。
 
@@ -51,7 +51,7 @@ python3 scripts/workspace_workflow.py run \
 
 ## 上下文和边界
 
-每次只读取当前 Core Skill 和当前 Action Skill；同一任务中已授权且未变化的 Action 可连续执行。Action、参数、effects 或目标改变后重新核对实际影响。详细日志留在本地路径，Agent 只接收结构化摘要。不要手工修改 `.workspace/workflow.json`、`.workspace/runs/`、Extension lock 或受管 Adapter。
+每次只读取当前 Core Skill 和当前 Action Skill；同一计划或迭代中已授权且实际影响未变化的 Action 可连续执行和重试，阶段或 Skill 切换不触发重复确认。Action、参数、effects、目标或环境改变后重新核对实际影响。详细日志留在本地路径，Agent 只接收结构化摘要。不要手工修改 `.workspace/workflow.json`、`.workspace/runs/`、Extension lock 或受管 Adapter。
 
 Action 如需写 feature 相关文件，必须由自身 SKILL.md 说明精确输出位置、文件归属和重复运行时的追加或覆盖方式；不预设扩展专用目录。它不得改写需求、设计或实施计划正文，除非用户已在当前阶段确认该内容变更。已有 `testing/verification.md` 时，Runner 只追加 Action 状态；文件尚不存在时不代建占位记录。
 

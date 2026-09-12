@@ -218,6 +218,45 @@ def _linked_files(feature: Path, root: Path, deadline: Deadline | None = None) -
     return result
 
 
+def _document_files(feature: Path, root: Path, deadline: Deadline | None = None) -> set[str]:
+    """Allow history documents reachable from a current-document link."""
+    directly_linked = _linked_files(feature, root, deadline)
+    result = {
+        relative
+        for relative in directly_linked
+        if not relative.startswith("history/") or relative == "history/index.md"
+    }
+    pending = ["history/index.md"] if "history/index.md" in result else []
+    scanned = 0
+    while pending:
+        relative = pending.pop()
+        path = feature / relative
+        try:
+            data = _read(path, root, deadline=deadline).decode("utf-8")
+        except (InspectError, UnicodeError):
+            continue
+        scanned += 1
+        if scanned > MAX_SCAN:
+            raise InspectError("INSPECT_LIMIT_EXCEEDED", "历史文档链接数量超过限制")
+        for target in LINK.findall(data):
+            target = target.split("?", 1)[0]
+            candidate = path.parent / target
+            if candidate.suffix.lower() not in TEXT_SUFFIXES:
+                continue
+            try:
+                resolved = candidate.resolve()
+                if not resolved.is_relative_to((feature / "history").resolve()):
+                    continue
+                _read(candidate, root, deadline=deadline)
+            except (InspectError, OSError, ValueError):
+                continue
+            linked = resolved.relative_to(feature.resolve()).as_posix()
+            if linked not in result:
+                result.add(linked)
+                pending.append(linked)
+    return result
+
+
 def _feature_revision(feature: Path, root: Path, deadline: Deadline | None = None) -> str:
     entries: list[tuple[str, str]] = []
     for rel in sorted(STANDARD_FILES):
@@ -425,7 +464,7 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
             }
         )
         tasks.append(value)
-    files = [_file_info(directory, rel, root, deadline) for rel in sorted(_linked_files(directory, root, deadline))]
+    files = [_file_info(directory, rel, root, deadline) for rel in sorted(_document_files(directory, root, deadline))]
     if item["status"] == "done":
         progression = {"state": "historical", "currentStage": None, "nextActions": [], "blockers": []}
     else:
@@ -445,7 +484,7 @@ def document(root: Path, slug: str, relative: str, revision: str | None, deadlin
     if pure.is_absolute() or ".." in pure.parts or "\x00" in relative:
         raise InspectError("INSPECT_UNSAFE_PATH", "document path 无效")
     directory = _feature_dir(root, slug); path = directory / pure
-    linked = _linked_files(directory, root, deadline)
+    linked = _document_files(directory, root, deadline)
     if relative not in linked and not relative.startswith("artifacts/"):
         raise InspectError("INSPECT_UNSAFE_PATH", "document 不在允许的 Feature 文件集合")
     if path.suffix.lower() not in TEXT_SUFFIXES:

@@ -260,7 +260,7 @@ class SurfaceTest(unittest.TestCase):
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("没有 Skill 发现能力时", agents)
         self.assertIn("artifacts/sql/", agents)
-        self.assertIn("同一任务内已授权", agents)
+        self.assertIn("同一计划内已授权", agents)
         self.assertIn("未知命令或参数", agents)
         self.assertIn("requirements/requirements.md", agents)
         self.assertIn("design/data-model.md", agents)
@@ -358,13 +358,13 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("范围缩写", plan_skill)
         self.assertIn("存在真实技术取舍", design_skill)
         self.assertIn("占位内容、内部矛盾、范围和表述歧义", design_skill)
-        self.assertIn("全部任务做一次代码事实预检", plan_skill)
+        self.assertIn("语义和代码事实预检", plan_skill)
         self.assertIn("普通代码漂移", plan_skill)
         self.assertIn("任务边界、验证强度", plan_skill)
         self.assertIn("task-evidence-v1", plan_skill)
         self.assertIn("唯一目标仓", plan_skill)
         self.assertIn("持久化", plan_skill)
-        self.assertIn("--task T01", execute_skill)
+        self.assertIn("--task <currentTask.id>", execute_skill)
         self.assertIn("--check", execute_skill)
         self.assertIn("instructionContext", execute_skill)
         self.assertIn("首次编辑", execute_skill)
@@ -403,7 +403,7 @@ class SurfaceTest(unittest.TestCase):
             with self.subTest(path=path.relative_to(ROOT)):
                 content = path.read_text(encoding="utf-8")
                 self.assertIn("一次一个可验证任务不是会话边界", content)
-                self.assertIn("有下一项依赖满足的未完成任务时直接继续", content)
+                self.assertIn("readyTasks", content)
                 self.assertIn("只有全部任务完成或所有剩余任务真实阻塞时", content)
 
         execute = paths[0].read_text(encoding="utf-8")
@@ -411,11 +411,65 @@ class SurfaceTest(unittest.TestCase):
         self.assertIn("普通代码漂移", execute)
         self.assertIn("executionDecision", execute)
         self.assertIn("confirmationRequired", execute)
-        self.assertIn("不得跳过 `currentTask`", execute)
+        self.assertIn("`currentTask` 是默认候选", execute)
+        self.assertIn("调整执行顺序不等于并行", execute)
+        self.assertNotIn("不得跳过 `currentTask`", execute)
         self.assertIn(
             "当前任务、阻塞类别、实际证据、已完成的安全步骤和最小用户决策",
             execute,
         )
+
+    def test_feature_iterations_keep_current_documents_and_archive_completed_rounds(self):
+        design = (ROOT / ".agents/skills/workspace-feature-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        plan = (ROOT / ".agents/skills/workspace-writing-plan/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        execute = (ROOT / ".agents/skills/workspace-execute-plan/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        readme = (ROOT / "templates/feature/README.md").read_text(encoding="utf-8")
+        requirements = (ROOT / "templates/feature/requirements.md").read_text(
+            encoding="utf-8"
+        )
+        implementation = (ROOT / "templates/feature/implementation.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("references/feature-iterations.md", design)
+        self.assertIn("验收点", requirements)
+        self.assertIn("当前迭代", readme)
+        self.assertIn("本轮变更", readme)
+        self.assertIn("单 Agent", implementation)
+        self.assertIn("按需子 Agent", implementation)
+        self.assertIn("每任务子 Agent", implementation)
+        self.assertIn("验收点", plan)
+        self.assertIn("依赖只表达真实前置条件", plan)
+        self.assertIn("已授权", execute)
+        self.assertIn("readyTasks", execute)
+        self.assertIn("references/subagent-execution.md", execute)
+
+        subagent = (
+            ROOT
+            / ".agents/skills/workspace-execute-plan/references/subagent-execution.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("当前任务完整正文", subagent)
+        self.assertIn("NEEDS_CONTEXT", subagent)
+        self.assertIn("需求符合性", subagent)
+        self.assertIn("代码质量", subagent)
+
+    def test_extension_and_workflow_reuse_unchanged_authorization(self):
+        extension = (ROOT / ".agents/skills/workspace-extension/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        workflow = (ROOT / ".agents/skills/workspace-feature-workflow/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("整组操作", extension)
+        self.assertIn("实际影响", extension)
+        self.assertIn("已有授权", workflow)
 
     def test_instruction_context_docs_define_monotonic_narrowing(self):
         paths = (

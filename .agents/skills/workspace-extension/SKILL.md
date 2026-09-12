@@ -14,7 +14,9 @@ python3 scripts/workspace_extension.py install preview \
   --root . --source <local-extension-directory> --json
 ```
 
-展示来源、目标、digest 和 `previewHash`，获得确认后执行返回的 apply 命令。安装只复制目录；Provider 绑定和 Workflow Overlay 仍需各自 preview/apply。
+展示来源、目标、digest 和 `previewHash`，获得确认后执行返回的 apply 命令。安装只复制目录；Provider 绑定和 Workflow Overlay 仍使用各自的 preview/apply。
+
+同一交付同时包含安装、激活和 Workflow Overlay 更新时，先准备可得到的 preview、目标路径、Provider/Action、effects 及后续派生步骤，作为一组具体变更请求一次确认。批准覆盖已展示的整组操作；随后仍逐步重算并使用每一步当前哈希。技术哈希变化但实际影响未变时继续，目标、路径、Provider、Action、effects 或外部影响扩大时重新确认。
 
 ## 只读检查
 
@@ -51,7 +53,7 @@ python3 scripts/workspace_extension.py scaffold --root . --id <extension-id> --j
    python3 scripts/workspace_extension.py preview --root . --config .workspace/extensions/.state/input.json --json
    ```
 
-4. 向用户说明激活项、Provider 绑定、会生成或移除的 `local-*` Skill Adapter，并等待明确确认。
+4. 向用户说明激活项、Provider 绑定、会生成或移除的 `local-*` Skill Adapter；没有覆盖本次实际影响的已有授权时等待明确确认。
 5. 只使用 preview 返回的哈希执行 apply：
 
    ```bash

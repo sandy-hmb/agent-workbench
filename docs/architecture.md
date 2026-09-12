@@ -146,10 +146,10 @@ stateDiagram-v2
     paused --> planning: 明确恢复到讨论
     paused --> development: 明确恢复到开发
     paused --> testing: 明确恢复到测试
-    done --> [*]
+    done --> planning: 同一 Feature 开启下一迭代
 ```
 
-暂停记录不包含自动恢复到上一个状态的历史指针，恢复位置需要明确选择。测试中补丁可以保持 `testing`；验证失败本身也不会自动改写需求状态。`done` 只表示需求被标记完成，不删除代码、分支或记录。
+暂停记录不包含自动恢复到上一个状态的历史指针，恢复位置需要明确选择。测试中补丁可以保持 `testing`；验证失败本身也不会自动改写需求状态。`done` 只表示当前迭代结束，不删除代码、分支或记录；同一业务能力变化时保留 slug，归档上一轮后恢复到 `planning`。
 
 ### 阶段建议：现在应该做什么
 
@@ -165,7 +165,7 @@ stateDiagram-v2
 | 任务完成且验证通过，当前为维护模式或需求已是 `testing` | 建议 `feature.complete`。 |
 | 其余开发中需求 | 建议 `feature.submit-test`；实际执行仍由提测流程检查目标与授权。 |
 
-实施阶段使用 `brief <slug> --execution --json`，在兼容的默认摘要之外返回按计划位置排序的 `readyTasks`、`confirmationRequired` 和 `executionDecision`。`RUN` 表示必须继续 `currentTask`，不能在任务边界结束或重复确认；`BLOCKED` 表示当前阶段需要确认或没有可执行任务；`COMPLETE` 表示计划任务已全部完成，可进入整体复核与验证。执行者默认不得跳过 `currentTask`，只有已批准计划明确允许并行时才能选择其他 ready task。
+实施阶段使用 `brief <slug> --execution --json`，返回按计划位置排序的 `readyTasks`、`confirmationRequired` 和 `executionDecision`。`currentTask` 是默认候选，`readyTasks` 表示依赖满足，仍需 Agent 核对环境和授权；局部外部阻塞时可以顺序推进其他独立候选，调整顺序不等于并行。`RUN` 表示仍有计划任务可推进，`BLOCKED` 表示阶段门禁或依赖无可执行项，`COMPLETE` 表示计划任务已完成。字段不授予外部操作权限。
 
 验证通过的机器判断读取最新的 `## 验证批次`，要求总体结果、审查结论、代码状态和至少一项检查完整；全部退出状态必须为 `0`，且记录的仓库状态与当前 Git 状态完全匹配。旧 `执行记录`、占位文件、最新失败、不完整或过期批次都不能用更早成功覆盖。这个判断不证明测试覆盖全部验收标准，证据的真实性与充分性仍需核对。
 

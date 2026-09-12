@@ -148,6 +148,83 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("附件正文\n", value["data"]["content"])
 
+    def test_history_documents_are_discoverable_and_readable_transitively(self):
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "README.md").write_text(
+            (feature / "README.md").read_text(encoding="utf-8")
+            + "\n[历史迭代](history/index.md)\n",
+            encoding="utf-8",
+        )
+        iteration = feature / "history/i01"
+        iteration.mkdir(parents=True)
+        (feature / "history/index.md").write_text(
+            "# 历史迭代\n\n- [i01](i01/README.md)\n", encoding="utf-8"
+        )
+        (iteration / "README.md").write_text(
+            "# i01\n\n[实施计划](plans/implementation.md)\n", encoding="utf-8"
+        )
+        (iteration / "plans").mkdir()
+        (iteration / "plans/implementation.md").write_text(
+            "# i01 实施计划\n\n[设计](../design/design.md)\n\narchived-only-token\n",
+            encoding="utf-8",
+        )
+        (iteration / "design").mkdir()
+        (iteration / "design/design.md").write_text("# i01 设计\n", encoding="utf-8")
+
+        code, feature_value, _ = command(self.root, "feature", "demo-feature")
+        self.assertEqual(0, code)
+        listed = {item["path"] for item in feature_value["data"]["files"]}
+        self.assertIn("history/index.md", listed)
+        self.assertIn("history/i01/README.md", listed)
+        self.assertIn("history/i01/plans/implementation.md", listed)
+        self.assertIn("history/i01/design/design.md", listed)
+
+        code, document_value, _ = command(
+            self.root,
+            "document",
+            "demo-feature",
+            "--path",
+            "history/i01/plans/implementation.md",
+        )
+        self.assertEqual(0, code)
+        self.assertIn("archived-only-token", document_value["data"]["content"])
+
+        code, design_value, _ = command(
+            self.root,
+            "document",
+            "demo-feature",
+            "--path",
+            "history/i01/design/design.md",
+        )
+        self.assertEqual(0, code)
+        self.assertEqual("# i01 设计\n", design_value["data"]["content"])
+
+        code, search_value, _ = command(
+            self.root, "search", "--query", "archived-only-token"
+        )
+        self.assertEqual(0, code)
+        self.assertEqual([], search_value["data"]["items"])
+
+        code, handoff_value, _ = command(self.root, "handoff", "demo-feature")
+        self.assertEqual(0, code)
+        self.assertNotIn("archived-only-token", handoff_value["data"]["content"])
+
+    def test_unlinked_history_document_is_not_readable(self):
+        feature = self.root / "docs/development/features/demo-feature"
+        hidden = feature / "history/i01/hidden.md"
+        hidden.parent.mkdir(parents=True)
+        hidden.write_text("hidden\n", encoding="utf-8")
+        (feature / "design/design.md").write_text(
+            "[不允许绕过历史索引](../history/i01/hidden.md)\n", encoding="utf-8"
+        )
+
+        code, value, _ = command(
+            self.root, "document", "demo-feature", "--path", "history/i01/hidden.md"
+        )
+
+        self.assertEqual(1, code)
+        self.assertEqual("INSPECT_UNSAFE_PATH", value["diagnostics"][0]["code"])
+
     def test_oversized_run_is_partial_and_read_only(self):
         run = self.root / ".workspace/runs/big-run.json"
         run.parent.mkdir(parents=True)

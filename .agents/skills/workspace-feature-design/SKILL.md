@@ -27,9 +27,13 @@ Plan mode 且原生交互工具可用并支持当前选择类型时使用交互�
 
 Requirements 和 Design 写入并自审后由用户审阅实际文件。当前只有一个明确审阅对象时，无附加条件的“确认”“ok”“可以”“好的”“批准”等肯定回复均表示批准；回复包含修改、否定或暂停时先处理其具体含义，对象不唯一时先澄清。批准适用于已展示内容，实质修改后重新审阅受影响产物。
 
+首次开发和重大变更分别审阅 Requirements、Design 和 Plan。范围明确、沿用关键方案且不改变高风险数据、权限语义或外部影响的小迭代，可以一次准备需求差异、必要设计调整和实施计划，统一将受影响文档标为“待审阅”，由用户批准整个实际文档包；没有变化的设计注明沿用原批准，不为形式重复澄清。
+
 阶段提问、确认和停顿的用户可见表达只包含当前结果、下一步和需要用户决定的内容，跟随用户当前语言并默认使用中文。不引用 Skill 名称，不解释内部门禁或复述本文件；命令、路径、API 标识和错误原文可以保留，周围说明保持用户语言一致。
 
-Requirements 开头用简短目标摘要说明预期结果，按需包含背景、范围、用户场景、可观察行为与验收、成功标准、边界情况、关键实体、非目标、假设与依赖和来源，不写实现步骤或技术方案。Design 开头集中说明目标、选定方案和关键约束，再按需包含现状、组件与数据流、数据模型与迁移、接口契约、状态、错误处理、安全与兼容、回退和验证策略。存在真实技术取舍时比较二至三个可行方案并说明推荐理由；没有取舍时不制造备选方案。生成前分别读取 `templates/feature/requirements.md`、`templates/feature/design.md`；需要附件时再读取对应的 `templates/feature/data-model.md` 或 `templates/feature/api-integration.md`。写入实际内容后删除无关章节和示例。可独立验收行为使用稳定 R 编号，只有需要跨文档精确引用的关键设计决策使用 D01-DNN 或显式锚点；不要给字段或句子机械编号。README 只记录摘要、入口、审阅状态和下一步，不复制正文。
+Requirements 开头说明目标，按需包含背景、范围、用户场景、可观察行为与验收、成功标准、边界情况、关键实体、非目标、假设和来源，不写实现步骤。每个可独立失败的验收点说明角色或条件、触发、结果和必要反例；同一 R 下有多个验收点时使用稳定子编号，不按句子机械编号。Design 明确复用与新增边界、接口和数据流、状态与错误、兼容、关键假设及验证，避免把关键选择留给实现阶段；存在真实技术取舍时比较可行方案。生成前分别读取 `templates/feature/requirements.md`、`templates/feature/design.md`；附件按需创建。README 只记录摘要、入口、审阅状态和下一步。
+
+同一 Feature 后续变更保持原 slug 和固定文档入口。遇到已完成 Feature 的新增或变更，或当前 README 声明了迭代时，读取[同一 Feature 的后续迭代](references/feature-iterations.md)；日常首次开发不读取该参考。
 
 `design/design.md` 是唯一必需的设计文档、完整技术方案和唯一主入口。读完需求与主设计必须能理解整体方案、组件和数据流、全部 D01-DNN 决策的结论与理由、关键数据模型及迁移概览、主要接口和状态映射、风险与验证方式。主设计拥有全部规范 D 编号；附件只能引用并展开这些决策，不能成为其唯一定义。多实体复杂关系、完整字段字典、DDL、迁移、回填、双写、兼容、数据校验或回滚需要较大篇幅时，先提议并取得用户确认，再创建 `design/data-model.md`。跨仓或跨团队接口、多个端点或事件、请求响应样例、版本兼容、鉴权、错误契约和独立联调计划需要独立审阅时，按 `workspace-api-contract` 的规则确认后创建 `design/api-integration.md`。其他专题也必须有独立负责人、审批或长期维护理由；附件从主设计链接并在开头链接回主设计、声明所扩展的 D 编号，不重复总体方案、其他专题或需求正文。
 
@@ -37,7 +41,7 @@ Requirements 开头用简短目标摘要说明预期结果，按需包含背景�
 
 ## 标准需求流程
 
-1. 先判断模式：没有 `.workspace/workspace.json` 时为公共 Kit 维护模式，直接检查 `docs/development/features/` 判断是新需求还是继续已有需求，不调用依赖 workspace registry 的脚本；存在 `.workspace/workspace.json` 时为用户治理模式，用 `python3 scripts/feature_context.py list --json` 和 `.workspace/docs/features/` 判断。选择顺序是用户本轮明确指定、有效活跃指针、唯一未完成需求；明确值无效或仍不唯一时停止询问，不静默改选。
+1. 先判断模式：没有 `.workspace/workspace.json` 时为公共 Kit 维护模式，直接检查 `docs/development/features/`，不调用依赖 workspace registry 的脚本；存在时为用户治理模式，用 `python3 scripts/feature_context.py list --json` 和 `.workspace/docs/features/` 判断。选择顺序是用户明确指定、有效活跃指针、唯一未完成需求；用户明确指定已完成 Feature 时也检查其目录，并按迭代参考判断原地修订或开启下一轮，不因默认列表忽略 `done` 就创建重复 Feature。明确值无效或仍不唯一时停止询问。
 2. 先讨论需求澄清，按交互协议收敛目标、场景、范围、验收、边界和假设。纯咨询、评审或尚未收敛范围时不创建目录、不建分支，也不预写后续文档。结论收敛后直接使用稳定的小写 `kebab-case` `<slug>` 和目标仓生成需求草案。
 3. 公共 Kit 维护模式在 `docs/development/features/<slug>/` 创建 README 和需求文件。用户治理模式使用：
 
@@ -49,7 +53,7 @@ Requirements 开头用简短目标摘要说明预期结果，按需包含背景�
    每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md` 和 `templates/feature/requirements.md`，只创建 `.workspace/docs/features/<slug>/README.md` 和 `requirements/requirements.md`，并写入 registry 计算的分支与基线。按文档协议填入实际内容，自审需求可验证、无歧义且没有占位内容，将 README 的需求审阅记为“待审阅”，再请用户审阅实际文件；未获批准不得进入 Design。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 和 `python3 scripts/kit.py brief <slug> --check --json` 校验元数据与本地结构。
 4. 用户批准实际需求文件后将 README 的需求审阅记为“已批准”，并在同一轮继续方案设计；只有真实关键取舍未决时才提问。结论收敛后直接创建 `design/design.md` 及已确认必要的附件并从 README 链接。附件只能因独立读者、审阅、执行或维护需要拆分，先说明内容归属和读取任务；主设计保留完整方案和全部规范 D 决策的结论、理由、关键结构、影响和风险，附件只展开字段字典、DDL、请求响应样例或逐步执行清单等细节。写入后执行内容、结构和阅读自审：检查占位内容、内部矛盾、范围和表述歧义，再核对需求覆盖、关键假设和方案一致性；运行 `brief <slug> --check --json`；查看 Markdown 预览的标题顺序、表格、步骤、空行和长内容。预览不可用时检查源文件块结构并说明限制。修正后将 README 的设计审阅记为“待审阅”，再请用户审阅整个 Design 审阅包。新建、删除或实质修改任一附件时，设计审阅及已有计划审阅都回到“待审阅”。唯一例外是尚未生成计划时，计划生成阶段已按 `workspace-writing-plan` 的定向修订规则取得用户对已披露变更的明确选择；写回并自审后保持设计审阅为“已批准”。用户批准整个 Design 审阅包后将设计记为“已批准”，并在没有新阻塞时于同一轮生成实施计划草案；书面设计未获批准，不得生成实施计划或开始实现。
 5. 书面设计获批准后，读取 `workspace-writing-plan`，由它直接生成和自审 `plans/implementation.md` 草案，不再要求用户确认计划摘要。实际计划、基线、分支和执行方式的批准属于计划 Skill；计划获批前需求保持 `planning`。
-6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到需求或设计讨论。`testing/verification.md` 只在首次实际验证时创建，记录真实命令、退出状态和结果。
+6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到受影响文档；小迭代可合并审阅，重大变化仍逐阶段审阅。`testing/verification.md` 只在首次实际验证时创建，记录真实命令、退出状态和结果。
 
 ## 边界
 
