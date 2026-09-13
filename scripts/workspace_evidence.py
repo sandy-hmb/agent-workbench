@@ -508,7 +508,14 @@ def _intrinsically_trusted(record: Mapping[str, object]) -> bool:
 
 def _write_candidates(feature: Path, candidates: list[tuple[str, bytes]]) -> list[tuple[Path, bytes]]:
     outputs = []
+    pending: dict[str, bytes] = {}
     for relative, data in candidates:
+        if relative in pending:
+            if pending[relative] != data:
+                raise EvidenceError("EVIDENCE_HASH_MISMATCH", f"同一内容地址出现不同候选：{relative}")
+            continue
+        pending[relative] = data
+    for relative, data in pending.items():
         path = safe_path(feature, relative)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():

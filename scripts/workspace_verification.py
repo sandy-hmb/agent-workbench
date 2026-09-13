@@ -530,7 +530,7 @@ def describe_verification_document(text: str) -> dict[str, object]:
         start_line = text.count("\n", 0, match.start()) + 1
         batches.append({
             "id": f"{revision}:{start_line}",
-            "recordedAt": match.group(0).split(" ", 2)[-1],
+            "recordedAt": match.group(0).split(" ", 2)[-1].strip(),
             "source": {"path": "testing/verification.md", "startLine": start_line,
                        "endLine": start_line + len(text[match.start():end].rstrip().splitlines()) - 1},
         })

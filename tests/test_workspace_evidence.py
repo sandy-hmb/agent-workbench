@@ -76,6 +76,17 @@ class WorkspaceEvidenceTest(unittest.TestCase):
         )
         self.assertEqual("artifacts/report.json", latest["artifactRefs"][0]["path"])
 
+    def test_one_record_can_reference_the_same_command_more_than_once(self) -> None:
+        value = task_record()
+        value["checks"].append(dict(value["checks"][0], target="tests/test_other.py"))
+        workspace_evidence.record(self.feature, value)
+        self.assertEqual(2, len(workspace_evidence.load_store(self.feature)["latestByTask"]["T01"]["checks"]))
+        command_objects = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in (self.feature / "testing/evidence/objects").glob("*.json")
+        ]
+        self.assertEqual(1, sum(item["kind"] == "command" for item in command_objects))
+
     def test_multiline_command_is_stored_as_inert_evidence(self) -> None:
         value = task_record()
         value["checks"][0]["command"] = "python3 -m unittest \\\n+  tests.test_service"

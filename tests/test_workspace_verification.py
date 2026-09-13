@@ -217,6 +217,12 @@ class WorkspaceVerificationTest(unittest.TestCase):
         states = {"service": workspace_verification.git_fingerprint(self.repository)}
         self.assertTrue(workspace_verification.verification_passed(batch(states, 0, 0), states))
 
+    def test_batch_recorded_at_does_not_include_header_newline(self) -> None:
+        described = workspace_verification.describe_verification_document(
+            batch({"service": "sha256:" + "a" * 64}, 0) + "\n"
+        )
+        self.assertEqual("2026-09-07T16:00:00+08:00", described["selectedBatch"]["recordedAt"])
+
     def test_old_incomplete_failed_or_stale_evidence_does_not_pass(self) -> None:
         states = {"service": workspace_verification.git_fingerprint(self.repository)}
         valid = batch(states, 0)
