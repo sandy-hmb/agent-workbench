@@ -989,6 +989,7 @@ def search(
 def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | None = None) -> dict[str, object]:
     detail = feature(root, slug, deadline); directory = _feature_dir(root, slug); mode = _mode(root)
     policy = detail["summary"]["planSummary"].get("completionPolicy")
+    structured_batch = None
     document_text = (
         _read(directory / "testing" / "verification.md", root, deadline=deadline).decode("utf-8")
         if policy != "task-evidence-v2" and (directory / "testing" / "verification.md").is_file()
@@ -997,12 +998,36 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
     if policy == "task-evidence-v2":
         structured = describe_structured_evidence(directory)
         index = structured["index"]
-        latest = structured["latestBatch"]
+        structured_batch = structured["latestBatch"]
+        selected = None
+        if structured_batch is not None:
+            source = structured_batch["source"]
+            selected = {
+                "id": structured_batch["id"],
+                "recordedAt": structured_batch["recordedAt"],
+                "source": source,
+                "raw": json.dumps(structured_batch, ensure_ascii=False, indent=2, sort_keys=True),
+                "recordedResult": structured_batch["overallResult"] if structured_batch["overallResult"] in {"passed", "failed"} else "unknown",
+                "recordedReview": structured_batch["reviewResult"],
+                "completeness": "incomplete" if structured_batch.get("issues") else "complete",
+                "issues": structured_batch.get("issues", []),
+                "checks": [
+                    {**check, "id": str(number), "source": source, "exitStatus": str(check.get("exitStatus")) if check.get("exitStatus") is not None else None}
+                    for number, check in enumerate(structured_batch["checks"], 1)
+                ],
+            }
         described = {
             "documentRevision": index["revision"],
-            "batches": [item for item in index["history"] if item.get("kind") == "batch"],
-            "latestBatchId": latest.get("id") if latest else None,
-            "selectedBatch": latest,
+            "batches": [
+                {
+                    "id": item["id"],
+                    "recordedAt": item["recordedAt"],
+                    "source": {"path": f"testing/{item['path']}", "startLine": 1, "endLine": 1},
+                }
+                for item in index["history"] if item.get("kind") == "batch"
+            ],
+            "latestBatchId": structured_batch.get("id") if structured_batch else None,
+            "selectedBatch": selected,
         }
         record = None
     else:
@@ -1014,6 +1039,8 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
         header = record.split("### 检查", 1)[0]
         if "- 总体结果：通过" in header: result = "passed"
         elif "- 总体结果：失败" in header: result = "failed"
+    elif described["selectedBatch"] is not None:
+        result = described["selectedBatch"]["recordedResult"]
     applicability = "historical" if detail["summary"]["status"] == "done" else "not_checked"
     if check_code and detail["summary"]["status"] != "done" and (record or described["selectedBatch"] is not None):
         try:
@@ -1022,7 +1049,7 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
             recorded = {}
             if described["selectedBatch"] is not None:
                 if policy == "task-evidence-v2":
-                    recorded = described["selectedBatch"].get("codeState", {})
+                    recorded = structured_batch.get("codeState", {})
                 raw = described["selectedBatch"].get("raw", "")
                 match = re.search(r"^- 代码状态：(.*)$", raw, re.MULTILINE)
                 if match:
@@ -1030,7 +1057,7 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
                     except json.JSONDecodeError: recorded = {}
             current: dict[str, str] = {}
             record_valid = (
-                structured_verification_passed(described["selectedBatch"], recorded)
+                structured_verification_passed(structured_batch, recorded)
                 if policy == "task-evidence-v2"
                 else verification_passed(record, recorded)
             ) if recorded else False
@@ -1060,7 +1087,7 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
                     states.append({"repository": name, "state": "unknown", "reasonCodes": ["INSPECT_INVALID_DATA"], "recordedFingerprint": recorded.get(name), "currentFingerprint": None, "currentHead": None, "source": "git"})
             complete = described["selectedBatch"] is not None and described["selectedBatch"].get("completeness") == "complete"
             applicable = (
-                structured_verification_passed(described["selectedBatch"], current)
+                structured_verification_passed(structured_batch, current)
                 if policy == "task-evidence-v2"
                 else verification_passed(record, current)
             )

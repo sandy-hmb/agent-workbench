@@ -104,6 +104,47 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual("source.py", task["deliverables"][0]["path"])
         self.assertTrue(task["trusted"])
 
+    def test_v2_verification_is_projected_to_the_inspect_contract(self):
+        import workspace_evidence
+        from schema_validation import validate
+
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v2`\n\n- [ ] T01 Demo\n\n  依赖：无\n",
+            encoding="utf-8",
+        )
+        workspace_evidence.record(
+            feature,
+            {
+                "kind": "verificationBatch",
+                "recordedAt": "2026-09-13T10:00:00+08:00",
+                "overallResult": "passed",
+                "reviewResult": "passed",
+                "codeState": {self.root.name: "sha256:" + "a" * 64},
+                "checks": [{
+                    "workingDirectory": str(self.root),
+                    "command": "python3 -m unittest",
+                    "exitStatus": 0,
+                    "result": "passed",
+                    "duration": "1s",
+                    "testCount": 1,
+                }],
+                "blockers": [],
+                "artifactRefs": [],
+            },
+        )
+
+        code, response, _ = command(self.root, "verification", "demo-feature")
+
+        self.assertEqual(0, code)
+        schema = json.loads((ROOT / "schemas/inspect-result.schema.json").read_text(encoding="utf-8"))
+        validate(response["data"], {"$defs": schema["$defs"], "$ref": "#/$defs/verification"})
+        selected = response["data"]["selectedBatch"]
+        self.assertEqual("passed", selected["recordedResult"])
+        self.assertEqual("complete", selected["completeness"])
+        self.assertEqual("0", selected["checks"][0]["exitStatus"])
+        self.assertTrue(response["data"]["batches"][0]["source"]["path"].startswith("testing/evidence/batches/"))
+
     def test_feature_collection_revision_is_page_independent(self):
         _, first, _ = command(self.root, "features", "--offset", "0", "--limit", "1")
         _, second, _ = command(self.root, "features", "--offset", "1", "--limit", "1")

@@ -312,7 +312,7 @@ class EvidenceMigrationTest(unittest.TestCase):
         self.assertTrue(detail["tasks"][0]["trusted"])
         self.assertIsNotNone(verification["selectedBatch"])
         self.assertTrue(detail["summary"]["verificationSummary"]["exists"])
-        self.assertEqual("failed", verification["selectedBatch"]["overallResult"])
+        self.assertEqual("failed", verification["selectedBatch"]["recordedResult"])
 
     def test_render_preview_is_read_only_and_apply_restores_human_view(self) -> None:
         workspace_evidence.migrate_feature(self.feature, preview=False)
