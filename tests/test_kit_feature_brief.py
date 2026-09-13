@@ -1197,14 +1197,28 @@ class MaintenanceBriefTest(unittest.TestCase):
         self.assertEqual("T02", other["selectedTask"]["id"])
         self.assertEqual("T01", other["currentTask"]["id"])
 
-        _, full_default = run(["--task", "T01", "--execution", "--json"])
+        _, summary_default = run(["--task", "T01", "--execution", "--json"])
+        _, summary_explicit = run(["--task", "T01", "--execution", "--json", "--projection", "summary"])
+        self.assertEqual(summary_default, summary_explicit)
+        self.assertNotIn("taskEvidence", summary_default)
         _, full_explicit = run(
             ["--task", "T01", "--execution", "--json", "--projection", "full"]
         )
-        full_default.pop("recentCommits")
-        full_explicit.pop("recentCommits")
-        self.assertEqual(full_default, full_explicit)
-        self.assertIn("verificationTail", full_default)
+        self.assertIn("verificationTail", full_explicit)
+
+    def test_default_summary_omits_task_evidence(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        self.write_evidence_plan(feature)
+        self.write_valid_task_evidence(feature)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = kit_feature_brief.main(["--root", str(self.root), "demo-feature", "--json"])
+        self.assertEqual(0, code)
+        result = json.loads(output.getvalue())
+        self.assertEqual({"applicable": True, "completed": 1, "total": 2}, result["trustedProgress"])
+        self.assertNotIn("taskEvidence", result)
 
     def test_cli_accepts_task_option(self) -> None:
         import kit_feature_brief

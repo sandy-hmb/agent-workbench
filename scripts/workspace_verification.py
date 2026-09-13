@@ -15,7 +15,22 @@ import threading
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping
 
-from workspace_model import load_workspace, repository_path, resolve_repository
+from workspace_model import atomic_write_many, load_workspace, repository_path, resolve_repository
+from workspace_evidence import (
+    EvidenceError,
+    MAX_JSON_BYTES,
+    compact_feature,
+    get_evidence,
+    history_page,
+    load_store,
+    migrate_feature,
+    mutation_lock,
+    record,
+    recover_transaction,
+    render_summary,
+    rollback_compact,
+    rollback_migration,
+)
 
 
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -135,7 +150,11 @@ def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout: 
     for raw_path in paths:
         remaining()
         relative = os.fsdecode(raw_path)
-        if PurePosixPath(relative).as_posix() in excluded_paths:
+        normalized = PurePosixPath(relative).as_posix()
+        if any(
+            normalized == excluded or normalized.startswith(excluded.rstrip("/") + "/")
+            for excluded in excluded_paths
+        ):
             continue
         path = repository / relative
         file_stat = path.lstat()
@@ -344,7 +363,7 @@ def evaluate_task_evidence(
             {
                 "severity": "error",
                 "code": code,
-                "path": "testing/verification.md",
+                "path": str((source or {}).get("path", "testing/verification.md")),
                 "line": line or int((source or {}).get("startLine", 1)),
                 "message": message,
             }
@@ -443,6 +462,57 @@ def evaluate_task_evidence(
         "source": source,
         "diagnostics": diagnostics,
     }
+
+
+def describe_structured_evidence(feature: Path) -> dict[str, object]:
+    """Adapt v2 JSON records to the existing deterministic evaluation shape."""
+    store = load_store(feature)
+    latest = {}
+    for task_id, raw in store["latestByTask"].items():
+        source = raw["source"]
+        checks = [
+            {**check, "id": str(index), "source": source, "exitStatus": str(check.get("exitStatus"))}
+            for index, check in enumerate(raw["checks"], 1)
+        ]
+        latest[task_id] = {
+            **raw,
+            "deliveryCheck": "通过" if raw.get("deliveryCheck") == "passed" else "失败",
+            "checks": checks,
+            "completeness": "incomplete" if raw.get("issues") else "complete",
+            "issues": [
+                *raw.get("issues", []),
+                *([{"severity": "error", "code": "TASK_EVIDENCE_RESULT_FAILED",
+                   "message": "任务证据结果未通过", "path": source["path"], "line": source["startLine"]}]
+                  if raw.get("origin") is None and raw.get("result") != "passed" else []),
+            ],
+        }
+    return {"index": store["index"], "latestByTask": latest, "latestBatch": store["latestBatch"]}
+
+
+def structured_verification_passed(
+    batch: Mapping[str, object] | None,
+    current_states: Mapping[str, str] | None,
+) -> bool:
+    if batch is None or current_states is None:
+        return False
+    if batch.get("overallResult") != "passed" or batch.get("reviewResult") != "passed":
+        return False
+    recorded = batch.get("codeState")
+    if not _valid_code_state(recorded) or not _valid_code_state(dict(current_states)):
+        return False
+    checks = batch.get("checks")
+    return (
+        recorded == dict(current_states)
+        and isinstance(checks, list)
+        and bool(checks)
+        and all(
+            isinstance(check, Mapping)
+            and str(check.get("exitStatus")) == "0"
+            and isinstance(check.get("result"), str)
+            and bool(check["result"])
+            for check in checks
+        )
+    )
 
 
 def describe_verification_document(text: str) -> dict[str, object]:
@@ -584,7 +654,14 @@ def feature_code_state(
             raise ValueError("维护需求路径无效")
         excluded = tuple(
             (feature_path / item).as_posix()
-            for item in ("README.md", "plans/implementation.md", "testing/verification.md")
+            for item in (
+                "README.md",
+                "plans/implementation.md",
+                "testing/verification.md",
+                "testing/.evidence.lock",
+                "testing/evidence",
+                "testing/archive",
+            )
         )
         return {root.name: git_fingerprint(root, excluded, timeout=timeout, max_untracked_files=INSPECT_MAX_UNTRACKED_FILES if inspect_budget else None, max_bytes=INSPECT_MAX_FINGERPRINT_BYTES if inspect_budget else None)}
 
@@ -613,20 +690,315 @@ def snapshot_result(root: Path, slug: str) -> dict[str, object]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="读取当前需求的 Git 代码状态（只读）。")
+    parser = argparse.ArgumentParser(description="管理任务证据、验证批次和当前需求的 Git 代码状态。")
     subcommands = parser.add_subparsers(dest="command", required=True)
     snapshot = subcommands.add_parser("snapshot", help="输出当前需求的代码状态指纹")
     snapshot.add_argument("feature")
     snapshot.add_argument("--root", type=Path, default=Path.cwd())
     snapshot.add_argument("--json", action="store_true")
+    record_parser = subcommands.add_parser("record", help="记录一条结构化证据")
+    record_parser.add_argument("feature")
+    record_parser.add_argument("--root", type=Path, default=Path.cwd())
+    record_parser.add_argument("--input", type=Path, required=True, help="证据 JSON 文件；- 表示标准输入")
+    record_parser.add_argument("--preview", action="store_true")
+    record_parser.add_argument("--json", action="store_true")
+    evidence = subcommands.add_parser("evidence", help="读取一条任务或批次证据")
+    evidence.add_argument("feature", nargs="?")
+    evidence.add_argument("--task")
+    evidence.add_argument("--batch")
+    evidence.add_argument("--id", dest="evidence_id", help="按历史任务证据 ID 读取（需同时指定 --task）")
+    evidence.add_argument("--root", type=Path, default=Path.cwd())
+    evidence.add_argument("--json", action="store_true")
+    history = subcommands.add_parser("history", help="分页读取证据历史")
+    history.add_argument("feature", nargs="?")
+    history.add_argument("--task")
+    history.add_argument("--batch")
+    history.add_argument("--cursor")
+    history.add_argument("--limit", type=int, default=20)
+    history.add_argument("--root", type=Path, default=Path.cwd())
+    history.add_argument("--json", action="store_true")
+    migrate = subcommands.add_parser("migrate", help="迁移 v1 验证记录")
+    migrate.add_argument("feature")
+    migrate.add_argument("--root", type=Path, default=Path.cwd())
+    migrate.add_argument("--preview", action="store_true")
+    migrate.add_argument("--apply", action="store_true")
+    migrate.add_argument("--json", action="store_true")
+    compact = subcommands.add_parser("compact", help="压缩 v2 活动索引")
+    compact.add_argument("feature")
+    compact.add_argument("--root", type=Path, default=Path.cwd())
+    compact.add_argument("--preview", action="store_true")
+    compact.add_argument("--apply", action="store_true")
+    compact.add_argument("--json", action="store_true")
+    render = subcommands.add_parser("render", help="从结构化证据重建人类摘要")
+    render.add_argument("feature")
+    render.add_argument("--root", type=Path, default=Path.cwd())
+    render.add_argument("--preview", action="store_true")
+    render.add_argument("--apply", action="store_true")
+    render.add_argument("--json", action="store_true")
     return parser
+
+
+def _resolve_feature_path(root: Path, slug: str | None) -> tuple[str, Path]:
+    from workspace_status import status_result
+
+    root = Path(root).resolve()
+    if slug is not None:
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+            raise EvidenceError("EVIDENCE_FEATURE_NOT_FOUND", "Feature slug 无效")
+        base = root / ".workspace" / "docs" / "features" if (root / ".workspace/workspace.json").is_file() else root / "docs/development/features"
+        feature = base / slug
+        if feature.is_symlink() or not feature.is_dir():
+            raise EvidenceError("EVIDENCE_FEATURE_NOT_FOUND", f"未找到需求：{slug}")
+        if any(path.is_symlink() for path in (base, base.parent, base.parent.parent)):
+            raise EvidenceError("EVIDENCE_UNSAFE_PATH", "Feature 路径包含符号链接")
+        try:
+            feature.resolve().relative_to(root)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise EvidenceError("EVIDENCE_UNSAFE_PATH", "Feature 路径越界") from exc
+        return slug, feature
+    status = status_result(root)
+    features = status.get("features", [])
+    if not isinstance(features, list):
+        raise EvidenceError("EVIDENCE_FEATURE_NOT_FOUND", "没有可用 Feature")
+    if len(features) != 1:
+        raise EvidenceError("EVIDENCE_FEATURE_AMBIGUOUS", "未指定 Feature 且无法唯一选择")
+    item = features[0]
+    return str(item["featureSlug"]), root / str(item["path"])
+
+
+def summary_text(
+    root: Path,
+    slug: str,
+    feature: Path,
+    *,
+    action_summaries: list[Mapping[str, object]] | None = None,
+) -> str:
+    from workspace_status import status_result
+
+    status = status_result(Path(root).resolve())
+    tracked = next((item for item in status.get("features", []) if item["featureSlug"] == slug), {})
+    return render_status_summary(root, slug, feature, tracked, action_summaries=action_summaries)
+
+
+def render_status_summary(
+    root: Path,
+    slug: str,
+    feature: Path,
+    tracked: Mapping[str, object],
+    *,
+    action_summaries: list[Mapping[str, object]] | None = None,
+) -> str:
+    batch = describe_structured_evidence(feature)["latestBatch"]
+    if action_summaries is None:
+        from workspace_paths import workflow_runs_root
+        from workspace_workflow import _load_run
+
+        runs_root = workflow_runs_root(Path(root).resolve())
+        actions: list[dict[str, object]] = []
+        if runs_root.exists():
+            if runs_root.is_symlink() or not runs_root.is_dir():
+                raise EvidenceError("EVIDENCE_UNSAFE_PATH", "Workflow Run 目录不安全")
+            for path in runs_root.glob("*.json"):
+                run = _load_run(Path(root).resolve(), path.stem)
+                if run.get("featureSlug") == slug:
+                    for stage, row in run["stages"].items():
+                        actions.append({"stage": stage, **row})
+        action_summaries = sorted(actions, key=lambda row: (str(row["updatedAt"]), str(row["stage"])))
+    return render_summary(
+        feature,
+        state={
+            "trustedProgress": tracked.get("trustedProgress"),
+            "verificationPassed": tracked.get("verificationPassed"),
+            "codeState": batch.get("codeState") if isinstance(batch, Mapping) else None,
+            "blockers": tracked.get("documentDiagnostics", []),
+            "artifacts": tracked.get("artifacts", []),
+        },
+        action_summaries=action_summaries,
+    )
+
+
+def refresh_summary(root: Path, slug: str, feature: Path) -> bool:
+    path = feature / "testing" / "verification.md"
+    text = summary_text(root, slug, feature)
+    if path.is_file() and not path.is_symlink() and path.read_text(encoding="utf-8") == text:
+        return False
+    atomic_write_many(((path, text),))
+    return True
+
+
+def render_preview(root: Path, slug: str, feature: Path) -> dict[str, object]:
+    text = summary_text(root, slug, feature)
+    path = feature / "testing/verification.md"
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise EvidenceError("EVIDENCE_UNSAFE_PATH", "人类摘要路径不安全")
+    return {"featureSlug": slug, "path": "testing/verification.md", "lines": len(text.splitlines()),
+            "bytes": len(text.encode("utf-8")), "changed": not path.is_file() or path.read_text(encoding="utf-8") != text}
+
+
+def _record_input(path: Path) -> dict[str, object]:
+    if str(path) == "-":
+        data = sys.stdin.buffer.read(MAX_JSON_BYTES + 1)
+    else:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_JSON_BYTES:
+            raise EvidenceError("EVIDENCE_UNSAFE_PATH", f"证据输入必须是普通且不超过 {MAX_JSON_BYTES} 字节的 JSON 文件")
+        data = path.read_bytes()
+    if len(data) > MAX_JSON_BYTES:
+        raise EvidenceError("EVIDENCE_RECORD_INVALID", "证据输入超过大小限制")
+    try:
+        raw = json.loads(data.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError, RecursionError) as exc:
+        raise EvidenceError("EVIDENCE_RECORD_INVALID", "证据输入 JSON 无效") from exc
+    if not isinstance(raw, dict):
+        raise EvidenceError("EVIDENCE_RECORD_INVALID", "证据输入必须是 JSON 对象")
+    return raw
+
+
+def _state_signature(status: Mapping[str, object], slug: str) -> dict[str, object]:
+    from workspace_status import _single_feature_progress
+
+    feature = next(item for item in status["features"] if item["featureSlug"] == slug)
+    stage = _single_feature_progress(feature, mode=str(status["mode"]))
+    diagnostics = feature.get("documentDiagnostics", [])
+    return {
+        "trustedProgress": feature.get("trustedProgress"),
+        "verificationPassed": feature.get("verificationPassed"),
+        "blockers": stage.get("blockers"),
+        "currentStage": stage.get("currentStage"),
+        "diagnostics": sorted(
+            (item.get("severity"), item.get("code"), item.get("message"))
+            for item in diagnostics if isinstance(item, Mapping)
+        ),
+    }
+
+
+def _record_trust(root: Path, feature: Path, raw: Mapping[str, object]) -> bool | None:
+    if raw.get("kind") != "taskEvidence":
+        return None
+    from workspace_status import _task_repository_roots, plan_analysis
+
+    root = Path(root).resolve()
+    analysis = plan_analysis(feature / "plans" / "implementation.md")
+    task = next((value for value in analysis["tasks"] if value.get("id") == raw.get("taskId")), None)
+    if task is None:
+        return False
+    repository = task.get("repository")
+    mode = "workspace" if (root / ".workspace/workspace.json").is_file() else "maintenance"
+    item = {"repositories": [repository] if isinstance(repository, str) else [root.name]}
+    evidence = {
+        **raw,
+        "deliveryCheck": "通过" if raw.get("deliveryCheck") == "passed" else "失败",
+        "checks": [
+            {**check, "exitStatus": str(check.get("exitStatus")), "source": {"path": "testing/evidence/index.json", "startLine": 1}}
+            for check in raw.get("checks", []) if isinstance(check, Mapping)
+        ],
+        "issues": [],
+        "source": {"path": "testing/evidence/index.json", "startLine": 1},
+    }
+    return bool(evaluate_task_evidence(
+        task,
+        evidence,
+        _task_repository_roots(root, mode, item),
+        workspace_root=root,
+        feature_root=feature,
+    )["trusted"])
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "record":
+            _, feature = _resolve_feature_path(args.root, args.feature)
+            from workspace_status import plan_analysis
+
+            if plan_analysis(feature / "plans" / "implementation.md")["completionPolicy"] != "task-evidence-v2":
+                raise EvidenceError("EVIDENCE_POLICY_INVALID", "record 只适用于 task-evidence-v2 Feature")
+            raw = _record_input(args.input)
+            record(feature, raw, preview=True)
+            trusted = _record_trust(args.root, feature, raw)
+            if args.preview:
+                result = record(feature, raw, preview=True, trusted=trusted)
+            else:
+                with mutation_lock(feature):
+                    result = record(feature, raw, preview=False, trusted=trusted, _locked=True)
+                    refresh_summary(args.root, args.feature, feature)
+            result["preview"] = bool(args.preview)
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
+        if args.command == "evidence":
+            _, feature = _resolve_feature_path(args.root, args.feature)
+            result = get_evidence(feature, task_id=args.task, batch_id=args.batch, evidence_id=args.evidence_id)
+            if args.task is not None:
+                result = dict(result)
+                if args.evidence_id is not None:
+                    result.update({"trusted": None, "diagnostics": result.get("issues", [])})
+                else:
+                    from workspace_status import status_result
+
+                    status = status_result(Path(args.root).resolve())
+                    current = next(item for item in status["features"] if item["featureSlug"] == feature.name)
+                    judgement = next((item for item in current.get("taskEvidence", []) if item["taskId"] == args.task), None)
+                    result.update({"trusted": judgement["trusted"] if judgement else None,
+                                   "diagnostics": judgement["diagnostics"] if judgement else []})
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
+        if args.command == "history":
+            _, feature = _resolve_feature_path(args.root, args.feature)
+            print(json.dumps(history_page(feature, cursor=args.cursor, task_id=args.task, batch_id=args.batch, limit=args.limit), ensure_ascii=False))
+            return 0
+        if args.command == "render":
+            if args.preview and args.apply:
+                raise EvidenceError("EVIDENCE_ARGUMENT_INVALID", "preview 与 apply 互斥")
+            _, feature = _resolve_feature_path(args.root, args.feature)
+            result = render_preview(args.root, args.feature, feature)
+            if args.apply and result["changed"]:
+                refresh_summary(args.root, args.feature, feature)
+            result["preview"] = not args.apply
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
+        if args.command in {"migrate", "compact"}:
+            if args.preview and args.apply:
+                raise EvidenceError("EVIDENCE_ARGUMENT_INVALID", "preview 与 apply 互斥")
+            from workspace_status import status_result
+
+            _, feature = _resolve_feature_path(args.root, args.feature)
+            def run_operation(locked: bool) -> dict[str, object]:
+                if args.apply:
+                    recover_transaction(feature, args.command, _locked=locked)
+                before = _state_signature(status_result(Path(args.root).resolve()), args.feature)
+                if args.command == "migrate":
+                    operation_result = migrate_feature(feature, preview=not args.apply, _locked=locked)
+                    if args.apply:
+                        try:
+                            after = _state_signature(status_result(Path(args.root).resolve()), args.feature)
+                            if before != after:
+                                raise EvidenceError("EVIDENCE_STATE_MISMATCH", "迁移前后可信状态不一致")
+                            refresh_summary(args.root, args.feature, feature)
+                        except BaseException:
+                            rollback_migration(feature, str(operation_result["archive"]))
+                            raise
+                else:
+                    operation_result = compact_feature(feature, preview=not args.apply, _locked=locked)
+                    if args.apply:
+                        try:
+                            after = _state_signature(status_result(Path(args.root).resolve()), args.feature)
+                            if before != after:
+                                raise EvidenceError("EVIDENCE_STATE_MISMATCH", "压缩前后可信状态不一致")
+                            operation_result["summaryChanged"] = refresh_summary(args.root, args.feature, feature) if operation_result.get("changed") else False
+                        except BaseException:
+                            if operation_result.get("changed"):
+                                rollback_compact(feature, str(operation_result["archive"]))
+                            raise
+                return operation_result
+
+            if args.apply:
+                with mutation_lock(feature):
+                    result = run_operation(True)
+            else:
+                result = run_operation(False)
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
         result = snapshot_result(args.root, args.feature)
-    except (OSError, RuntimeError, UnicodeError, ValueError) as exc:
+    except (OSError, RuntimeError, UnicodeError, ValueError, EvidenceError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False) if args.json else json.dumps(result, ensure_ascii=False, indent=2))

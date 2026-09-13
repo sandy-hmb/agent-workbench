@@ -19,6 +19,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import workspace_extension  # noqa: E402
 import workspace_status  # noqa: E402
 import workspace_workflow  # noqa: E402
+import workspace_evidence  # noqa: E402
+import workspace_inspect  # noqa: E402
 
 
 ACTION_FIXTURE = ROOT / "tests" / "fixtures" / "action-extension"
@@ -190,6 +192,61 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         evidence = verification.read_text(encoding="utf-8")
         self.assertIn("已有人工记录。", evidence)
         self.assertIn("Workflow Action `team-delivery.integration-test`", evidence)
+
+    def test_v2_run_keeps_action_events_out_of_markdown(self) -> None:
+        self.write_overlay([{
+            "id": "team-delivery.integration-test", "after": "feature.implement",
+            "uses": "action-extension/integration-test",
+        }])
+        self.activate_overlay()
+        feature = self.root / ".workspace/docs/features/feature"
+        feature.mkdir(parents=True)
+        (feature / "README.md").write_text("# Feature\n", encoding="utf-8")
+        (feature / "plans").mkdir()
+        (feature / "plans/implementation.md").write_text("- 完成门禁：`task-evidence-v2`\n", encoding="utf-8")
+        (feature / "testing").mkdir()
+        workspace_evidence.record(feature, {
+            "kind": "taskEvidence", "taskId": "T01", "recordedAt": "2026-09-13T10:00:00Z",
+            "repository": "service", "codeState": {"service": "sha256:" + "a" * 64},
+            "checks": [{"type": "静态检查", "workingDirectory": "service", "command": "true", "target": "README.md", "exitStatus": 0, "result": "通过"}],
+            "artifactRefs": [], "validationKind": "声明式", "deliveryCheck": "passed", "result": "passed",
+        })
+        run = workspace_workflow.start_run(self.root, feature_slug="feature")
+        plan = workspace_workflow.plan_result(self.root, "feature", after="feature.implement")
+        workspace_workflow.finish(
+            self.root, run["id"], "team-delivery.integration-test",
+            plan["pending"][0]["planHash"], status="succeeded", summary="completed",
+        )
+        raw = json.loads((self.root / ".workspace/runs/feature.json").read_text())
+        self.assertEqual(2, raw["schemaVersion"])
+        self.assertEqual("succeeded", raw["events"][0]["status"])
+        summary = (feature / "testing/verification.md").read_text()
+        self.assertIn("## Workflow Action", summary)
+        self.assertIn("team-delivery.integration-test：succeeded", summary)
+        inspected = workspace_inspect.run(self.root.resolve(), "feature")
+        self.assertEqual("succeeded", inspected["events"][0]["status"])
+
+    def test_existing_v1_run_upgrades_when_feature_moves_to_v2(self) -> None:
+        self.write_overlay([{
+            "id": "team-delivery.integration-test", "after": "feature.implement",
+            "uses": "action-extension/integration-test",
+        }])
+        self.activate_overlay()
+        feature = self.root / ".workspace/docs/features/feature"
+        feature.mkdir(parents=True)
+        (feature / "README.md").write_text("# Feature\n", encoding="utf-8")
+        run = workspace_workflow.start_run(self.root, feature_slug="feature")
+        self.assertEqual(1, run["schemaVersion"])
+        (feature / "plans").mkdir()
+        (feature / "plans/implementation.md").write_text("- 完成门禁：`task-evidence-v2`\n", encoding="utf-8")
+        plan = workspace_workflow.plan_result(self.root, "feature", after="feature.implement")
+        workspace_workflow.finish(
+            self.root, "feature", "team-delivery.integration-test",
+            plan["pending"][0]["planHash"], status="succeeded", summary="completed",
+        )
+        upgraded = json.loads((self.root / ".workspace/runs/feature.json").read_text())
+        self.assertEqual(2, upgraded["schemaVersion"])
+        self.assertEqual(["succeeded"], [item["status"] for item in upgraded["events"]])
 
         with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "显式提供 run id"):
             workspace_workflow.start_run(self.root, repository="service", branch="owner/fix/light")

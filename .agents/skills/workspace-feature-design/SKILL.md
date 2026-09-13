@@ -53,7 +53,7 @@ Requirements 开头说明目标，按需包含背景、范围、用户场景、�
    每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md` 和 `templates/feature/requirements.md`，只创建 `.workspace/docs/features/<slug>/README.md` 和 `requirements/requirements.md`，并写入 registry 计算的分支与基线。按文档协议填入实际内容，自审需求可验证、无歧义且没有占位内容，将 README 的需求审阅记为“待审阅”，再请用户审阅实际文件；未获批准不得进入 Design。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 和 `python3 scripts/kit.py brief <slug> --check --json` 校验元数据与本地结构。
 4. 用户批准实际需求文件后将 README 的需求审阅记为“已批准”，并在同一轮继续方案设计；只有真实关键取舍未决时才提问。结论收敛后直接创建 `design/design.md` 及已确认必要的附件并从 README 链接。附件只能因独立读者、审阅、执行或维护需要拆分，先说明内容归属和读取任务；主设计保留完整方案和全部规范 D 决策的结论、理由、关键结构、影响和风险，附件只展开字段字典、DDL、请求响应样例或逐步执行清单等细节。写入后执行内容、结构和阅读自审：检查占位内容、内部矛盾、范围和表述歧义，再核对需求覆盖、关键假设和方案一致性；运行 `brief <slug> --check --json`；查看 Markdown 预览的标题顺序、表格、步骤、空行和长内容。预览不可用时检查源文件块结构并说明限制。修正后将 README 的设计审阅记为“待审阅”，再请用户审阅整个 Design 审阅包。新建、删除或实质修改任一附件时，设计审阅及已有计划审阅都回到“待审阅”。唯一例外是尚未生成计划时，计划生成阶段已按 `workspace-writing-plan` 的定向修订规则取得用户对已披露变更的明确选择；写回并自审后保持设计审阅为“已批准”。用户批准整个 Design 审阅包后将设计记为“已批准”，并在没有新阻塞时于同一轮生成实施计划草案；书面设计未获批准，不得生成实施计划或开始实现。
 5. 书面设计获批准后，读取 `workspace-writing-plan`，由它直接生成和自审 `plans/implementation.md` 草案，不再要求用户确认计划摘要。实际计划、基线、分支和执行方式的批准属于计划 Skill；计划获批前需求保持 `planning`。
-6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到受影响文档；小迭代可合并审阅，重大变化仍逐阶段审阅。`testing/verification.md` 只在首次实际验证时创建，记录真实命令、退出状态和结果。
+6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到受影响文档；小迭代可合并审阅，重大变化仍逐阶段审阅。`testing/evidence/` 只在首次实际验证时创建并保存机器证据，`testing/verification.md` 是有界人类摘要。
 
 ## 边界
 

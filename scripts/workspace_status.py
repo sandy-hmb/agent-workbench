@@ -47,8 +47,10 @@ from workspace_local import load_local_settings  # noqa: E402
 from workspace_workflow import status_result as workflow_status  # noqa: E402
 from workspace_verification import (  # noqa: E402
     describe_task_evidence_document,
+    describe_structured_evidence,
     evaluate_task_evidence,
     feature_code_state,
+    structured_verification_passed,
     verification_passed as batch_verification_passed,
 )
 
@@ -72,7 +74,7 @@ DELIVERABLE_RE = re.compile(
     r"^\s*-\s*(Create|Modify|Test|Delete|Verify)：\s*(.*?)\s*$"
 )
 INLINE_CODE_RE = re.compile(r"`([^`]+)`")
-COMPLETION_POLICIES = {"task-evidence-v1"}
+COMPLETION_POLICIES = {"task-evidence-v1", "task-evidence-v2"}
 VALIDATION_KINDS = {"行为", "声明式", "持久化"}
 VERIFICATION_RECORD_RE = re.compile(
     r"^## (?:执行记录 \d{4}-\d{2}-\d{2}|验证批次 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}))\s*$",
@@ -660,14 +662,17 @@ def _task_evidence_state(
     verification: Path,
 ) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]:
     tasks = analysis["tasks"]
-    if analysis["completionPolicy"] != "task-evidence-v1":
+    if analysis["completionPolicy"] not in {"task-evidence-v1", "task-evidence-v2"}:
         return (
             {"applicable": False, "completed": None, "total": len(tasks)},
             [],
             [],
         )
-    text = verification.read_text(encoding="utf-8") if verification.is_file() else ""
-    evidence = describe_task_evidence_document(text)["latestByTask"]
+    if analysis["completionPolicy"] == "task-evidence-v2":
+        evidence = describe_structured_evidence(feature)["latestByTask"]
+    else:
+        text = verification.read_text(encoding="utf-8") if verification.is_file() else ""
+        evidence = describe_task_evidence_document(text)["latestByTask"]
     roots = _task_repository_roots(root, mode, item)
     results = []
     diagnostics = []
@@ -704,6 +709,9 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     verification = feature / "testing" / "verification.md"
     if verification.is_symlink():
         raise ValueError(f"验证记录不允许符号链接：{verification}")
+    for marker in (feature / "testing/.evidence-transaction.json", feature / "testing/evidence/.transaction.json"):
+        if marker.exists() or marker.is_symlink():
+            raise ValueError(f"EVIDENCE_TRANSACTION_INCOMPLETE: 证据事务尚未恢复：{marker}")
     plan = feature / "plans" / "implementation.md"
     analysis = plan_analysis(
         plan,
@@ -713,9 +721,16 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     trusted_progress, task_evidence, evidence_diagnostics = _task_evidence_state(
         root, mode, feature, item, analysis, verification
     )
-    record = verification_record(feature)
+    structured = (
+        describe_structured_evidence(feature)
+        if analysis["completionPolicy"] == "task-evidence-v2"
+        else None
+    )
+    record = verification_record(feature) if structured is None else None
     current_states = None
-    if record is not None and record.startswith("## 验证批次 "):
+    if (record is not None and record.startswith("## 验证批次 ")) or (
+        structured is not None and structured["latestBatch"] is not None
+    ):
         try:
             current_states = feature_code_state(root, mode, item)
         except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError):
@@ -734,11 +749,15 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
             *analysis["diagnostics"],
             *evidence_diagnostics,
         ],
-        "verificationExists": verification.is_file(),
-        "verificationPassed": batch_verification_passed(record, current_states),
+        "verificationExists": bool(structured["index"]["history"]) if structured is not None else verification.is_file(),
+        "verificationPassed": (
+            structured_verification_passed(structured["latestBatch"], current_states)
+            if structured is not None
+            else batch_verification_passed(record, current_states)
+        ),
         "artifacts": artifact_summary(feature),
     }
-    if analysis["completionPolicy"] == "task-evidence-v1":
+    if analysis["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
         result.update(
             {
                 "completionPolicy": analysis["completionPolicy"],
@@ -1215,6 +1234,18 @@ def status_result(root: Path, *, context_sources: bool = False) -> dict[str, obj
         result["degradedFeatures"] = degraded_features
     if context_sources:
         result["contextSources"] = _context_sources(root)
+    for item in features:
+        if item.get("completionPolicy") != "task-evidence-v2":
+            continue
+        from workspace_verification import render_status_summary
+
+        feature_path = root / str(item["path"])
+        human = feature_path / "testing/verification.md"
+        if not human.is_file():
+            item["humanViewState"] = "missing"
+        else:
+            expected = render_status_summary(root, str(item["featureSlug"]), feature_path, item)
+            item["humanViewState"] = "matched" if human.read_text(encoding="utf-8") == expected else "drifted"
     return result
 
 
@@ -1291,6 +1322,31 @@ def _render_text(result: dict[str, object]) -> None:
             )
 
 
+def _project(result: dict[str, object], projection: str) -> dict[str, object]:
+    if projection == "full":
+        projected = dict(result)
+        projected["features"] = [
+            {key: value for key, value in feature.items() if key != "taskEvidence"}
+            if feature.get("completionPolicy") == "task-evidence-v2"
+            else feature
+            for feature in result.get("features", [])
+        ]
+        return projected
+    projected = dict(result)
+    features = []
+    for raw in result.get("features", []):
+        feature = dict(raw)
+        feature.pop("taskEvidence", None)
+        diagnostics = feature.get("documentDiagnostics")
+        if isinstance(diagnostics, list) and diagnostics:
+            counts = Counter(str(item.get("code")) for item in diagnostics if isinstance(item, dict))
+            feature["diagnosticSummary"] = {"total": len(diagnostics), "byCode": dict(sorted(counts.items()))}
+            feature["documentDiagnostics"] = diagnostics[:10]
+        features.append(feature)
+    projected["features"] = features
+    return projected
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1300,6 +1356,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="治理仓目录（默认脚本所在项目目录）",
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--projection", choices=("summary", "full"), default="summary",
+        help="summary 省略逐任务证据；full 为 v1 兼容输出",
+    )
     parser.add_argument(
         "--context-sources",
         action="store_true",
@@ -1312,10 +1372,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = status_result(args.root, context_sources=args.context_sources)
+        projected = _project(result, args.projection)
         if args.json:
-            print(json.dumps(result, ensure_ascii=False))
+            print(json.dumps(projected, ensure_ascii=False))
         else:
-            _render_text(result)
+            _render_text(projected)
         doctor = result["doctor"]
         assert isinstance(doctor, dict)
         return 1 if doctor["errors"] else 0

@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -383,7 +384,7 @@ def _task_state(
     if any(item["severity"] == "error" for item in diagnostics):
         return None, [], ["计划存在结构错误，修复后才能选择可执行任务"], True
     tasks = analysis["tasks"]
-    evidence_contract = analysis["completionPolicy"] == "task-evidence-v1"
+    evidence_contract = analysis["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}
     trusted = {
         result["taskId"]
         for result in task_evidence
@@ -646,7 +647,13 @@ def brief_result(
         analysis, task_evidence
     )
     progress = plan_progress(plan)
-    record = verification_record(feature_dir)
+    if analysis["completionPolicy"] == "task-evidence-v2":
+        record = (
+            f"结构化验证：{'通过' if feature['verificationPassed'] else '未通过或未执行'}；"
+            f"可信进度：{feature['trustedProgress']['completed']}/{feature['trustedProgress']['total']}"
+        )
+    else:
+        record = verification_record(feature_dir)
     verification_summary = record[:VERIFICATION_SUMMARY_LIMIT] if record is not None else None
     verification_truncated = record is not None and len(record) > VERIFICATION_SUMMARY_LIMIT
     selected_task = _selected_task(task_id, analysis, plan)
@@ -668,7 +675,7 @@ def brief_result(
             *_link_diagnostics(feature_dir),
             *instruction_diagnostics,
         ],
-        "verificationTail": _verification_tail(feature_dir),
+        "verificationTail": [] if analysis["completionPolicy"] == "task-evidence-v2" else _verification_tail(feature_dir),
         "blockers": [
             blocker
             for blocker in status["blockers"]
@@ -691,7 +698,7 @@ def brief_result(
             for repo, branch in feature["branches"]
         ],
     }
-    if analysis["completionPolicy"] == "task-evidence-v1":
+    if analysis["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
         result.update(
             {
                 "completionPolicy": analysis["completionPolicy"],
@@ -769,9 +776,24 @@ def _render_text(result: dict[str, object]) -> None:
 
 
 def _project(result: dict[str, object], projection: str) -> dict[str, object]:
-    """按投影裁剪输出；full 返回原结果，不改变 brief_result 的形状。"""
-    if projection != "execution":
-        return result
+    """按投影裁剪输出；v1 full 保持原形状，v2 不提供历史旁路。"""
+    if projection == "full":
+        if result.get("completionPolicy") != "task-evidence-v2":
+            return result
+        projected = dict(result)
+        projected.pop("taskEvidence", None)
+        return projected
+    if projection == "summary":
+        projected = dict(result)
+        projected.pop("taskEvidence", None)
+        diagnostics = projected.get("documentDiagnostics")
+        if isinstance(diagnostics, list) and diagnostics:
+            projected["diagnosticSummary"] = {
+                "total": len(diagnostics),
+                "byCode": dict(sorted(Counter(str(item.get("code")) for item in diagnostics).items())),
+            }
+            projected["documentDiagnostics"] = diagnostics[:10]
+        return projected
     projected = {
         field: result[field] for field in EXECUTION_PROJECTION_FIELDS if field in result
     }
@@ -802,9 +824,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--execution", action="store_true", help="补充连续执行决策与可执行队列")
     parser.add_argument(
         "--projection",
-        choices=("full", "execution"),
-        default="full",
-        help="execution 只保留执行循环消费的字段",
+        choices=("summary", "execution", "full"),
+        default="summary",
+        help="summary 为默认有界输出；execution 只保留执行循环字段；full 为 v1 兼容输出",
     )
     parser.add_argument("--json", action="store_true")
     return parser

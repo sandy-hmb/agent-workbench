@@ -33,8 +33,8 @@ from workspace_model import VERSION
 from workspace_extension import _read_lock, extension_status
 from workspace_paths import features_root, state_root, workflow_file, workflow_runs_root
 from workspace_status import _single_feature_progress, _task_evidence_state, artifact_summary, document_reviews, plan_analysis, plan_progress, verification_record
-from workspace_verification import describe_verification_document, feature_code_state, verification_passed
-from workspace_workflow import CORE_WORKFLOW, FINGERPRINT_RE, RUN_FIELDS, RUN_STATUSES, STAGE_RECORD_FIELDS, _resolve, _stage_fingerprint, _valid_run_id
+from workspace_verification import describe_structured_evidence, describe_verification_document, feature_code_state, structured_verification_passed, verification_passed
+from workspace_workflow import CORE_WORKFLOW, FINGERPRINT_RE, RUN_FIELDS, RUN_STATUSES, RUN_V2_FIELDS, STAGE_RECORD_FIELDS, _resolve, _stage_fingerprint, _valid_run_id
 from workflow_model import load_core_workflow, load_overlay, resolve_stages
 
 API_MAJOR = 1
@@ -131,7 +131,8 @@ def _inspect_run(path: Path, root: Path, deadline: Deadline) -> tuple[dict[str, 
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise InspectError("INSPECT_INVALID_DATA", "Run JSON 无效", source=str(path)) from exc
     run_id = path.stem
-    if not _valid_run_id(run_id) or not isinstance(value, dict) or set(value) != RUN_FIELDS or value.get("schemaVersion") != 1 or value.get("id") != run_id:
+    version = value.get("schemaVersion") if isinstance(value, dict) else None
+    if not _valid_run_id(run_id) or not isinstance(value, dict) or set(value) != (RUN_V2_FIELDS if version == 2 else RUN_FIELDS) or version not in {1, 2} or value.get("id") != run_id:
         raise InspectError("INSPECT_INVALID_DATA", "Run 结构无效", source=str(path))
     if not isinstance(value.get("workflow"), str) or not isinstance(value.get("stages"), dict):
         raise InspectError("INSPECT_INVALID_DATA", "Run 字段无效", source=str(path))
@@ -145,6 +146,22 @@ def _inspect_run(path: Path, root: Path, deadline: Deadline) -> tuple[dict[str, 
             raise InspectError("INSPECT_INVALID_DATA", "Run stage 结构无效", source=str(path))
         if not isinstance(record["fingerprint"], str) or not FINGERPRINT_RE.fullmatch(record["fingerprint"]) or record["status"] not in RUN_STATUSES or not isinstance(record["updatedAt"], str) or not record["updatedAt"].endswith("Z") or not isinstance(record["summary"], str):
             raise InspectError("INSPECT_INVALID_DATA", "Run stage 字段无效", source=str(path))
+    if value.get("schemaVersion") == 2:
+        events = value.get("events")
+        if not isinstance(events, list):
+            raise InspectError("INSPECT_INVALID_DATA", "Run events 无效", source=str(path))
+        for sequence, event in enumerate(events, 1):
+            if (
+                not isinstance(event, dict)
+                or set(event) != {"sequence", "stage", "fingerprint", "status", "updatedAt", "summary"}
+                or event.get("sequence") != sequence
+                or not isinstance(event.get("stage"), str)
+                or not isinstance(event.get("fingerprint"), str) or not FINGERPRINT_RE.fullmatch(event["fingerprint"])
+                or event.get("status") not in RUN_STATUSES
+                or not isinstance(event.get("updatedAt"), str) or not event["updatedAt"].endswith("Z")
+                or not isinstance(event.get("summary"), str)
+            ):
+                raise InspectError("INSPECT_INVALID_DATA", "Run event 结构无效", source=str(path))
     return value, data
 
 
@@ -340,8 +357,11 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
     )
     reviews, _, _ = document_reviews(feature, readme_text)
     verification_path = feature / "testing" / "verification.md"
-    verification_text = _read(verification_path, root, deadline=deadline).decode("utf-8") if verification_path.is_file() else None
-    verification = verification_record(feature, verification_text)
+    if plan["completionPolicy"] == "task-evidence-v2":
+        verification = describe_structured_evidence(feature)["index"]["summary"]["records"] > 0
+    else:
+        verification_text = _read(verification_path, root, deadline=deadline).decode("utf-8") if verification_path.is_file() else None
+        verification = verification_record(feature, verification_text) is not None
     progress = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
     trusted, _, evidence_diagnostics = _task_evidence_state(
         root, _mode(root), feature, item, plan, verification_path
@@ -351,14 +371,14 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
         **progress,
         "diagnostics": [*plan["diagnostics"], *evidence_diagnostics],
     }
-    if plan["completionPolicy"] == "task-evidence-v1":
+    if plan["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
         plan_summary.update(
             {
                 "completionPolicy": plan["completionPolicy"],
                 "trustedProgress": trusted,
             }
         )
-    return {"slug": item["featureSlug"], "title": title, "titleSource": title_source, "status": item["status"], "path": item["path"], "lastUpdated": item["lastUpdated"], "repositoryBindings": [{"repository": repo, "workBranch": branches.get(repo), "baseBranch": bases.get(repo), "source": "README.md"} for repo in item["repositories"]], "planSummary": plan_summary, "documentReviews": reviews, "verificationSummary": {"exists": verification is not None, "codeState": "not_checked"}}
+    return {"slug": item["featureSlug"], "title": title, "titleSource": title_source, "status": item["status"], "path": item["path"], "lastUpdated": item["lastUpdated"], "repositoryBindings": [{"repository": repo, "workBranch": branches.get(repo), "baseBranch": bases.get(repo), "source": "README.md"} for repo in item["repositories"]], "planSummary": plan_summary, "documentReviews": reviews, "verificationSummary": {"exists": verification, "codeState": "not_checked"}}
 
 
 def workspace(root: Path, deadline: Deadline | None = None) -> dict[str, object]:
@@ -446,7 +466,7 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
                 for key in ("id", "title", "completed", "dependencies", "references",
                             "startLine", "endLine")
             }
-        if plan["completionPolicy"] == "task-evidence-v1":
+        if plan["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
             value.update(
                 {
                     "repository": task["repository"],
@@ -471,7 +491,7 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
         p = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
         reviews, _, recorded = document_reviews(directory, readme_text)
         known = {**item, "progress": p, "documentReviews": reviews, "documentReviewsRecorded": recorded, "planExists": plan_path.is_file(), "designExists": (directory / "design/design.md").is_file(), "verificationPassed": False}
-        if plan["completionPolicy"] == "task-evidence-v1":
+        if plan["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
             known.update({"completionPolicy": plan["completionPolicy"], "trustedProgress": summary["planSummary"]["trustedProgress"], "taskEvidence": evidence_results})
         existing = _single_feature_progress(known, mode=_mode(root))
         progression = {"state": "needs_code_check" if existing["currentStage"] in {"feature.verify", "feature.submit-test", "feature.complete"} else "known", "currentStage": existing["currentStage"], "nextActions": existing["nextActions"], "blockers": existing["blockers"]}
@@ -629,10 +649,21 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
 
     verification_path = directory / "testing/verification.md"
     latest_verification = None
+    policy = detail["summary"]["planSummary"].get("completionPolicy")
+    if policy == "task-evidence-v2":
+        selected = describe_structured_evidence(directory)["latestBatch"]
+        if selected is not None:
+            latest_verification = {
+                "recordedAt": selected.get("recordedAt"),
+                "recordedResult": selected.get("overallResult"),
+                "recordedReview": selected.get("reviewResult"),
+                "completeness": "complete" if not selected.get("issues") else "incomplete",
+                "source": selected.get("source"),
+            }
     if verification_path.is_file() and not verification_path.is_symlink():
         verification_data = _read(verification_path, root, deadline=deadline)
         verification_text = verification_data.decode("utf-8")
-        selected = describe_verification_document(verification_text)["selectedBatch"]
+        selected = describe_verification_document(verification_text)["selectedBatch"] if policy != "task-evidence-v2" else None
         if selected is not None:
             latest_verification = {
                 key: selected.get(key)
@@ -957,9 +988,26 @@ def search(
 
 def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | None = None) -> dict[str, object]:
     detail = feature(root, slug, deadline); directory = _feature_dir(root, slug); mode = _mode(root)
-    document_text = _read(directory / "testing" / "verification.md", root, deadline=deadline).decode("utf-8") if (directory / "testing" / "verification.md").is_file() else ""
-    record = verification_record(directory, document_text if document_text else None)
-    described = describe_verification_document(document_text)
+    policy = detail["summary"]["planSummary"].get("completionPolicy")
+    document_text = (
+        _read(directory / "testing" / "verification.md", root, deadline=deadline).decode("utf-8")
+        if policy != "task-evidence-v2" and (directory / "testing" / "verification.md").is_file()
+        else ""
+    )
+    if policy == "task-evidence-v2":
+        structured = describe_structured_evidence(directory)
+        index = structured["index"]
+        latest = structured["latestBatch"]
+        described = {
+            "documentRevision": index["revision"],
+            "batches": [item for item in index["history"] if item.get("kind") == "batch"],
+            "latestBatchId": latest.get("id") if latest else None,
+            "selectedBatch": latest,
+        }
+        record = None
+    else:
+        record = verification_record(directory, document_text if document_text else None)
+        described = describe_verification_document(document_text)
     states: list[dict[str, object]] = []
     result = "unknown"
     if record:
@@ -967,19 +1015,25 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
         if "- 总体结果：通过" in header: result = "passed"
         elif "- 总体结果：失败" in header: result = "failed"
     applicability = "historical" if detail["summary"]["status"] == "done" else "not_checked"
-    if check_code and detail["summary"]["status"] != "done" and record:
+    if check_code and detail["summary"]["status"] != "done" and (record or described["selectedBatch"] is not None):
         try:
             item = next(x for x in _features(root, deadline)[0] if x["featureSlug"] == slug)
             expected = dict(item["branches"])
             recorded = {}
             if described["selectedBatch"] is not None:
+                if policy == "task-evidence-v2":
+                    recorded = described["selectedBatch"].get("codeState", {})
                 raw = described["selectedBatch"].get("raw", "")
                 match = re.search(r"^- 代码状态：(.*)$", raw, re.MULTILINE)
                 if match:
                     try: recorded = json.loads(match.group(1))
                     except json.JSONDecodeError: recorded = {}
             current: dict[str, str] = {}
-            record_valid = verification_passed(record, recorded) if recorded else False
+            record_valid = (
+                structured_verification_passed(described["selectedBatch"], recorded)
+                if policy == "task-evidence-v2"
+                else verification_passed(record, recorded)
+            ) if recorded else False
             for name in item["repositories"]:
                 try:
                     if mode == "maintenance": path = root
@@ -1005,16 +1059,20 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
                 except Exception:
                     states.append({"repository": name, "state": "unknown", "reasonCodes": ["INSPECT_INVALID_DATA"], "recordedFingerprint": recorded.get(name), "currentFingerprint": None, "currentHead": None, "source": "git"})
             complete = described["selectedBatch"] is not None and described["selectedBatch"].get("completeness") == "complete"
-            applicable = verification_passed(record, current)
+            applicable = (
+                structured_verification_passed(described["selectedBatch"], current)
+                if policy == "task-evidence-v2"
+                else verification_passed(record, current)
+            )
             applicability = "valid" if record_valid and applicable and len(current) == len(item["repositories"]) and all(row["state"] == "matched" for row in states) else "invalid" if not record_valid or result == "failed" or not complete or any(row["state"] == "changed" for row in states) else "unknown"
         except Exception:
             states.append({"repository": name if 'name' in locals() else None, "state": "unknown", "reasonCodes": ["INSPECT_INVALID_DATA"], "recordedFingerprint": recorded.get(name) if 'name' in locals() else None, "currentFingerprint": None, "currentHead": None, "source": "git"}); applicability = "unknown"
-    elif record is None and detail["summary"]["status"] != "done": applicability = "not_checked"
+    elif record is None and described["selectedBatch"] is None and detail["summary"]["status"] != "done": applicability = "not_checked"
     if not states:
         item = next((x for x in _features(root, deadline)[0] if x["featureSlug"] == slug), None)
         states = [{"repository": name, "state": "not_checked", "reasonCodes": [], "recordedFingerprint": None, "currentFingerprint": None, "currentHead": None, "source": "record"} for name in item["repositories"]] if item else []
-    result = {"slug": slug, "featureRevision": detail["featureRevision"], "documentRevision": described["documentRevision"] if document_text else None, "batches": described["batches"], "latestBatchId": described["latestBatchId"], "selectedBatch": described["selectedBatch"], "checkMode": "code_checked" if check_code else "records_only", "repositoryStates": states, "applicability": applicability, "progression": detail["progression"]}
-    if detail["summary"]["planSummary"].get("completionPolicy") == "task-evidence-v1":
+    result = {"slug": slug, "featureRevision": detail["featureRevision"], "documentRevision": described["documentRevision"] if (document_text or policy == "task-evidence-v2") else None, "batches": described["batches"], "latestBatchId": described["latestBatchId"], "selectedBatch": described["selectedBatch"], "checkMode": "code_checked" if check_code else "records_only", "repositoryStates": states, "applicability": applicability, "progression": detail["progression"]}
+    if policy in {"task-evidence-v1", "task-evidence-v2"}:
         result["taskEvidence"] = [
             {
                 "taskId": task["id"],
@@ -1117,7 +1175,7 @@ def run(root: Path, run_id: str, deadline: Deadline | None = None) -> dict[str, 
             records.append({"stage": stage_id, **record, "configurationMatch": match})
     except Exception:
         records = [{"stage": stage, **record, "configurationMatch": {"state": "unknown", "reasonCodes": ["INSPECT_CONFIGURATION_UNAVAILABLE"]}} for stage, record in raw["stages"].items()]
-    return {"id": raw["id"], "workflow": raw["workflow"], "featureSlug": raw["featureSlug"], "repository": raw["repository"], "branch": raw["branch"], "records": records, "source": source.relative_to(root).as_posix(), "sourceRevision": _revision(data), "rawRecord": raw}
+    return {"id": raw["id"], "workflow": raw["workflow"], "featureSlug": raw["featureSlug"], "repository": raw["repository"], "branch": raw["branch"], "records": records, "events": raw.get("events", []), "source": source.relative_to(root).as_posix(), "sourceRevision": _revision(data), "rawRecord": raw}
 
 
 def execute(args: argparse.Namespace) -> dict[str, object]:

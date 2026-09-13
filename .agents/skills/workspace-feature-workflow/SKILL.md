@@ -53,6 +53,6 @@ python3 scripts/workspace_workflow.py run \
 
 每次只读取当前 Core Skill 和当前 Action Skill；同一计划或迭代中已授权且实际影响未变化的 Action 可连续执行和重试，阶段或 Skill 切换不触发重复确认。Action、参数、effects、目标或环境改变后重新核对实际影响。详细日志留在本地路径，Agent 只接收结构化摘要。不要手工修改 `.workspace/workflow.json`、`.workspace/runs/`、Extension lock 或受管 Adapter。
 
-Action 如需写 feature 相关文件，必须由自身 SKILL.md 说明精确输出位置、文件归属和重复运行时的追加或覆盖方式；不预设扩展专用目录。它不得改写需求、设计或实施计划正文，除非用户已在当前阶段确认该内容变更。已有 `testing/verification.md` 时，Runner 只追加 Action 状态；文件尚不存在时不代建占位记录。
+Action 如需写 feature 相关文件，必须由自身 SKILL.md 说明精确输出位置、文件归属和重复运行时的追加或覆盖方式；不预设扩展专用目录。它不得改写需求、设计或实施计划正文，除非用户已在当前阶段确认该内容变更。v1 Feature 才向 `testing/verification.md` 追加 Action 状态；v2 Feature 的状态只写 `.workspace/runs` 并重建摘要，文件尚不存在时不代建占位记录。
 
 本 Skill 不自动部署、不创建代码审查请求、不提交或推送业务仓；这些行为必须由使用者定义 Action 并按本轮授权执行。

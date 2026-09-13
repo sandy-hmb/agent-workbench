@@ -126,9 +126,11 @@ flowchart LR
 | 状态 (Status) | 对应阶段 (Stage) | 必需文件与门禁要求 |
 | :--- | :--- | :--- |
 | **`planning`** | `feature.classify`<br>`feature.analyze`<br>`feature.design` | 1. 讨论并收敛需求范围与验收指标。<br>2. 生成 `requirements/requirements.md` (获批)。<br>3. 生成 `design/design.md` (获批)。<br>4. 生成 `plans/implementation.md` (获批)。 |
-| **`development`** | `feature.prepare-branch`<br>`feature.implement` | 1. 用户确认并创建分支。<br>2. 逐项执行 T01, T02...，采用 TDD 流程。<br>3. 每次完成任务必须在计划中填写 `task-evidence-v1`。<br>4. 连续推进直到遇到真阻塞或全部任务完成。 |
-| **`testing`** | `feature.verify`<br>`feature.submit-test` | 1. 运行目标仓全量验证命令。<br>2. 记录 `testing/verification.md` 包含实际命令与代码快照。<br>3. 如有配置 `testTarget`，执行交付提测。 |
+| **`development`** | `feature.prepare-branch`<br>`feature.implement` | 1. 用户确认并创建分支。<br>2. 逐项执行 T01, T02...，采用 TDD 流程。<br>3. 每次完成任务写入 `task-evidence-v2` 结构化证据。<br>4. 连续推进直到遇到真阻塞或全部任务完成。 |
+| **`testing`** | `feature.verify`<br>`feature.submit-test` | 1. 运行目标仓全量验证命令。<br>2. 写入 `testing/evidence/` 并生成有界 `testing/verification.md` 摘要。<br>3. 如有配置 `testTarget`，执行交付提测。 |
 | **`done`** | `feature.complete` | 1. 所有任务标记可信完成。<br>2. 运行 `kit.py feature set-status <slug> done` 归档。 |
+
+证据查询使用 `kit.py verify evidence <feature> --task <id> --json` 或 `kit.py verify history <feature> --cursor <cursor> --json`。迁移和压缩默认只预览，只有显式 `--apply` 才写入。
 
 ---
 

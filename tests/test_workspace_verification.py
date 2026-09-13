@@ -113,6 +113,17 @@ def evidence_task(validation_kind: str = "行为") -> dict[str, object]:
     }
 
 
+def task_evidence_payload(repository: str) -> dict[str, object]:
+    return {
+        "kind": "taskEvidence", "taskId": "T01", "recordedAt": "2026-09-13T10:00:00Z",
+        "repository": repository, "codeState": {repository: "sha256:" + "a" * 64},
+        "checks": [{"type": "测试", "workingDirectory": repository,
+                    "command": "python3 -m unittest", "target": "tests/test_service.py",
+                    "executed": 1, "skipped": 0, "exitStatus": 0, "result": "通过"}],
+        "artifactRefs": [], "validationKind": "行为", "deliveryCheck": "passed", "result": "passed",
+    }
+
+
 class WorkspaceVerificationTest(unittest.TestCase):
     def test_inspect_fingerprint_budget_rejects_large_untracked_content(self):
         path = self.repository / "large.bin"
@@ -408,6 +419,47 @@ class WorkspaceVerificationTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("demo-feature", value["featureSlug"])
         self.assertEqual({self.repository.name}, set(value["codeState"]))
+
+    def test_record_preview_and_history_cli_are_explicit(self) -> None:
+        feature = self.repository / "docs/development/features/demo-feature"
+        (feature / "plans").mkdir(parents=True)
+        (feature / "testing").mkdir()
+        (feature / "README.md").write_text(
+            "# Demo\n\n- 状态：development\n- 需求短名：`demo-feature`\n"
+            "- 工作分支：`main`\n- 基线分支：`main`\n- 最后更新：2026-09-07\n",
+            encoding="utf-8",
+        )
+        (feature / "plans/implementation.md").write_text("- 完成门禁：`task-evidence-v2`\n", encoding="utf-8")
+        record_path = self.repository / "record.json"
+        record_path.write_text(json.dumps(task_evidence_payload(self.repository.name)), encoding="utf-8")
+        before = sorted(path.relative_to(self.repository).as_posix() for path in self.repository.rglob("*") if path.is_file())
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = workspace_verification.main([
+                "record", "demo-feature", "--root", str(self.repository),
+                "--input", str(record_path), "--preview", "--json",
+            ])
+        self.assertEqual(0, code)
+        self.assertEqual(before, sorted(path.relative_to(self.repository).as_posix() for path in self.repository.rglob("*") if path.is_file()))
+        self.assertTrue(json.loads(output.getvalue())["preview"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, workspace_verification.main([
+                "record", "demo-feature", "--root", str(self.repository),
+                "--input", str(record_path), "--json",
+            ]))
+        summary = (feature / "testing/verification.md").read_text(encoding="utf-8")
+        self.assertIn("# 验证摘要", summary)
+        self.assertNotIn("python3 -m unittest", summary)
+
+    def test_record_rejects_non_object_and_symlinked_input(self) -> None:
+        source = self.repository / "record.json"
+        source.write_text("[]\n", encoding="utf-8")
+        with self.assertRaisesRegex(workspace_verification.EvidenceError, "EVIDENCE_RECORD_INVALID"):
+            workspace_verification._record_input(source)
+        linked = self.repository / "linked.json"
+        linked.symlink_to(source)
+        with self.assertRaisesRegex(workspace_verification.EvidenceError, "EVIDENCE_UNSAFE_PATH"):
+            workspace_verification._record_input(linked)
 
 
 if __name__ == "__main__":

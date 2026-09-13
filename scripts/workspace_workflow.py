@@ -63,6 +63,7 @@ CORE_WORKFLOW = SCRIPT_DIR.parent / "workflows" / "feature-development.json"
 RUN_FIELDS = frozenset(
     {"schemaVersion", "id", "workflow", "featureSlug", "repository", "branch", "stages"}
 )
+RUN_V2_FIELDS = RUN_FIELDS | {"events"}
 RUN_STATUSES = frozenset({"running", "succeeded", "failed", "skipped"})
 RUN_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -380,6 +381,15 @@ def _verification_file(root: Path, feature_slug: str | None) -> Path | None:
     return path
 
 
+def _feature_uses_v2(root: Path, feature_slug: str | None) -> bool:
+    if feature_slug is None:
+        return False
+    plan = features_root(root) / feature_slug / "plans" / "implementation.md"
+    if plan.is_symlink() or not plan.is_file():
+        return False
+    return bool(re.search(r"(?:completion-policy:\s*|完成门禁：\s*`?)task-evidence-v2\b", plan.read_text(encoding="utf-8")))
+
+
 def _valid_run_id(value: object) -> bool:
     return isinstance(value, str) and bool(RUN_ID_RE.fullmatch(value))
 
@@ -411,6 +421,7 @@ def start_run(
                 raise _command("WORKFLOW_INVALID", f"{label} 无效")
         _ensure_runs_root(root)
         _verification_file(root, feature_slug)
+        is_v2 = _feature_uses_v2(root, feature_slug)
         target = workflow_run_file(root, run_id)
         _safe_path(root, target)
         if target.exists() or target.is_symlink():
@@ -426,7 +437,7 @@ def start_run(
             raise _command("WORKFLOW_RUN_EXISTS", f"Workflow Run 已存在且上下文不同：{run_id}")
         _require_ignored(root, ".workspace/runs")
         run = {
-            "schemaVersion": 1,
+            "schemaVersion": 2 if is_v2 else 1,
             "id": run_id,
             "workflow": core.id,
             "featureSlug": feature_slug,
@@ -434,6 +445,8 @@ def start_run(
             "branch": branch,
             "stages": {},
         }
+        if is_v2:
+            run["events"] = []
         try:
             atomic_write_many(((target, _json_text(run)),))
         except WorkspaceError as exc:
@@ -447,7 +460,8 @@ def _load_run(root: Path, run_id: str) -> dict[str, object]:
     path = workflow_run_file(root, run_id)
     _safe_path(root, path)
     raw = _read_json(path, "WORKFLOW_RUN_MISSING")
-    if set(raw) != RUN_FIELDS or raw.get("schemaVersion") != 1 or raw.get("id") != run_id:
+    version = raw.get("schemaVersion")
+    if set(raw) != (RUN_V2_FIELDS if version == 2 else RUN_FIELDS) or version not in {1, 2} or raw.get("id") != run_id:
         raise _command("WORKFLOW_RUN_MISSING", "Workflow Run 结构无效")
     if not isinstance(raw["workflow"], str) or not isinstance(raw["stages"], dict):
         raise _command("WORKFLOW_RUN_MISSING", "Workflow Run 字段无效")
@@ -475,6 +489,23 @@ def _load_run(root: Path, run_id: str) -> dict[str, object]:
         ):
             raise _command("WORKFLOW_RUN_MISSING", f"Workflow Run Stage 字段无效：{stage_id}")
         _summary(summary, "Workflow Run summary")
+    if raw.get("schemaVersion") == 2:
+        events = raw.get("events")
+        if not isinstance(events, list):
+            raise _command("WORKFLOW_RUN_MISSING", "Workflow Run events 无效")
+        for sequence, event in enumerate(events, 1):
+            if (
+                not isinstance(event, dict)
+                or set(event) != {"sequence", "stage", "fingerprint", "status", "updatedAt", "summary"}
+                or event.get("sequence") != sequence
+                or not isinstance(event.get("stage"), str) or not ID_RE.fullmatch(event["stage"])
+                or not isinstance(event.get("fingerprint"), str) or not FINGERPRINT_RE.fullmatch(event["fingerprint"])
+                or event.get("status") not in RUN_STATUSES
+                or not isinstance(event.get("updatedAt"), str) or not event["updatedAt"].endswith("Z")
+                or not isinstance(event.get("summary"), str)
+            ):
+                raise _command("WORKFLOW_RUN_MISSING", "Workflow Run event 结构无效")
+            _summary(event["summary"], "Workflow Run event summary")
     return raw
 
 
@@ -670,6 +701,11 @@ def _record_stage(
 ) -> dict[str, object]:
     if status not in RUN_STATUSES:
         raise _command("WORKFLOW_INVALID", f"Stage 状态无效：{status}")
+    feature_slug = run["featureSlug"]
+    assert feature_slug is None or isinstance(feature_slug, str)
+    if _feature_uses_v2(root, feature_slug) and run.get("schemaVersion") == 1:
+        run["schemaVersion"] = 2
+        run["events"] = []
     stages = run["stages"]
     assert isinstance(stages, dict)
     stage_id = item["stage"]
@@ -682,12 +718,36 @@ def _record_stage(
         "updatedAt": timestamp,
         "summary": summary,
     }
+    if run.get("schemaVersion") == 2:
+        events = run.setdefault("events", [])
+        assert isinstance(events, list)
+        events.append({
+            "sequence": len(events) + 1,
+            "stage": stage_id,
+            "fingerprint": fingerprint,
+            "status": status,
+            "updatedAt": timestamp,
+            "summary": summary,
+        })
     outputs: list[tuple[Path, str]] = [
         (workflow_run_file(root, str(run["id"])), _json_text(run))
     ]
-    feature_slug = run["featureSlug"]
-    assert feature_slug is None or isinstance(feature_slug, str)
-    verification = _verification_file(root, feature_slug)
+    verification = _verification_file(root, feature_slug) if run.get("schemaVersion") != 2 else None
+    if run.get("schemaVersion") == 2 and feature_slug is not None:
+        evidence_index = features_root(root) / feature_slug / "testing" / "evidence" / "index.json"
+        if evidence_index.is_file():
+            try:
+                from workspace_verification import summary_text
+
+                human_summary = summary_text(
+                    root,
+                    feature_slug,
+                    features_root(root) / feature_slug,
+                    action_summaries=[item for item in run.get("events", []) if isinstance(item, dict)],
+                )
+                outputs.append((features_root(root) / feature_slug / "testing" / "verification.md", human_summary))
+            except (OSError, ValueError) as exc:
+                raise _command("WORKFLOW_INVALID", f"无法生成 v2 验证摘要：{exc}") from exc
     if verification is not None:
         try:
             existing = verification.read_text(encoding="utf-8")

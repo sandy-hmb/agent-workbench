@@ -310,7 +310,7 @@ class SurfaceTest(unittest.TestCase):
             "**接口**",
             "**实施步骤**",
             "**验证**",
-            "completion-policy: task-evidence-v1",
+            "completion-policy: task-evidence-v2",
             "目标仓",
             "验证性质",
             "具体失败场景",

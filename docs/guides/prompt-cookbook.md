@@ -62,7 +62,7 @@ ok，请生成实施计划。
 计划中的开发任务已全部标记完成。请执行以下收尾动作：
 1. 运行目标仓登记的完整自动化测试与静态检查；
 2. 捕获当前的 Git 代码指纹快照；
-3. 将执行结果、退出码与覆盖情况更新到 testing/verification.md；
+3. 将执行结果、退出码与覆盖情况写入 `testing/evidence/`，再生成 `testing/verification.md` 摘要；
 4. 运行 `python3 scripts/kit.py doctor` 确认工作区无异常。
 ```
 

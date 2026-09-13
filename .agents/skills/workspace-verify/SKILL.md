@@ -17,24 +17,24 @@ description: Run authorized repository validation for the current workspace feat
 2. 用户治理模式从 `.workspace/docs/features/<slug>/` 读取当前需求；公共 Kit 维护模式从 `docs/development/features/<slug>/` 读取当前需求。默认只读取 README、验收标准、未完成计划项和最近验证摘要；需要追溯时才定向读取设计或历史验证正文。用户模式再读取 `.workspace/docs/repositories/<repo>.md`、仓内 `AGENTS.md` 或登记的 `sourceInstruction`。不要加载无关历史需求。
 3. 新计划必须先确认 `trustedProgress` 已全部可信完成；任务证据缺失、零测试、跳过、交付路径漂移或验证性质不足时返回实现阶段。旧计划保持原复选框语义。
 4. 只采用仓 profile 的 `validation` 或仓内规范明确声明的验证命令。已获授权的同范围离线验证直接执行；外部环境、部署、真实接口和未声明命令仍需单独确认。没有声明时先询问，不自行发明命令。
-5. 执行获批命令并复核执行 Skill 的整体审查结论。所有检查结束后运行 `python3 scripts/kit.py verify snapshot <slug> --root . --json`，取得当前需求涉及仓库的代码状态。首次实际验证时创建 `testing/verification.md`；无论成功、失败或阻塞，都追加一个批次，不把计划中的预期当作实际证据：
+5. 执行获批命令并复核执行 Skill 的整体审查结论。所有检查结束后运行 `python3 scripts/kit.py verify snapshot <slug> --root . --json`，取得当前需求涉及仓库的代码状态。v2 计划用 `python3 scripts/kit.py verify record <slug> --input <json-file> --json` 写入批次，再生成 `testing/verification.md`；v1 才追加旧 Markdown 批次。无论成功、失败或阻塞，都记录一个批次，不把计划中的预期当作实际证据：
 
-   ```markdown
-   ## 验证批次 YYYY-MM-DDTHH:MM:SS+08:00
-   - 总体结果：通过
-   - 审查结论：通过
-   - 代码状态：{"service":"sha256:<digest>"}
-
-   ### 检查 1
-   - 覆盖验收：`R1.1`
-   - 工作目录：`<path>`
-   - 命令：`<command>`
-   - 执行情况：目标测试实际执行并通过 / 非测试检查实际完成
-   - 退出状态：0
-   - 结果：<actual result>
+   ```json
+   {
+     "kind": "verificationBatch",
+     "recordedAt": "YYYY-MM-DDTHH:MM:SS+08:00",
+     "overallResult": "passed",
+     "reviewResult": "passed",
+     "codeState": {"service":"sha256:<digest>"},
+     "checks": [{"workingDirectory":"<path>","command":"<command>","exitStatus":0,"result":"<actual result>"}],
+     "blockers": [],
+     "artifactRefs": []
+   }
    ```
 
    只有总体结果和审查结论均为“通过”、至少一项检查存在、全部退出状态为 `0` 且代码状态仍与当前仓匹配时，status 才会把批次视为通过。实际 SQL 交付应演练实际文件及适用的重复、增量、核对和回退路径；纯映射函数测试不能替代。目标测试未执行时，即使退出状态为 `0` 也不得记为通过。失败或阻塞也记录实际结论和检查结果，但不得伪装为通过。旧 `## 执行记录 YYYY-MM-DD` 保留可读，不能作为新完成证据。
+
+旧 v1 Markdown 批次的 `## 验证批次`、`覆盖验收` 与 `执行情况` 字段继续只读兼容；v2 将覆盖关系保存在结构化记录中。
 6. 仅对已有证据支持的工作在 `plans/implementation.md` 勾选完成；失败或未执行的步骤保持未完成。检查证据是否覆盖本次行为和风险，不以新增测试数量或覆盖率数字判断完成。更新需求 README 的最后更新日期。
 7. 再运行 status，向用户汇报剩余步骤、失败项和 doctor 摘要。需要另行授权的数据库、Provider、部署、生产迁移或联调写入“待外部验证”，不伪装为已通过，也不回退已完成的本地任务。`testing` 由成功提测动作更新；`done` 仍需业务完成确认。
 

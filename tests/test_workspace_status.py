@@ -19,6 +19,7 @@ import workspace_setup  # noqa: E402
 import workspace_status  # noqa: E402
 import feature_context  # noqa: E402
 import workspace_verification  # noqa: E402
+import workspace_evidence  # noqa: E402
 
 
 def snapshot(path: Path) -> dict[str, str]:
@@ -321,6 +322,67 @@ class WorkspaceStatusTest(unittest.TestCase):
             trusted["trustedProgress"],
         )
         self.assertTrue(trusted["taskEvidence"][0]["trusted"])
+
+    def test_v2_uses_structured_evidence_and_default_summary_is_bounded(self):
+        feature = self.write_feature(self.root / "docs/development/features", maintenance=True)
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v2`\n\n"
+            + "".join(
+                f"- [x] T{number:02d} task {number}\n\n"
+                "  依赖：无\n"
+                f"  目标仓：`{self.root.name}`\n"
+                "  验证性质：声明式\n\n"
+                "  **文件**\n\n"
+                "  - Modify：`.gitignore`\n\n"
+                for number in range(1, 101)
+            ), encoding="utf-8",
+        )
+        for number in range(1, 101):
+            workspace_evidence.record(feature, {
+                "kind": "taskEvidence", "taskId": f"T{number:02d}",
+                "recordedAt": f"2026-09-13T10:{number % 60:02d}:00Z",
+                "repository": self.root.name,
+                "codeState": {self.root.name: "sha256:" + "a" * 64},
+                "checks": [{"type": "静态检查", "workingDirectory": self.root.name,
+                            "command": "python3 -m py_compile scripts/*.py", "target": ".gitignore",
+                            "exitStatus": 0, "result": "通过"}],
+                "artifactRefs": [], "validationKind": "声明式",
+                "deliveryCheck": "passed", "result": "passed",
+            })
+        states = {self.root.name: workspace_verification.git_fingerprint(
+            self.root, excluded=(
+                "docs/development/features/demo-feature/README.md",
+                "docs/development/features/demo-feature/plans/implementation.md",
+                "docs/development/features/demo-feature/testing/verification.md",
+                "docs/development/features/demo-feature/testing/.evidence.lock",
+                "docs/development/features/demo-feature/testing/evidence",
+                "docs/development/features/demo-feature/testing/archive",
+            ),
+        )}
+        workspace_evidence.record(feature, {
+            "kind": "verificationBatch", "recordedAt": "2026-09-13T12:00:00Z",
+            "overallResult": "passed", "reviewResult": "passed", "codeState": states,
+            "checks": [{"workingDirectory": self.root.name, "command": "python3 -m unittest",
+                        "exitStatus": 0, "result": "通过", "testCount": 100}],
+            "blockers": [], "artifactRefs": [],
+        })
+        before = workspace_status.status_result(self.root)["features"][0]
+        (feature / "testing/verification.md").write_text(
+            "## 任务证据 T01 2026-09-13T13:00:00Z\n- 交付核对：失败\n", encoding="utf-8"
+        )
+        after = workspace_status.status_result(self.root)["features"][0]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            workspace_status.main(["--root", str(self.root), "--json"])
+        summary = json.loads(output.getvalue())
+        self.assertEqual({"applicable": True, "completed": 100, "total": 100}, before["trustedProgress"])
+        self.assertTrue(before["verificationPassed"])
+        self.assertEqual(before["trustedProgress"], after["trustedProgress"])
+        self.assertEqual(before["verificationPassed"], after["verificationPassed"])
+        self.assertNotIn("taskEvidence", summary["features"][0])
+        self.assertNotIn("taskEvidence", workspace_status._project(workspace_status.status_result(self.root), "full")["features"][0])
+        self.assertNotIn("python3 -m py_compile", output.getvalue())
+        self.assertLess(len(output.getvalue().encode()), 6000)
 
     def test_planning_feature_requires_each_document_review_before_its_successor(self):
         feature = self.write_feature(

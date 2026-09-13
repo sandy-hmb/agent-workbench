@@ -1,6 +1,6 @@
 # {title} 实施计划
 
-<!-- completion-policy: task-evidence-v1 -->
+<!-- completion-policy: task-evidence-v2 -->
 
 **目标：** 用一句话说明全部任务完成后的结果。
 
@@ -62,24 +62,30 @@
 
 ## 任务证据
 
-每项任务按“验证 → 核对交付 → 获取代码状态 → 写证据 → 勾选 → 重跑 brief”完成。实际证据追加到 `testing/verification.md`：
+每项任务按“验证 → 核对交付 → 获取代码状态 → 写结构化证据 → 勾选 → 重建摘要 → 重跑 brief”完成。实际机器证据写入 `testing/evidence/`，`testing/verification.md` 只由证据生成摘要：
 
-~~~markdown
-## 任务证据 T01 YYYY-MM-DDTHH:MM:SS+08:00
-
-- 交付核对：通过
-- 代码状态：{"repository":"sha256:<digest>"}
-
-### 检查 1
-
-- 类型：测试
-- 工作目录：repository
-- 命令：exact-command
-- 目标：ServiceTest.test_observable_result
-- 执行数：1
-- 跳过数：0
-- 退出状态：0
-- 结果：写明实际可观察结果
+~~~json
+{
+  "kind": "taskEvidence",
+  "taskId": "T01",
+  "recordedAt": "YYYY-MM-DDTHH:MM:SS+08:00",
+  "repository": "repository",
+  "codeState": {"repository": "sha256:<digest>"},
+  "checks": [{
+    "type": "测试",
+    "workingDirectory": "repository",
+    "command": "exact-command",
+    "target": "ServiceTest.test_observable_result",
+    "executed": 1,
+    "skipped": 0,
+    "exitStatus": 0,
+    "result": "写明实际可观察结果"
+  }],
+  "artifactRefs": [],
+  "validationKind": "行为",
+  "deliveryCheck": "passed",
+  "result": "passed"
+}
 ~~~
 
 ## 整体验证与完成条件

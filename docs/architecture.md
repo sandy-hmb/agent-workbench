@@ -252,11 +252,13 @@ sequenceDiagram
 | Core Skill、脚本、Schema、模板和公开文档 | 公共 Kit Git；由 Kit 维护者修改。 | 公共更新按已确认目标快进，不更新业务仓代码。本文在此类中，但不进入 Agent 日常读取清单。 |
 | `workspace.json`、`workspace.local.json` | `.workspace/`；登记、配置或相关管理命令写入。 | 共享登记与本机偏好分别存放；都属于本地状态，不随公共 Git 同步。 |
 | 工作区 AGENTS、CONTEXT 与仓 profile | 初始化或登记流程生成；CONTEXT 保存业务事实，AGENTS 保存约定。 | 公共模板更新不会自动重写已有生成文件；相应 preview/apply 只更新其声明的范围。 |
-| 需求、设计、计划与验证 | 当前 feature；需求和设计在生成确认后记录，设计获批后直接生成计划草案，验证保存任务检查点和最终批次。 | `implementation.md` 记录 `task-evidence-v1` 任务但不复制项目规范；`testing/verification.md` 的任务证据决定可信进度，最终批次绑定当前完整代码状态。 |
+| 需求、设计、计划与验证 | 当前 feature；需求和设计在生成确认后记录，设计获批后直接生成计划草案，验证保存任务检查点和最终批次。 | 新计划默认 `task-evidence-v2`：机器证据位于 `testing/evidence/`，`testing/verification.md` 是 ≤200 行摘要；`task-evidence-v1` 继续只读兼容。 |
 | Extension、lock、Overlay 与 Run | `.workspace/`；扩展与 Workflow 命令管理。 | 修改后需要重新检查漂移和计划；详细日志与业务产物由扩展按授权保存。 |
 | `local-*` Adapter | 本地激活流程生成，Git 忽略。 | 不手工维护，不作为公共更新覆盖的内容。 |
 | 需求附属 SQL、临时 fixture 等 | feature 的 `artifacts/`，SQL 使用 `artifacts/sql/`。 | 只保存与本需求绑定的交付物；扩展产物不预设统一专用目录。 |
 | 运行时代码、正式迁移、测试必需 fixture | 对应独立业务仓。 | 随该业务仓版本化，与 Kit 和本机需求记录分开维护。 |
+
+v2 索引同时保存每个任务的最后观察记录与最新可信记录，当前可信判断始终使用最后观察记录，防止旧成功覆盖新失败。命令、代码状态和产物描述复用内容地址；历史归档保留原文与哈希，`verify history` 按 cursor 查询。`verify migrate`、`verify compact` 默认只读预览，apply 在备份后发布并比较前后可信进度、验证结论、阻塞和诊断；中断标记存在时状态查询停止，下一次 apply 校验备份后恢复。Workflow Action 的事件留在 `.workspace/runs`，摘要只显示最新状态。
 
 完整目录、备份和模板更新说明见[本地工作区布局](reference/local-workspace-layout.md)。被 Git 忽略只决定版本控制行为，不提供备份或凭据保护。
 

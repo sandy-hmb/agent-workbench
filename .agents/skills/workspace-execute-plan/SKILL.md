@@ -19,7 +19,7 @@ description: Execute an approved implementation plan task by task with risk-base
 2. 新会话按 `instructionContext.rules` 的规则读取清单顺序读取；该顺序即 kit → workspace → repository → scoped 的单调收窄顺序。CONTEXT 与仓 profile 属于事实轴，按阶段需要用 `status --context-sources` 定位；再依据规则入口中的明确索引与当前改动类型读取专项规范。首次编辑目标仓前完成；扩展到新仓、新路径或新职责时补读，同一会话可复用内容和作用域均未变化的已读规范，不保存“已读”状态。
 3. 行为变化先写最小失败测试，再实现至通过；声明式变化执行计划中的最小有效检查；持久化变化执行计划声明的结构、迁移或集成检查。
 4. 运行任务验证，核对目标执行数、跳过数、退出状态、交付路径和实际 diff。部分实现、编译成功、零测试或跳过测试都不算完成。
-5. 运行 `verify snapshot` 取得执行时代码状态，在 `testing/verification.md` 追加当前任务的精简“任务证据”；再勾选任务并重新运行 `brief <slug> --execution --check --json --projection execution`。
+5. 运行 `verify snapshot` 取得执行时代码状态；v2 计划将真实检查结果整理为模板中的 JSON，运行 `python3 scripts/kit.py verify record <slug> --input <json-file> --json`（也可用 `--input -` 从标准输入读取）写入 `testing/evidence/`；v1 计划才向旧 Markdown 追加精简任务证据。随后勾选任务；v2 再运行 `python3 scripts/kit.py verify render <slug> --apply --json` 更新人类摘要，最后重新运行 `brief <slug> --execution --check --json --projection execution`。
 6. 新计划只有在 `trustedProgress` 包含当前任务且 `executionDecision=RUN` 时继续；有下一项依赖满足的未完成任务时直接继续。`readyTasks` 是依赖满足的候选集合，仍需核对实际环境和授权；`COMPLETE` 时进入整体复核，`BLOCKED` 时核对证据诊断和确认要求。旧计划保持原完成语义。
 
 失败时先稳定复现，沿调用关系定位根因，验证一个最小假设，只实施一个根因修复并重新验证。编译失败、测试失败、缺少上下文和普通代码漂移均先在当前任务解决，不能借调整顺序逃避修复。

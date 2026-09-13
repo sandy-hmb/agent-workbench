@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-workbench.local/schemas/task-evidence-v2.schema.json",
+  "title": "Task Evidence v2 Index",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "featureSlug",
+    "revision",
+    "nextSequence",
+    "tasks",
+    "latestBatch",
+    "history",
+    "archives",
+    "legacyArchives",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "featureSlug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "revision": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "nextSequence": {"type": "integer", "minimum": 1},
+    "tasks": {"type": "object"},
+    "latestBatch": {"type": ["object", "null"]},
+    "history": {"type": "array"},
+    "archives": {"type": "array"},
+    "legacyArchives": {"type": "array"},
+    "summary": {"type": "object"}
+  },
+  "additionalProperties": false
+}

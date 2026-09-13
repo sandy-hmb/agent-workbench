@@ -68,7 +68,7 @@ sequenceDiagram
         A->>R: 先编写最小失败测试，再编写业务实现
         A->>R: 执行本地测试，确保退出状态正常
         A->>K: kit.py verify snapshot (捕获代码状态快照)
-        A->>A: 勾选任务，写入 task-evidence-v1 证据
+        A->>A: 勾选任务，写入 task-evidence-v2 结构化证据
         A->>K: kit.py brief --execution --check --json --projection execution
         Note over A: 若返回 RUN：连续自动进入下一任务，不打扰人类<br>若返回 BLOCKED：停止并向人类呈现明确决策点
     end
@@ -94,7 +94,7 @@ sequenceDiagram
 - `design/design.md` 维护完整的当前目标设计，明确复用与新增边界、接口和数据流、状态与错误、兼容、关键假设及验证。关键决策使用稳定 D 编号；附件只在有独立读者或维护需要时展开主设计中的决策。
 - `workspace-writing-plan` 对全部验收点做 R → D →任务→验证的语义预检。能分别实现、验证和接受的流程拆为不同任务；同一行为的数据组合可以合并。不按技术层、文件数、Case 数或固定分钟数拆分，依赖只表达真实前置条件。
 - 执行方式与计划一起批准：默认单 Agent；复杂工作可选择按需子 Agent，或每任务子 Agent 加独立审查。选择子 Agent 不自动并行、创建 worktree、commit 或 push。
-- 首次实际验证时创建 `testing/verification.md`；它只记录实际命令、退出状态、覆盖验收和执行情况，不使用占位内容。
+- 首次实际验证时创建 `testing/evidence/` 并生成 `testing/verification.md` 摘要；机器真值不依赖摘要正文，不使用占位内容。
 
 首次开发和重大变更逐阶段审阅。范围明确、沿用关键方案且不改变高风险数据、权限语义或外部影响的小迭代，可以一次准备需求差异、必要设计调整和计划，批准整个实际文档包。计划批准后直接开始已授权的执行；相同仓、环境、操作和重试范围不因阶段或 Skill 切换重复确认。
 
@@ -117,7 +117,9 @@ python3 scripts/kit.py status --root . --json
 python3 scripts/kit.py doctor --root .
 ```
 
-`workspace-verify` 会把已授权的离线验证写成完整批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果都记录在 `testing/verification.md`。旧记录仍可阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
+`workspace-verify` 会把已授权的离线验证写成结构化批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果记录在 `testing/evidence/`，再生成 ≤200 行摘要。旧 v1 记录仍可只读阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
+
+日常 `status` 和 `brief` 默认不返回历史正文。使用 `kit.py verify evidence <slug> --task T01 --json` 读取当前证据，或用 `kit.py verify history <slug> --task T01 --json` 分页取得旧记录 ID 后运行 `kit.py verify evidence <slug> --task T01 --id <evidence-id> --json`。旧 Feature 先运行 `verify migrate <slug> --preview`，确认后才执行 `--apply`；`verify compact` 同样默认 preview，不删除证据正文。人类摘要漂移时使用 `kit.py verify render <slug> --preview` 检查，再显式 `--apply` 重建。
 
 新会话通过 `status` 和显式 slug 的 `brief payments-retry --json` 恢复；再用 `brief payments-retry --task T01 --json` 展开当前任务和规范入口。`brief payments-retry --check --json` 检查文档结构、任务证据与本地引用；`progress` 保留勾选数量，`trustedProgress` 决定新计划的执行依赖。需要额外授权的数据库、Provider、部署或联调列为待外部验证，不作为本地顶层任务。验证通过且确认结束后才执行：
 
