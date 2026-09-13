@@ -303,6 +303,18 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
         self.assertIn("MARKDOWN_LINK_BROKEN", self.codes())
 
+    def test_evidence_archive_markdown_is_not_treated_as_current_documentation(self):
+        self.initialize()
+        feature = self.write_feature()
+        backup = feature / "testing/archive/transactions/abc/implementation.md"
+        backup.parent.mkdir(parents=True)
+        backup.write_text("[historical missing](../design/design.md)\n", encoding="utf-8")
+        self.assertNotIn("MARKDOWN_LINK_BROKEN", self.codes())
+        current = feature / "design/design.md"
+        current.parent.mkdir()
+        current.write_text("[current missing](missing.md)\n", encoding="utf-8")
+        self.assertIn("MARKDOWN_LINK_BROKEN", self.codes())
+
     def test_uninitialized_workspace_rejects_extra_client_skill_adapter(self):
         self.install_core()
         (self.root / ".claude/skills/extra").symlink_to(

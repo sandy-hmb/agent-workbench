@@ -634,6 +634,7 @@ def markdown_files(root: Path) -> Iterable[Path]:
             directories[:] = [
                 name
                 for name in directories
+                if not (current_path.name == "testing" and name in {"archive", "evidence"})
                 if _safe_directory(root, current_path / name, required=True)
             ]
             for name in sorted(files):
