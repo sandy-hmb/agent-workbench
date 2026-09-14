@@ -384,6 +384,30 @@ class WorkspaceStatusTest(unittest.TestCase):
         self.assertNotIn("python3 -m py_compile", output.getvalue())
         self.assertLess(len(output.getvalue().encode()), 6000)
 
+    def test_v2_without_evidence_index_starts_with_empty_progress(self):
+        feature = self.write_feature(self.root / "docs/development/features", maintenance=True)
+        (feature / "testing/verification.md").unlink()
+        (feature / "plans/implementation.md").write_text(
+            "<!-- completion-policy: task-evidence-v2 -->\n\n"
+            "- [ ] T01 Demo\n\n"
+            "  依赖：无\n"
+            f"  目标仓：`{self.root.name}`\n"
+            "  验证性质：声明式\n\n"
+            "  **文件**\n\n"
+            "  - Modify：`.gitignore`\n",
+            encoding="utf-8",
+        )
+
+        result = workspace_status.status_result(self.root)["features"][0]
+
+        self.assertEqual("task-evidence-v2", result["completionPolicy"])
+        self.assertEqual(
+            {"applicable": True, "completed": 0, "total": 1},
+            result["trustedProgress"],
+        )
+        self.assertFalse(result["verificationExists"])
+        self.assertFalse((feature / "testing/evidence/index.json").exists())
+
     def test_planning_feature_requires_each_document_review_before_its_successor(self):
         feature = self.write_feature(
             self.root / "docs/development/features", maintenance=True

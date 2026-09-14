@@ -466,7 +466,7 @@ def evaluate_task_evidence(
 
 def describe_structured_evidence(feature: Path) -> dict[str, object]:
     """Adapt v2 JSON records to the existing deterministic evaluation shape."""
-    store = load_store(feature)
+    store = load_store(feature, required=False)
     latest = {}
     for task_id, raw in store["latestByTask"].items():
         source = raw["source"]

@@ -145,6 +145,20 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual("0", selected["checks"][0]["exitStatus"])
         self.assertTrue(response["data"]["batches"][0]["source"]["path"].startswith("testing/evidence/batches/"))
 
+    def test_v2_feature_without_evidence_index_is_listed(self):
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v2`\n\n- [ ] T01 Demo\n\n  依赖：无\n",
+            encoding="utf-8",
+        )
+
+        code, response, _ = command(self.root, "features")
+
+        self.assertEqual(0, code)
+        self.assertEqual("ok", response["status"])
+        self.assertEqual(["demo-feature"], [item["slug"] for item in response["data"]["items"]])
+        self.assertFalse(response["data"]["items"][0]["verificationSummary"]["exists"])
+
     def test_feature_collection_revision_is_page_independent(self):
         _, first, _ = command(self.root, "features", "--offset", "0", "--limit", "1")
         _, second, _ = command(self.root, "features", "--offset", "1", "--limit", "1")

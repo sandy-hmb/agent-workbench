@@ -654,8 +654,10 @@ def _validate_active_references(feature: Path, index: Mapping[str, object]) -> N
         _expand_record(feature, entry, kind, subject if isinstance(subject, str) else None)
 
 
-def load_store(feature: Path, *, allow_transaction: bool = False) -> dict[str, object]:
-    index = load_index(feature, allow_transaction=allow_transaction)
+def load_store(
+    feature: Path, *, allow_transaction: bool = False, required: bool = True
+) -> dict[str, object]:
+    index = load_index(feature, required=required, allow_transaction=allow_transaction)
     latest = {
         task_id: _expand_record(feature, pointers["latestObserved"], "taskEvidence", task_id)
         for task_id, pointers in index["tasks"].items()
