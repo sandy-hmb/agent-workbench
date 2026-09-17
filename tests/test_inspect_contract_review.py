@@ -88,6 +88,7 @@ class InspectContractReviewTest(unittest.TestCase):
 
     def test_inspect_preserves_claimed_and_trusted_progress(self):
         service = self.root.parent / "service"
+        subprocess.run(["git", "-C", str(service), "checkout", "-qb", "feature/demo"], check=True, capture_output=True)
         (service / "source.py").write_text("value = 1\n")
         tests = service / "tests"
         tests.mkdir()
@@ -135,6 +136,17 @@ class InspectContractReviewTest(unittest.TestCase):
             verification,
             {"$defs": schema["$defs"], "$ref": "#/$defs/verification"},
         )
+
+        def git(*args):
+            subprocess.run(["git", "-C", str(service), *args], check=True, capture_output=True)
+
+        git("add", ".")
+        git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Feature")
+        git("checkout", "-qb", "feature/other")
+        git("rm", "source.py", "tests/test_source.py")
+        git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Other feature")
+        self.assertTrue(self.query("feature", "demo")["data"]["tasks"][0]["trusted"])
+        self.assertTrue(self.query("verification", "demo")["data"]["taskEvidence"][0]["trusted"])
 
     def test_schema_rejects_invalid_repository_and_verification_states(self):
         schema = json.loads((ROOT / "schemas/inspect-result.schema.json").read_text())

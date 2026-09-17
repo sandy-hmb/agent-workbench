@@ -405,6 +405,33 @@ class WorkspaceVerificationTest(unittest.TestCase):
             {item["code"] for item in invalid["diagnostics"]},
         )
 
+    def test_task_evidence_checks_git_tree_modes_without_weakening_test_evidence(self) -> None:
+        task = evidence_task()
+        task["deliverables"].extend([
+            {"kind": "Verify", "path": "tests", "line": 3},
+            {"kind": "Delete", "path": "old.txt", "line": 4},
+        ])
+        tree = {"source.txt": "100644", "tests/test_service.py": "100755", "tests": "040000"}
+        cases = [
+            (tree, task_evidence(), None),
+            ({**tree, "source.txt": "120000"}, task_evidence(), "TASK_DELIVERABLE_MISSING"),
+            ({**tree, "source.txt": "160000"}, task_evidence(), "TASK_DELIVERABLE_MISSING"),
+            ({**tree, "old.txt": "120000"}, task_evidence(), "TASK_DELETED_PATH_PRESENT"),
+            (None, task_evidence(), "TASK_DELIVERABLE_REF_UNAVAILABLE"),
+            (tree, task_evidence(executed=0), "TASK_EVIDENCE_ZERO_TESTS"),
+            (tree, task_evidence(skipped=1), "TASK_EVIDENCE_SKIPPED_TESTS"),
+            (tree, task_evidence(exit_status=1), "TASK_EVIDENCE_CHECK_FAILED"),
+        ]
+        for modes, record, expected in cases:
+            with self.subTest(expected=expected, tree=modes):
+                evidence = workspace_verification.describe_task_evidence_document(record)["latestByTask"]["T01"]
+                result = workspace_verification.evaluate_task_evidence(
+                    task, evidence, {"service": self.repository}, repository_trees={"service": modes},
+                )
+                self.assertEqual(expected is None, result["trusted"])
+                if expected:
+                    self.assertIn(expected, {item["code"] for item in result["diagnostics"]})
+
     def test_snapshot_cli_reports_current_maintenance_feature_state(self) -> None:
         feature = self.repository / "docs/development/features/demo-feature"
         (feature / "plans").mkdir(parents=True)

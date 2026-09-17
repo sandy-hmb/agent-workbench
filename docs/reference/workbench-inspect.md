@@ -40,6 +40,8 @@ python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json works
 
 ## 显示语义
 
+任务的 `trustedProgress` / `trusted` 区分“已打勾”和“有有效完成证据”：最新任务证据须通过交付核对，检查类型满足验证性质，测试实际执行且没有跳过，交付路径也须成立。浏览时，已检出 Feature 工作分支的仓检查当前工作目录；未检出时只读检查 README 记录的本地工作分支已提交树，不把其他 Feature 的现场混入。分支缺失或无法读取时给出诊断，不自动切分支、Fetch 或替换成主分支；Feature 的 artifacts 仍检查工作区文件。例如浏览 A 时检出 B，不会仅因 B 没有 A 的文件而将 A 判为可信 0。此处的可信不证明当前代码仍通过测试，代码指纹有效性由验证查询单独核对；执行用的 `status` / `brief` 仍检查实际工作目录。
+
 验证记录与代码核对是不同事实。默认查询只读记录，每仓为 not_checked；显式 `--check-code` 才计算代码指纹。`selectedBatch.recordedResult` 是 passed/failed/unknown，completeness 是 complete/incomplete/legacy/missing。applicability 使用 valid/invalid/unknown/not_checked/historical；完成需求属于历史记录。每仓可以同时出现 matched、changed 和 unknown，不能用整体失败替代逐仓结果。无耗时或测试数量就返回 null，不根据命令推断。
 
 Run 的 status 是保存值，running 不代表进程仍存活。`configurationMatch` 的 matched/changed/unknown/removed 只说明当前步骤配置和记录的关系，不推断代码有效性，也不还原不存在的历史配置内容。rawRecord 仅返回已校验的字段，扩展参数与环境变量不通过该入口补充。

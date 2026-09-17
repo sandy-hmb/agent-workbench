@@ -352,8 +352,9 @@ def evaluate_task_evidence(
     *,
     workspace_root: Path | None = None,
     feature_root: Path | None = None,
+    repository_trees: Mapping[str, Mapping[str, str] | None] | None = None,
 ) -> dict[str, object]:
-    """Check deterministic task evidence and current deliverable paths."""
+    """Check task evidence and deliverables in the worktree or supplied Git tree."""
     task_id = str(task.get("id") or "")
     diagnostics = []
     source = evidence.get("source") if evidence is not None else None
@@ -434,13 +435,30 @@ def evaluate_task_evidence(
         kind = deliverable.get("kind")
         relative = deliverable.get("path")
         line = int(deliverable.get("line", 1))
-        target_root = (
+        artifact_root = (
             _feature_artifact_root(workspace_root, feature_root, relative)
             if isinstance(relative, str)
             else None
-        ) or repository
+        )
+        target_root = artifact_root or repository
         if target_root is None or not isinstance(relative, str):
             issue("TASK_DELIVERABLE_MISSING", "无法定位任务交付路径", line)
+            continue
+        if artifact_root is None and repository_trees is not None and repository_name in repository_trees:
+            tree = repository_trees[repository_name]
+            if tree is None:
+                issue("TASK_DELIVERABLE_REF_UNAVAILABLE", "无法读取任务所属 Feature 的本地工作分支", line)
+                continue
+            path = PurePosixPath(relative)
+            if not relative or path.is_absolute() or ".." in path.parts:
+                issue("TASK_DELIVERABLE_MISSING", f"任务交付路径不安全：{relative}", line)
+                continue
+            mode = tree.get(path.as_posix())
+            if kind == "Delete":
+                if mode is not None:
+                    issue("TASK_DELETED_PATH_PRESENT", f"需求分支中声明删除的路径仍存在：{relative}", line)
+            elif mode not in ({"100644", "100755"} if kind in {"Create", "Test", "Modify"} else {"100644", "100755", "040000"}):
+                issue("TASK_DELIVERABLE_MISSING", f"需求分支中任务交付路径不存在或不安全：{relative}", line)
             continue
         if kind == "Delete":
             target = target_root.joinpath(*PurePosixPath(relative).parts)

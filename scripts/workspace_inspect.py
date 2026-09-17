@@ -32,8 +32,8 @@ from workspace_model import WorkspaceError, effective_branch_policy, load_worksp
 from workspace_model import VERSION
 from workspace_extension import _read_lock, extension_status
 from workspace_paths import features_root, state_root, workflow_file, workflow_runs_root
-from workspace_status import _single_feature_progress, _task_evidence_state, artifact_summary, document_reviews, plan_analysis, plan_progress, verification_record
-from workspace_verification import describe_structured_evidence, describe_verification_document, feature_code_state, structured_verification_passed, verification_passed
+from workspace_status import _single_feature_progress, _task_evidence_state, _task_repository_roots, artifact_summary, document_reviews, plan_analysis, plan_progress, verification_record
+from workspace_verification import _git, describe_structured_evidence, describe_verification_document, feature_code_state, structured_verification_passed, verification_passed
 from workspace_workflow import CORE_WORKFLOW, FINGERPRINT_RE, RUN_FIELDS, RUN_STATUSES, RUN_V2_FIELDS, STAGE_RECORD_FIELDS, _resolve, _stage_fingerprint, _valid_run_id
 from workflow_model import load_core_workflow, load_overlay, resolve_stages
 
@@ -345,6 +345,53 @@ def _features(root: Path, deadline: Deadline | None = None) -> tuple[list[dict[s
     return values, bad
 
 
+def _view_task_evidence(
+    root: Path, item: dict[str, object], plan: dict[str, object], deadline: Deadline | None = None,
+) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]:
+    feature = root / str(item["path"])
+    trees = {}
+    if plan["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
+        deadline = deadline or Deadline(NORMAL_TIMEOUT)
+        branches = dict(item.get("branches", []))
+        for name, repository in _task_repository_roots(root, _mode(root), item).items():
+            branch = branches.get(name)
+            current = _git_read(["git", "-C", str(repository), "branch", "--show-current"], deadline)
+            # Legacy non-Git roots retain path-only compatibility.
+            if current.returncode != 0:
+                if (repository / ".git").exists() or (repository / ".git").is_symlink():
+                    trees[name] = None
+                continue
+            if current.stdout.strip() == branch:
+                continue
+            trees[name] = None
+            if not branch:
+                continue
+            paths = sorted({
+                PurePosixPath(deliverable["path"]).as_posix()
+                for task in plan["tasks"] if task["completed"] and task.get("repository") == name
+                for deliverable in task.get("deliverables", [])
+                if deliverable.get("path")
+            })
+            if not paths:
+                continue
+            ref = _git_read(["git", "-C", str(repository), "rev-parse", "--verify", "--end-of-options", f"refs/heads/{branch}^{{tree}}"], deadline)
+            if ref.returncode != 0:
+                continue
+            try:
+                entries = _git(repository, ["ls-tree", "-t", "-z", "--full-tree", ref.stdout.strip(), "--", *(f":(literal){path}" for path in paths)], timeout=deadline.remaining(), max_output_bytes=MAX_RESPONSE)
+            except ValueError:
+                continue
+            trees[name] = {
+                os.fsdecode(path): os.fsdecode(metadata).split(" ", 1)[0]
+                for entry in entries.split(b"\0") if entry
+                for metadata, path in [entry.split(b"\t", 1)]
+            }
+    return _task_evidence_state(
+        root, _mode(root), feature, item, plan, feature / "testing/verification.md",
+        repository_trees=trees,
+    )
+
+
 def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = None) -> dict[str, object]:
     feature = root / str(item["path"])
     readme_text = _read(feature / "README.md", root, deadline=deadline).decode("utf-8")
@@ -363,9 +410,7 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
         verification_text = _read(verification_path, root, deadline=deadline).decode("utf-8") if verification_path.is_file() else None
         verification = verification_record(feature, verification_text) is not None
     progress = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
-    trusted, _, evidence_diagnostics = _task_evidence_state(
-        root, _mode(root), feature, item, plan, verification_path
-    )
+    trusted, _, evidence_diagnostics = _view_task_evidence(root, item, plan, deadline)
     plan_summary = {
         "exists": plan_path.is_file(),
         **progress,
@@ -453,10 +498,7 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
     directory = _feature_dir(root, slug); revision = _feature_revision(directory, root, deadline); summary = _summary(root, item, deadline); plan_path = directory / "plans" / "implementation.md"; plan_bytes = _read(plan_path, root, deadline=deadline) if plan_path.is_file() else None; plan = plan_analysis(plan_path, plan_bytes.decode("utf-8") if plan_bytes else None, repositories=set(item["repositories"]))
     readme_text = _read(directory / "README.md", root, deadline=deadline).decode("utf-8")
     title, _, description = _title_description(directory / "README.md", root, readme_text, deadline)
-    verification_path = directory / "testing/verification.md"
-    _, evidence_results, _ = _task_evidence_state(
-        root, _mode(root), directory, item, plan, verification_path
-    )
+    _, evidence_results, _ = _view_task_evidence(root, item, plan, deadline)
     evidence_by_task = {result["taskId"]: result for result in evidence_results}
     tasks = []
     for task in plan["tasks"]:

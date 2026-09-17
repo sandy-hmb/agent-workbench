@@ -104,6 +104,63 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual("source.py", task["deliverables"][0]["path"])
         self.assertTrue(task["trusted"])
 
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+
+        git("init", "-q", "-b", "main")
+        git("add", ".")
+        git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Feature")
+        git("checkout", "-qb", "another-feature")
+        git("rm", "source.py", "tests/test_source.py")
+        git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Other feature")
+
+        def assert_progress(expected, diagnostic=None):
+            for operation in (("feature", "demo-feature"), ("features",), ("verification", "demo-feature")):
+                with self.subTest(operation=operation, expected=expected):
+                    code, value, _ = command(self.root, *operation)
+                    self.assertEqual(0, code)
+                    if operation[0] == "verification":
+                        self.assertEqual(bool(expected), value["data"]["taskEvidence"][0]["trusted"])
+                        continue
+                    summary = value["data"]["summary"] if operation[0] == "feature" else value["data"]["items"][0]
+                    self.assertEqual(expected, summary["planSummary"]["trustedProgress"]["completed"])
+                    if diagnostic:
+                        self.assertIn(diagnostic, {d["code"] for d in summary["planSummary"]["diagnostics"]})
+
+        import workspace_evidence
+        import workspace_status
+
+        for policy in ("task-evidence-v1", "task-evidence-v2"):
+            with self.subTest(policy=policy):
+                if policy == "task-evidence-v2":
+                    git("checkout", "-q", "main")
+                    workspace_evidence.migrate_feature(feature, preview=False)
+                    git("checkout", "-q", "another-feature")
+                before = {p.relative_to(self.root): p.read_bytes()
+                          for p in self.root.rglob("*") if p.is_file() and ".git" not in p.relative_to(self.root).parts}
+                assert_progress(1)
+                after = {p.relative_to(self.root): p.read_bytes()
+                         for p in self.root.rglob("*") if p.is_file() and ".git" not in p.relative_to(self.root).parts}
+                self.assertEqual(before, after)
+                self.assertFalse(source.exists())
+                self.assertEqual("another-feature", subprocess.check_output(
+                    ["git", "-C", str(self.root), "branch", "--show-current"], text=True).strip())
+                # Execution keeps checking the actual worktree, not the browsing branch.
+                self.assertEqual(0, workspace_status.status_result(self.root)["features"][0]["trustedProgress"]["completed"])
+                git("checkout", "-q", "--detach")
+                assert_progress(1)
+                git("checkout", "-q", "main")
+                source.unlink()
+                assert_progress(0, "TASK_DELIVERABLE_MISSING")
+                source.write_text("value = 1\n", encoding="utf-8")
+                assert_progress(1)
+                git("checkout", "-q", "another-feature")
+                readme = feature / "README.md"
+                original = readme.read_text(encoding="utf-8")
+                readme.write_text(original.replace("- 工作分支：`main`", "- 工作分支：`missing-feature`"), encoding="utf-8")
+                assert_progress(0, "TASK_DELIVERABLE_REF_UNAVAILABLE")
+                readme.write_text(original, encoding="utf-8")
+
     def test_v2_verification_is_projected_to_the_inspect_contract(self):
         import workspace_evidence
         from schema_validation import validate

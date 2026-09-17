@@ -12,7 +12,7 @@ import sys
 from collections import Counter
 from datetime import date
 from pathlib import Path, PurePosixPath
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 
 sys.dont_write_bytecode = True
@@ -660,6 +660,8 @@ def _task_evidence_state(
     item: dict[str, object],
     analysis: dict[str, object],
     verification: Path,
+    *,
+    repository_trees: Mapping[str, Mapping[str, str] | None] | None = None,
 ) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]]]:
     tasks = analysis["tasks"]
     if analysis["completionPolicy"] not in {"task-evidence-v1", "task-evidence-v2"}:
@@ -685,6 +687,7 @@ def _task_evidence_state(
             roots,
             workspace_root=root,
             feature_root=feature,
+            repository_trees=repository_trees,
         )
         results.append(result)
         diagnostics.extend(result["diagnostics"])
