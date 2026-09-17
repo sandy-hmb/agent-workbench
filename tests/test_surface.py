@@ -327,6 +327,12 @@ class SurfaceTest(unittest.TestCase):
         api_integration = (templates / "api-integration.md").read_text(encoding="utf-8")
         self.assertIn("扩展主设计中的 [D01]", data_model)
         self.assertIn("扩展主设计中的 [D02]", api_integration)
+        frontend = (templates / "frontend-integration.md").read_text(encoding="utf-8")
+        self.assertEqual(
+            ["## 页面改动", "## 接口说明", "## 联调注意事项"],
+            [line for line in frontend.splitlines() if line.startswith("## ")],
+        )
+        self.assertNotIn('"kind": "taskEvidence"', plan)
         self.assertIn("- [ ] T01", plan)
         for field in ("需求审阅：待审阅", "设计审阅：未生成", "计划审阅：未生成"):
             self.assertIn(field, readme)

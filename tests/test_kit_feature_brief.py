@@ -85,6 +85,68 @@ class MaintenanceBriefTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def test_document_navigation_for_three_feature_shapes_is_read_only(self) -> None:
+        import kit_feature_brief
+
+        for slug, documents in {
+            "conversion-markup": {"artifacts/frontend-integration.md": "# 前端指南\n"},
+            "wallet-bind": {
+                "design/api-integration.md": "# 接口设计\n[主设计](design.md#d01)\n",
+                "artifacts/frontend-integration.md": "# 前端指南\n",
+                "artifacts/sql/README.md": "# SQL\n[步骤](steps.md)\n[脚本](001-init.sql)\n",
+                "artifacts/sql/steps.md": "# 执行步骤\n",
+            },
+            "rejection-notification": {"artifacts/frontend-integration.md": "# 操作日志接入\n"},
+        }.items():
+            with self.subTest(slug=slug):
+                feature = self.write_feature(slug)
+                for relative, content in documents.items():
+                    path = feature / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(content, encoding="utf-8")
+                if "design/api-integration.md" in documents:
+                    (feature / "design/design.md").write_text(
+                        '# 设计\n<a id="d01"></a>\n## D01 接口\n[接口设计](api-integration.md)\n',
+                        encoding="utf-8",
+                    )
+                archive = feature / "history/i01/design/old.md"
+                archive.parent.mkdir(parents=True)
+                archive.write_text("[旧链接](missing.md)\n", encoding="utf-8")
+                before = {p: p.read_bytes() for p in feature.rglob("*") if p.is_file()}
+                diagnostics = kit_feature_brief._link_diagnostics(feature)
+                missing = [d for d in diagnostics if d["code"] == "DOCUMENT_MISSING_README_LINK"]
+                self.assertTrue(any("frontend-integration.md" in d["message"] for d in missing))
+                self.assertTrue(all(d["severity"] == "warning" for d in missing))
+                self.assertFalse(any("history/" in d["message"] for d in diagnostics))
+                self.assertEqual(before, {p: p.read_bytes() for p in feature.rglob("*") if p.is_file()})
+
+                entries = ["requirements/requirements.md", "design/design.md",
+                           "plans/implementation.md", "testing/verification.md",
+                           *(path for path in documents if path != "artifacts/sql/steps.md")]
+                readme = feature / "README.md"
+                readme.write_text(readme.read_text() + "\n## 文档\n\n" + "".join(
+                    f"- [入口]({path})\n" for path in entries
+                ), encoding="utf-8")
+                self.assertFalse(kit_feature_brief._link_diagnostics(feature))
+
+    def test_handoff_links_are_checked_without_requiring_optional_documents(self) -> None:
+        import kit_feature_brief
+
+        feature = self.write_feature("demo-feature")
+        diagnostics = kit_feature_brief._link_diagnostics(feature)
+        self.assertFalse(any("frontend-integration" in d["message"] for d in diagnostics))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(0, kit_feature_brief.main([
+                "demo-feature", "--root", str(self.root), "--check", "--json",
+            ]))
+        self.assertIn("DOCUMENT_MISSING_README_LINK", output.getvalue())
+        handoff = feature / "artifacts/frontend-integration.md"
+        handoff.write_text("# 前端指南\n\n[接口](missing.md)\n", encoding="utf-8")
+        diagnostics = kit_feature_brief._link_diagnostics(feature)
+        errors = [d for d in diagnostics if d["code"] == "DOCUMENT_MISSING_LINK_TARGET"]
+        self.assertEqual([("artifacts/frontend-integration.md", 3)], [(d["path"], d["line"]) for d in errors])
+
     def write_workspace_task(self) -> tuple[Path, Path]:
         state = self.root / ".workspace"
         service = self.root.parent / "service"

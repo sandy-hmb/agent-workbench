@@ -50,6 +50,17 @@ def task_record(task_id: str = "T01") -> dict[str, object]:
     }
 
 
+def verification_batch(**changes) -> dict[str, object]:
+    return {
+        "kind": "verificationBatch", "recordedAt": "2026-09-17T10:00:00Z",
+        "overallResult": "passed", "reviewResult": "passed",
+        "codeState": {"service": DIGEST},
+        "checks": [{"workingDirectory": "service", "command": "python3 -m unittest",
+                    "exitStatus": 0, "result": "本地检查通过"}],
+        "blockers": [], "artifactRefs": [], **changes,
+    }
+
+
 class WorkspaceEvidenceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -186,6 +197,76 @@ class WorkspaceEvidenceTest(unittest.TestCase):
         self.assertLessEqual(len(first.splitlines()), 200)
         self.assertIn("trustedProgress", first)
         self.assertIn("历史证据", first)
+
+    def test_batch_scope_round_trips_without_rewriting_legacy_evidence(self) -> None:
+        workspace_evidence.record(self.feature, verification_batch())
+        old = workspace_evidence.load_store(self.feature)["latestBatch"]
+        old_path = self.feature / "testing" / old["source"]["path"]
+        old_bytes = old_path.read_bytes()
+        legacy = workspace_evidence.render_summary(self.feature)
+        self.assertIn("验证范围：未记录", legacy)
+        self.assertIn("待外部验证：未记录", legacy)
+
+        pending = ["R3：验证真实计费；测试负责人核对实际金额后关闭"]
+        workspace_evidence.record(self.feature, verification_batch(
+            verificationScope="后端本地离线验证", pendingExternalChecks=pending,
+        ))
+        latest = workspace_evidence.load_store(self.feature)["latestBatch"]
+        self.assertEqual(pending, latest["pendingExternalChecks"])
+        self.assertEqual("后端本地离线验证", latest["verificationScope"])
+        self.assertEqual(old_bytes, old_path.read_bytes())
+        self.assertNotIn("pendingExternalChecks", old)
+
+        workspace_evidence.record(self.feature, verification_batch(pendingExternalChecks=[]))
+        self.assertIn("待外部验证：无（本批次已记录）", workspace_evidence.render_summary(self.feature))
+
+    def test_batch_scope_rejects_invalid_values(self) -> None:
+        for fields in (
+            {"verificationScope": ""}, {"verificationScope": " \n "},
+            {"verificationScope": None}, {"verificationScope": 1},
+            {"pendingExternalChecks": None}, {"pendingExternalChecks": "R1"},
+            {"pendingExternalChecks": [""]}, {"pendingExternalChecks": [" \n "]},
+            {"pendingExternalChecks": [1]},
+        ):
+            with self.subTest(fields=fields), self.assertRaises(workspace_evidence.EvidenceError):
+                workspace_evidence.record(self.feature, verification_batch(**fields))
+
+    def test_summary_preserves_external_work_blockers_and_artifact_references(self) -> None:
+        import workspace_verification
+
+        workspace_evidence.record(self.feature, task_record())
+        artifact = dict(task_record()["artifactRefs"][0], path="design/frontend-integration.md")
+        workspace_evidence.record(self.feature, verification_batch(
+            verificationScope="本地离线\n契约验证",
+            pendingExternalChecks=[f"R{n}：\n外部验证" for n in range(25)],
+            blockers=["等待测试环境"], artifactRefs=[artifact],
+        ))
+        tracked = {"verificationPassed": True, "trustedProgress": {"completed": 1, "total": 1},
+                   "documentDiagnostics": [{"code": "DOC_WARNING", "message": "缺少入口"}],
+                   "artifacts": [{"path": artifact["path"]}, {"path": "artifacts/sql/README.md"}]}
+        summary = workspace_verification.render_status_summary(
+            self.feature.parent, "demo", self.feature, tracked, action_summaries=[],
+        )
+        store = workspace_evidence.load_store(self.feature)
+        self.assertTrue(workspace_verification.structured_verification_passed(store["latestBatch"], {"service": DIGEST}))
+        self.assertTrue(store["index"]["tasks"]["T01"]["latestTrusted"])
+        self.assertIn(f"--batch {store['latestBatch']['id']} --json", summary)
+        self.assertIn("verificationPassed：通过", summary)
+        self.assertIn("trustedProgress：1/1", summary)
+        self.assertIn("R0： 外部验证", summary)
+        self.assertIn("其余 15 项", summary)
+        self.assertIn("等待测试环境", summary)
+        self.assertIn("DOC_WARNING", summary)
+        failures = summary.split("## 最新失败和阻塞", 1)[1].split("## 当前代码状态", 1)[0]
+        self.assertNotIn("- 无", failures)
+        artifact_lines = [line for line in summary.splitlines() if artifact["path"] in line]
+        self.assertEqual(1, len(artifact_lines))
+        self.assertIn("artifacts/sql/README.md", summary)
+        self.assertIn("../README.md", summary)
+        self.assertLessEqual(len(summary.splitlines()), 200)
+        self.assertEqual(summary, workspace_verification.render_status_summary(
+            self.feature.parent, "demo", self.feature, tracked, action_summaries=[],
+        ))
 
 
 if __name__ == "__main__":

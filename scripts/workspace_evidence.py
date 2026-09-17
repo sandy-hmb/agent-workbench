@@ -367,10 +367,19 @@ def _normalize_record(raw: Mapping[str, object], *, migrating: bool = False) -> 
     allowed = (
         {"kind", "taskId", "recordedAt", "repository", "codeState", "checks", "artifactRefs", "validationKind", "deliveryCheck", "result", "origin", "issues"}
         if kind == "taskEvidence"
-        else {"kind", "recordedAt", "overallResult", "reviewResult", "codeState", "checks", "blockers", "artifactRefs", "origin", "issues"}
+        else {"kind", "recordedAt", "overallResult", "reviewResult", "codeState", "checks", "blockers", "artifactRefs", "origin", "issues", "verificationScope", "pendingExternalChecks"}
     )
     if set(raw) - allowed:
         raise EvidenceError("EVIDENCE_RECORD_INVALID", "记录包含未知字段")
+    if "verificationScope" in raw and (
+        not isinstance(raw["verificationScope"], str) or not raw["verificationScope"].strip()
+    ):
+        raise EvidenceError("EVIDENCE_RECORD_INVALID", "verificationScope 必须是非空字符串")
+    if "pendingExternalChecks" in raw and (
+        not isinstance(raw["pendingExternalChecks"], list)
+        or not all(isinstance(item, str) and item.strip() for item in raw["pendingExternalChecks"])
+    ):
+        raise EvidenceError("EVIDENCE_RECORD_INVALID", "pendingExternalChecks 必须是非空字符串组成的数组")
     issues = raw.get("issues", [])
     if (issues and not migrated) or not isinstance(issues, list) or not all(
         isinstance(item, dict)
@@ -797,49 +806,81 @@ def render_summary(
 ) -> str:
     store = load_store(feature, allow_transaction=_allow_transaction)
     state = state or {}
+    batch = store["latestBatch"] or {}
+    batch_command = (
+        f"kit.py verify evidence {feature.name} --batch {batch['id']} --json"
+        if batch.get("id") else f"kit.py verify history {feature.name} --json"
+    )
+
+    def one_line(value: object) -> str:
+        return " ".join(str(value).splitlines())
+
     trusted = state.get("trustedProgress")
     lines = ["# 验证摘要", "", "## 当前验证结论", ""]
     passed = state.get("verificationPassed")
     lines.append(f"- verificationPassed：{'通过' if passed is True else '未通过或未执行'}")
+    lines.append(f"- 验证范围：{one_line(batch.get('verificationScope', '未记录'))}")
+    pending = batch.get("pendingExternalChecks")
+    if pending is None:
+        lines.append("- 待外部验证：未记录；不能据本地通过推断业务验收完成")
+    elif pending:
+        lines.append("- 待外部验证：")
+        lines.extend(f"  - {one_line(item)}" for item in pending[:10])
+        if len(pending) > 10:
+            lines.append(f"  - 其余 {len(pending) - 10} 项见 `{batch_command}`")
+    else:
+        lines.append("- 待外部验证：无（本批次已记录）")
+    lines.append("- 提测与部署情况见 [README 交付状态](../README.md)；验证通过不代表已经部署或完成业务验收")
     if isinstance(trusted, Mapping):
         lines.append(f"- trustedProgress：{trusted.get('completed', 0)}/{trusted.get('total', 0)}")
     lines.extend(["", "## 任务完成概览", "", f"- 已记录任务证据：{len(store['latestByTask'])}"])
     failures = [item for item in store["latestByTask"].values() if item.get("result") in {"failed", "blocked"}]
     lines.extend(["", "## 最新失败和阻塞", ""])
-    if failures:
-        for item in failures[:10]:
-            lines.append(f"- {item.get('taskId')}：{item.get('result')}")
-        if len(failures) > 10:
-            lines.append(f"- 其余 {len(failures) - 10} 项通过 history 查询")
-    else:
-        lines.append("- 无")
-    blockers = state.get("blockers")
-    if isinstance(blockers, list):
+    for item in failures[:10]:
+        lines.append(f"- {item.get('taskId')}：{item.get('result')}")
+    if len(failures) > 10:
+        lines.append(f"- 其余 {len(failures) - 10} 项通过 `kit.py verify history {feature.name}` 查询")
+    blockers = [*batch.get("blockers", []), *(state.get("blockers") or [])]
+    if blockers:
         for blocker in blockers[:10]:
             if isinstance(blocker, Mapping):
-                lines.append(f"- {blocker.get('code', 'BLOCKED')}：{blocker.get('message', '')}")
+                lines.append(f"- {one_line(blocker.get('code', 'BLOCKED'))}：{one_line(blocker.get('message', ''))}")
             elif isinstance(blocker, str):
-                lines.append(f"- {blocker}")
+                lines.append(f"- {one_line(blocker)}")
+        if len(blockers) > 10:
+            lines.append(f"- 其余 {len(blockers) - 10} 项见 `{batch_command}` 和 `kit.py brief {feature.name} --check --json`")
+    if not failures and not blockers:
+        lines.append("- 无")
     lines.extend(["", "## 当前代码状态", ""])
     code_state = state.get("codeState")
     if isinstance(code_state, Mapping):
         for name, digest in list(sorted(code_state.items()))[:20]:
-            lines.append(f"- {name}：{digest}")
+            lines.append(f"- {one_line(name)}：{one_line(digest)}")
+        if len(code_state) > 20:
+            lines.append(f"- 其余 {len(code_state) - 20} 个仓库见 `{batch_command}`")
     else:
         lines.append("- 未检查")
     lines.extend(["", "## 最终报告或产物入口", ""])
-    artifacts = state.get("artifacts")
-    if isinstance(artifacts, list) and artifacts:
-        for artifact in artifacts[:20]:
-            if isinstance(artifact, Mapping):
-                lines.append(f"- {artifact.get('path', '(unknown)')}")
+    artifacts = sorted({
+        str(artifact["path"])
+        for artifact in [*(state.get("artifacts") or []), *batch.get("artifactRefs", [])]
+        if isinstance(artifact, Mapping) and artifact.get("path")
+    })
+    if artifacts:
+        lines.append("文件存在或被证据引用不代表已经验证或交付。")
+        lines.append("")
+        lines.extend(f"- {one_line(path)}" for path in artifacts[:20])
+        if len(artifacts) > 20:
+            lines.append(f"- 其余 {len(artifacts) - 20} 项见 `kit.py brief {feature.name} --json` 和 `{batch_command}`")
     else:
         lines.append("- 无")
     lines.extend(["", "## Workflow Action", ""])
     actions = action_summaries or []
     if actions:
         for action in actions[-1:]:
-            lines.append(f"- {action.get('stage')}：{action.get('status')}（{action.get('summary', '')}）")
+            lines.append(f"- {one_line(action.get('stage'))}：{one_line(action.get('status'))}（{one_line(action.get('summary', ''))}）")
+        if len(actions) > 1:
+            lines.append(f"- 其余 {len(actions) - 1} 条见工作区 `.workspace/runs/` 中本需求的 Workflow Run")
     else:
         lines.append("- 无")
     lines.extend(["", "## 历史证据", "", f"- 共 {store['index']['summary'].get('records', len(store['index']['history']))} 条；使用 `kit.py verify history` 分页查询。"])

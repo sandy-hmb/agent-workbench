@@ -102,6 +102,33 @@ sequenceDiagram
 
 需要临时 SQL、DDL、DML 或交付 fixture 时，将其放在当前需求的 `artifacts/`，SQL 使用 `artifacts/sql/`。数据模型、迁移顺序、兼容和回退策略默认写在主设计文档的数据库章节；业务正式数据库迁移和自动化测试必需 fixture 必须随业务仓版本化。
 
+### 文档与交接
+
+五份基础文档按阶段产生，不预建空附件；各文档只维护自己的权威内容：
+
+| 阶段 | 文档 | 内容 |
+|---|---|---|
+| 需求收敛 | README、Requirements | 当前入口与进度；业务行为、验收及必要硬约束 |
+| 方案设计 | Design、按需设计附件 | 关键流程、D 决策与理由；复杂接口或数据细节才拆附件 |
+| 实施规划 | Plan | 任务结果、依赖、文件、具体步骤和可执行验证 |
+| 实现与验证 | 结构化证据、Verification | 实际版本、验证范围与结果、待外部验证事项 |
+| 前端交接 | `artifacts/frontend-integration.md` | 页面改动、接口说明、联调注意事项 |
+| 提测与部署 | README 交付状态 | 逐仓提交或版本、提测结果、部署情况及外部验收入口 |
+
+Requirements 不写任务进度或实现步骤，但保留影响业务承诺的技术硬约束。Design 按关键流程组织，D 决策就近说明，避免在数据流、概览与决策中完整重述。Plan 保留具体文件、命令和通过条件，不复制设计正文及通用证据格式教程。规划时快照注明日期，长期技术正文不保存当次会话的操作指令。不设文档行数上限，以完整和可独立接手为准。
+
+复杂接口契约使用 `design/api-integration.md`；前端指南使用[三部分模板](../../templates/feature/frontend-integration.md)，两者不强制同时生成。前端需要并行开发时可提前生成同一份“设计稿”；相关实现和本地验证完成后核对实际字段、序列化、包装、错误及页面行为，更新版本并标为“已按实现核对”。部署可用性单独说明，未知写“未确认”。纯说明、示例或环境信息更新不触发设计重审；契约变化仍回写 R/D。
+
+生成或更新文件后登记 README 导航，并运行 `kit.py brief <slug> --check --json`。缺少已有文档入口只警告，失效链接报错；SQL 等成组交付物允许通过目录 README 导航，历史归档与机器证据不逐项登记。检查保持只读，不代替内容核对。测试交接默认写 README，确需独立交付才拆文件；已有 SQL 操作说明直接复用，不另造重复报告。
+
+三类需求的取舍示例：
+
+- 单仓费率配置：主设计加前端指南即可；指南必须保留比例与百分比换算、显式零、来源账户与保存目标差异、单档保存及结果未知处理。
+- 小型跨仓历史展示：后端关系放主设计，前端指南只写操作日志识别、字段、必要样例与展示限制。
+- 复杂钱包集成：保留接口设计附件、前端指南及 SQL 说明，分别承载事件契约、页面接入和迁移操作，互相引用。
+
+历史 `design/frontend-integration.md` 或作为前端指南使用的 `design/api-integration.md` 保持可读；更新 Kit 不自动重命名、重写或迁移业务 Feature。
+
 ## 同一 Feature 的后续迭代
 
 同一业务能力继续使用原 feature slug 和插件条目。当前 Requirements 与 Design 保存最新完整规格，当前 Plan 与 Verification 只保存本轮交付；上一轮结束后再出现实质变更时，将当时文档复制到 `history/iNN/`，从 `history/index.md` 导航，然后把生命周期恢复为 `planning`。当前轮尚未验收时默认继续本轮。
@@ -118,6 +145,10 @@ python3 scripts/kit.py doctor --root .
 ```
 
 `workspace-verify` 会把已授权的离线验证写成结构化批次：总体结果、审查结论、`kit.py verify snapshot` 取得的代码状态和每项检查的实际结果记录在 `testing/evidence/`，再生成 ≤200 行摘要。旧 v1 记录仍可只读阅读，但只有当前代码状态匹配的完整通过批次可推动后续阶段。无 Extension 时流程没有额外步骤；`testTarget: null` 时不运行提测，保持当前现场并说明目标未配置。
+
+新批次还写入 `verificationScope`（非空字符串，说明实际验证范围）和 `pendingExternalChecks`（当前完整待外部验证清单，每项是非空字符串，无待办写 `[]`）。两字段对旧证据可选，缺失显示“未记录”。写入前核对上一批次与计划，保留未关闭事项；每项说明相关 R、事项、负责方及完成条件，关闭须有证据或明确范围调整。它们不改变本地 `verificationPassed`、`trustedProgress` 判定，外部待办继续由验收跟进。
+
+摘要同时保留最新批次问题、任务失败、文档诊断，并合并 artifacts 与批次 `artifactRefs` 的交付入口；文件存在或被引用不代表已验证或交付。提测、部署事实只在 README 更新，摘要提供入口，不维护第二份发布状态。外部验收不从本地通过、push、PR 或 `testing` 推断；完成确认前核对相关验收事项是否关闭。
 
 日常 `status` 和 `brief` 默认不返回历史正文。使用 `kit.py verify evidence <slug> --task T01 --json` 读取当前证据，或用 `kit.py verify history <slug> --task T01 --json` 分页取得旧记录 ID 后运行 `kit.py verify evidence <slug> --task T01 --id <evidence-id> --json`。旧 Feature 先运行 `verify migrate <slug> --preview`，确认后才执行 `--apply`；`verify compact` 同样默认 preview，不删除证据正文。人类摘要漂移时使用 `kit.py verify render <slug> --preview` 检查，再显式 `--apply` 重建。
 

@@ -19,14 +19,29 @@ description: Execute an approved implementation plan task by task with risk-base
 2. 新会话按 `instructionContext.rules` 的规则读取清单顺序读取；该顺序即 kit → workspace → repository → scoped 的单调收窄顺序。CONTEXT 与仓 profile 属于事实轴，按阶段需要用 `status --context-sources` 定位；再依据规则入口中的明确索引与当前改动类型读取专项规范。首次编辑目标仓前完成；扩展到新仓、新路径或新职责时补读，同一会话可复用内容和作用域均未变化的已读规范，不保存“已读”状态。
 3. 行为变化先写最小失败测试，再实现至通过；声明式变化执行计划中的最小有效检查；持久化变化执行计划声明的结构、迁移或集成检查。
 4. 运行任务验证，核对目标执行数、跳过数、退出状态、交付路径和实际 diff。部分实现、编译成功、零测试或跳过测试都不算完成。
-5. 运行 `verify snapshot` 取得执行时代码状态；v2 计划将真实检查结果整理为模板中的 JSON，运行 `python3 scripts/kit.py verify record <slug> --input <json-file> --json`（也可用 `--input -` 从标准输入读取）写入 `testing/evidence/`；v1 计划才向旧 Markdown 追加精简任务证据。随后勾选任务；v2 再运行 `python3 scripts/kit.py verify render <slug> --apply --json` 更新人类摘要，最后重新运行 `brief <slug> --execution --check --json --projection execution`。
+5. 运行 `verify snapshot` 取得执行时代码状态；v2 计划按下方格式整理真实检查结果，运行 `python3 scripts/kit.py verify record <slug> --input <json-file> --json`（也可用 `--input -` 从标准输入读取）写入 `testing/evidence/`；v1 计划才向旧 Markdown 追加精简任务证据。随后勾选任务；v2 再运行 `python3 scripts/kit.py verify render <slug> --apply --json` 更新人类摘要，最后重新运行 `brief <slug> --execution --check --json --projection execution`。
 6. 新计划只有在 `trustedProgress` 包含当前任务且 `executionDecision=RUN` 时继续；有下一项依赖满足的未完成任务时直接继续。`readyTasks` 是依赖满足的候选集合，仍需核对实际环境和授权；`COMPLETE` 时进入整体复核，`BLOCKED` 时核对证据诊断和确认要求。旧计划保持原完成语义。
 
 失败时先稳定复现，沿调用关系定位根因，验证一个最小假设，只实施一个根因修复并重新验证。编译失败、测试失败、缺少上下文和普通代码漂移均先在当前任务解决，不能借调整顺序逃避修复。
 
 单个任务受阻时，记录当前任务、阻塞类别、实际证据、影响范围和恢复条件。若阻塞仅等待用户决策、外部条件或超出授权范围，使用 `brief --task` 展开其他 `readyTasks` 中独立且已授权的任务并顺序推进；调整执行顺序不等于并行。依赖当前阻塞结果的任务仍不得开始。
 
-所有任务可信完成后，复核需求、计划、实际 diff 和代码质量。重要问题必须修复或以证据裁定；无未处理重要问题后转交 `workspace-verify`。
+所有任务可信完成后，复核需求、计划、实际 diff 和代码质量。重要问题必须修复或以证据裁定；无未处理重要问题后转交 `workspace-verify`，核对必要交接文档和待外部验证事项。生成文档后登记 README，不能只在会话中提供入口。
+
+## 任务证据格式
+
+实际证据只在检查执行后写入；此格式留在工作流，不复制到每个 Feature 的计划。`artifactRefs` 按需填写实际交付文件的相对路径、SHA-256、字节数及类型。
+
+```json
+{
+  "kind": "taskEvidence", "taskId": "T01", "recordedAt": "YYYY-MM-DDTHH:MM:SS+08:00",
+  "repository": "service", "codeState": {"service": "sha256:<digest>"},
+  "checks": [{"type": "测试", "workingDirectory": "<path>", "command": "<command>",
+              "target": "<test target>", "executed": 1, "skipped": 0, "exitStatus": 0,
+              "result": "<actual result>"}],
+  "artifactRefs": [], "validationKind": "行为", "deliveryCheck": "passed", "result": "passed"
+}
+```
 
 ## 停止条件
 

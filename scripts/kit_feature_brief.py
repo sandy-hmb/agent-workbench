@@ -159,9 +159,11 @@ def _design_attachments(feature_dir: Path) -> list[Path]:
 
 
 def _document_sources(feature_dir: Path) -> list[Path]:
+    artifacts = feature_dir / "artifacts"
     return [
         *(feature_dir / relative for relative in FEATURE_FILES.values()),
         *_design_attachments(feature_dir),
+        *([artifacts] if artifacts.is_symlink() else sorted(artifacts.rglob("*.md"))),
     ]
 
 
@@ -182,7 +184,8 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
     diagnostics = []
     features_root = feature_dir.parent.resolve()
     linked_paths: dict[Path, set[Path]] = {}
-    for source in _document_sources(feature_dir):
+    sources = _document_sources(feature_dir)
+    for source in sources:
         if not source.exists():
             continue
         if source.is_symlink() or not source.is_file():
@@ -267,6 +270,28 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
                         f"本地链接锚点不存在：{target}",
                     )
                 )
+    readme = feature_dir / "README.md"
+    direct = linked_paths.get(readme.resolve(), set())
+    artifacts = (feature_dir / "artifacts").resolve()
+    indexed = set(direct)
+    pending = [path for path in direct if path.is_relative_to(artifacts) and path.name == "README.md"]
+    while pending:
+        index = pending.pop()
+        for path in linked_paths.get(index, set()) - indexed:
+            if path.is_relative_to(artifacts):
+                indexed.add(path)
+                if path.name == "README.md":
+                    pending.append(path)
+    for source in sources:
+        if source == readme or source.is_symlink() or not source.is_file():
+            continue
+        path = source.resolve()
+        navigation = indexed if path.is_relative_to(artifacts) else direct
+        if path not in navigation:
+            diagnostics.append(_document_diagnostic(
+                "DOCUMENT_MISSING_README_LINK", "warning", readme, feature_dir, 1,
+                f"README 缺少已生成文档入口：{source.relative_to(feature_dir).as_posix()}",
+            ))
     design = feature_dir / "design/design.md"
     attachments = _design_attachments(feature_dir)
     if design.is_file() and not design.is_symlink():

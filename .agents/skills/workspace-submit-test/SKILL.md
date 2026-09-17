@@ -40,6 +40,8 @@ python3 scripts/workspace_submit.py apply \
 
 Feature 目录中的 `artifacts/` 交付物不属于业务仓 `--path`，不会被脚本自动加入提交。
 
+提测结束后按实际结果更新 README 的交付状态：逐仓记录提交或版本、提测结果、部署情况及外部验收入口。失败也如实记录；push、PR 或 `testing` 不证明已经部署，未确认的环境保持“未确认”。测试交接默认写在 README，需要独立交付时才拆文件；前端指南复用原文件并核对对应版本。补齐已生成文档的入口，运行 `brief <slug> --check --json`，不自动上传或发送交付文档。
+
 ## 停止条件与边界
 
 hooks、验证、网络、权限、push 拒绝、目标不存在或任何 Git 失败立即停止。merge 冲突时列出冲突文件并保持现场，不自动解决、abort、rebase、stash、强推或跳过 hooks。切回工作分支失败时报告当前分支。此 Skill 不创建 PR/MR、填写外部表单、操作外部系统或处理其他仓。

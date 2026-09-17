@@ -12,7 +12,7 @@
 
 ## 执行概览
 
-记录当前迭代、Workflow Run、feature slug、目标仓、基线、工作分支、当前工作目录和执行方式。执行方式从“单 Agent”（默认）、“按需子 Agent”或“每任务子 Agent＋独立审查”中选择，并随计划一起审阅；三种方式均不自动并行、创建 worktree、commit 或 push。新会话的读取命令与共同必读文件也放在这里，历史迭代只在追溯时读取。
+记录当前迭代、Workflow Run、feature slug、目标仓、基线、工作分支、工作目录和执行方式；规划时的代码与分支快照必须注明日期。执行方式从“单 Agent”（默认）、“按需子 Agent”或“每任务子 Agent＋独立审查”中选择，并随计划一起审阅。共同读取入口只列本需求必需内容，通用流程遵循工作流规则。
 
 ### 全局约束
 
@@ -45,6 +45,8 @@
 
   **实施步骤**
 
+  只补充本任务易遗漏或有顺序要求的动作，不复制设计正文或通用执行规则。
+
   1. 在 `ServiceTest#test_observable_result` 增加具体失败场景和断言，运行目标命令，预期因当前缺少的行为而失败。
   2. 修改 `Service#method` 完成一个实现动作，并写明该动作产生的可观察结果。
   3. 重跑目标检查与必要回归，核对执行数、跳过数、退出状态和本任务 diff。
@@ -60,34 +62,8 @@
 
   通过条件：写明目标检查的实际执行要求和业务结果，不只记录退出码。持久化任务使用“验证性质：持久化”，并包含结构、迁移或集成级真实写入检查；编译或纯 Mock 不能单独通过。
 
-## 任务证据
-
-每项任务按“验证 → 核对交付 → 获取代码状态 → 写结构化证据 → 勾选 → 重建摘要 → 重跑 brief”完成。实际机器证据写入 `testing/evidence/`，`testing/verification.md` 只由证据生成摘要：
-
-~~~json
-{
-  "kind": "taskEvidence",
-  "taskId": "T01",
-  "recordedAt": "YYYY-MM-DDTHH:MM:SS+08:00",
-  "repository": "repository",
-  "codeState": {"repository": "sha256:<digest>"},
-  "checks": [{
-    "type": "测试",
-    "workingDirectory": "repository",
-    "command": "exact-command",
-    "target": "ServiceTest.test_observable_result",
-    "executed": 1,
-    "skipped": 0,
-    "exitStatus": 0,
-    "result": "写明实际可观察结果"
-  }],
-  "artifactRefs": [],
-  "validationKind": "行为",
-  "deliveryCheck": "passed",
-  "result": "passed"
-}
-~~~
-
 ## 整体验证与完成条件
 
-记录跨任务回归、需求覆盖、范围核对和交付边界；不要重复每个任务已经定义的验证。需要额外授权的数据库、Provider、部署、生产迁移或跨团队联调列在“待外部验证”，不作为本地任务依赖。
+记录跨任务回归、需求覆盖、范围核对和必要交付物；不重复任务级验证或证据格式教程。实际证据按执行与验证规则写入 `testing/evidence/`，摘要由脚本生成。
+
+有前端接入或回归影响时，将同一份前端指南的实现核对和 README 登记纳入完成条件；没有影响时不创建。需要外部环境的验收列在“待外部验证”，说明相关 R、事项、负责方与完成条件，不无条件阻塞无关本地任务。

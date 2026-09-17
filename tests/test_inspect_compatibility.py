@@ -81,7 +81,9 @@ class InspectCompatibilityTest(unittest.TestCase):
             if workspace else f"- 需求短名：`{slug}`\n- 工作分支：`main`\n- 基线分支：`main`\n"
         )
         write(path / "README.md", f"# {slug}\n\n- 状态：{status}\n{bindings}"
-              "- 需求审阅：已批准\n- 设计审阅：已批准\n- 计划审阅：已批准\n- 最后更新：2026-09-08\n")
+              "- 需求审阅：已批准\n- 设计审阅：已批准\n- 计划审阅：已批准\n- 最后更新：2026-09-08\n"
+              "\n## 文档\n\n- [需求](requirements/requirements.md)\n"
+              "- [设计](design/design.md)\n- [计划](plans/implementation.md)\n")
         write(path / "requirements/requirements.md", "# 需求\n\n## R1 行为\n\n验收可复现。\n")
         write(path / "design/design.md", '# 设计\n\n<a id="d1"></a>\n## D1 方案\n\n复用已有实现。\n')
         write(path / "plans/implementation.md", "# 计划\n\n" + "\n\n".join(
