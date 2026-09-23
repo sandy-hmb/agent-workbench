@@ -350,17 +350,24 @@ def apply_result(root: Path, expected_hash: str) -> dict[str, object]:
         raise _error("UPDATE_PLAN_STALE", "更新计划已变化，请重新运行 plan")
     root = _root(root)
     _git(root, ["pull", "--ff-only"])
-    from workspace_doctor import REMEDIATIONS, audit
-
-    doctor = [
-        {
-            "level": item.level,
-            "code": item.code,
-            "message": item.message,
-            "remediation": REMEDIATIONS[item.code].as_dict() if item.code in REMEDIATIONS else None,
-        }
-        for item in audit(root, verbose=True)
-    ]
+    check = subprocess.run(
+        [sys.executable, "-B", str(root / "scripts/workspace_doctor.py"), "--root", str(root), "--verbose", "--json"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if check.returncode not in {0, 1}:
+        raise _error("UPDATE_DOCTOR_FAILED", f"更新已快进，但健康检查未能运行：{check.stderr.strip() or check.returncode}")
+    try:
+        report = json.loads(check.stdout)
+        doctor = report["findings"]
+        if not isinstance(doctor, list):
+            raise ValueError("findings 无效")
+    except (ValueError, KeyError) as exc:
+        raise _error("UPDATE_DOCTOR_FAILED", "更新已快进，但健康检查未返回有效结果") from exc
     result = {"updated": True, "commit": _git(root, ["rev-parse", "HEAD"]).strip(), "doctor": doctor}
     if "manualSteps" in plan:
         result["manualSteps"] = plan["manualSteps"]

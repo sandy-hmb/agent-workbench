@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +110,25 @@ class WorkspaceUpdateTest(unittest.TestCase):
         self.assertTrue(result["updated"])
         self.assertNotEqual(before, result["commit"])
         self.assertIn("Update fixture.", (self.root / "README.md").read_text(encoding="utf-8"))
+
+    def test_apply_runs_post_pull_doctor_in_fresh_process(self) -> None:
+        publish_update(self.source)
+        plan = workspace_update.plan_result(self.root)
+        original = workspace_update.subprocess.run
+        calls = []
+
+        def observe(command, *args, **kwargs):
+            if command[0] == sys.executable and command[1] == "-B" and command[2].endswith("workspace_doctor.py"):
+                calls.append(command)
+            return original(command, *args, **kwargs)
+
+        with patch.object(workspace_update.subprocess, "run", side_effect=observe):
+            result = workspace_update.apply_result(self.root, str(plan["planHash"]))
+
+        self.assertTrue(result["updated"])
+        self.assertEqual(1, len(calls))
+        self.assertIn("--json", calls[0])
+        self.assertEqual(str(self.root), calls[0][calls[0].index("--root") + 1])
 
     def test_apply_rejects_plan_when_target_advances(self) -> None:
         publish_update(self.source)
