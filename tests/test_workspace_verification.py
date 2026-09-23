@@ -465,7 +465,13 @@ class WorkspaceVerificationTest(unittest.TestCase):
         (feature / "plans/implementation.md").write_text("- 完成门禁：`task-evidence-v2`\n", encoding="utf-8")
         record_path = self.repository / "record.json"
         record_path.write_text(json.dumps(task_evidence_payload(self.repository.name)), encoding="utf-8")
-        before = sorted(path.relative_to(self.repository).as_posix() for path in self.repository.rglob("*") if path.is_file())
+        def working_files():
+            return {
+                path.relative_to(self.repository).as_posix(): path.read_bytes()
+                for path in self.repository.rglob("*")
+                if path.is_file() and ".git" not in path.relative_to(self.repository).parts
+            }
+        before = working_files()
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             code = workspace_verification.main([
@@ -473,7 +479,7 @@ class WorkspaceVerificationTest(unittest.TestCase):
                 "--input", str(record_path), "--preview", "--json",
             ])
         self.assertEqual(0, code)
-        self.assertEqual(before, sorted(path.relative_to(self.repository).as_posix() for path in self.repository.rglob("*") if path.is_file()))
+        self.assertEqual(before, working_files())
         self.assertTrue(json.loads(output.getvalue())["preview"])
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(0, workspace_verification.main([
