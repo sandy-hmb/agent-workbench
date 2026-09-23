@@ -83,6 +83,85 @@ class WorkspaceStatusTest(unittest.TestCase):
         )
         return feature
 
+    def test_maintenance_sibling_repository_projection_and_safety(self):
+        from kit_feature_brief import brief_result
+
+        feature = self.write_feature(self.root / "docs/development/features", maintenance=True)
+        sibling = self.parent / "plugin"
+        sibling.mkdir()
+        subprocess.run(["git", "init", "-q", str(sibling)], check=True)
+        (sibling / "AGENTS.md").write_text("# Plugin instructions\n", encoding="utf-8")
+        (sibling / "src").mkdir()
+        (sibling / "src" / "app.py").write_text("pass\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(sibling), "add", "AGENTS.md", "src/app.py"], check=True)
+        subprocess.run(["git", "-C", str(sibling), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "fixture"], check=True)
+        (self.root / "AGENTS.md").write_text("# Kit instructions\n", encoding="utf-8")
+        readme = feature / "README.md"
+        readme.write_text(readme.read_text(encoding="utf-8").replace(
+            "- 工作分支：`codex/feature/demo-feature`\n- 基线分支：`main`",
+            "- 涉及仓库：kit、plugin\n- 工作分支：kit -> main；plugin -> main\n- 基线分支：kit -> main；plugin -> main",
+        ), encoding="utf-8")
+        plan = feature / "plans/implementation.md"
+        plan.write_text("- 完成门禁：`task-evidence-v2`\n\n- [ ] T01 plugin work\n\n"
+                        "  目标仓：plugin\n  验证性质：行为\n"
+                        "  - Modify： `plugin/src/app.py`\n", encoding="utf-8")
+        evidence_dir = feature / "testing/evidence"
+        evidence_dir.mkdir()
+        (evidence_dir / "index.json").write_text(
+            workspace_evidence.canonical_bytes(workspace_evidence._empty_index(feature)).decode("utf-8") + "\n", encoding="utf-8"
+        )
+        status = workspace_status.status_result(self.root)
+        item = status["features"][0]
+        self.assertEqual(["kit", "plugin"], item["repositories"])
+        self.assertEqual({"kit", "plugin"}, set(workspace_verification.feature_code_state(self.root, "maintenance", item)))
+        brief = brief_result(self.root, "demo-feature", "T01", execution=True)
+        self.assertEqual("RUN", brief["executionDecision"])
+        self.assertEqual("plugin", brief["selectedTask"]["repository"])
+        self.assertEqual("src/app.py", brief["selectedTask"]["deliverables"][0]["path"])
+        self.assertIn("../plugin/AGENTS.md", [rule["path"] for rule in brief["instructionContext"]["rules"]])
+        self.assertNotIn("PLAN_TASK_REPOSITORY_INVALID", [d["code"] for d in brief["documentDiagnostics"]])
+        task = workspace_status.plan_analysis(
+            plan, repositories={"kit", "plugin"}, maintenance_root=self.root
+        )["tasks"][0]
+        result = workspace_verification.evaluate_task_evidence(
+            task,
+            {
+                "taskId": "T01", "deliveryCheck": "通过",
+                "codeState": {"plugin": "sha256:" + "a" * 64},
+                "checks": [{"type": "测试", "exitStatus": "0", "result": "通过", "executed": 1, "skipped": 0}],
+            },
+            workspace_status._task_repository_roots(self.root, "maintenance", item),
+            workspace_root=self.root, feature_root=feature,
+        )
+        self.assertTrue(result["trusted"], result["diagnostics"])
+
+        sibling.rename(self.parent / "real-plugin")
+        sibling.symlink_to(self.parent / "real-plugin", target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "符号链接|不安全"):
+            workspace_verification.feature_code_state(self.root, "maintenance", item)
+
+    def test_maintenance_repository_mappings_require_explicit_safe_siblings(self):
+        metadata = {
+            "涉及仓库": "kit、plugin",
+            "工作分支": "kit -> main；plugin -> main",
+            "基线分支": "kit -> main；plugin -> main",
+        }
+        with self.assertRaisesRegex(ValueError, "不安全"):
+            workspace_status.maintenance_feature_repositories(self.root, metadata)
+        sibling = self.parent / "plugin"
+        sibling.mkdir()
+        subprocess.run(["git", "init", "-q", str(sibling)], check=True)
+        for value in ("kit -> main", "kit -> main；kit -> main", "kit -> main；other -> main"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "逐仓"):
+                workspace_status.maintenance_feature_repositories(
+                    self.root, {**metadata, "基线分支": value}
+                )
+        with self.assertRaisesRegex(ValueError, "不安全"):
+            workspace_status.maintenance_repository_path(self.root, "../plugin")
+        self.assertEqual(["kit", "plugin"], workspace_status.maintenance_feature_repositories(
+            self.root, metadata
+        )["repositories"])
+
     def initialize_workspace(self) -> None:
         service = self.parent / "service"
         subprocess.run(["git", "init", "-q", str(service)], check=True)
@@ -215,6 +294,130 @@ class WorkspaceStatusTest(unittest.TestCase):
         plan.parent.symlink_to(self.parent)
         with self.assertRaisesRegex(ValueError, "符号链接"):
             workspace_status.status_result(self.root)
+
+    def test_work_item_projection_keeps_current_activity_and_risk(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        (feature / ".work-item.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "currentBatchId": "b02",
+                    "batches": [
+                        {
+                            "id": "b01",
+                            "workKind": "develop",
+                            "riskTier": "normal",
+                            "status": "completed",
+                        },
+                        {
+                            "id": "b02",
+                            "workKind": "handoff",
+                            "riskTier": "light",
+                            "status": "active",
+                            "scope": {"commit": "abc123", "environment": "test"},
+                            "nextActions": ["执行联调清单"],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        item = workspace_status.status_result(self.root)["features"][0]["workItem"]
+
+        self.assertEqual(2, item["batchCount"])
+        self.assertFalse(item["legacy"])
+        self.assertEqual("handoff", item["currentBatch"]["workKind"])
+        self.assertEqual("light", item["currentBatch"]["riskTier"])
+        self.assertEqual("abc123", item["currentBatch"]["scope"]["commit"])
+
+    def test_new_change_activity_routes_without_complex_documents_or_plan(self):
+        feature = self.write_feature(self.root / "docs/development/features", maintenance=True)
+        (feature / "plans/implementation.md").unlink()
+        (feature / "requirements/requirements.md").unlink()
+        readme = feature / "README.md"
+        readme.write_text(readme.read_text(encoding="utf-8") +
+                          "- 需求审阅：待审阅\n- 设计审阅：未生成\n- 计划审阅：未生成\n", encoding="utf-8")
+        (feature / "change.md").write_text("# 本轮变更\n", encoding="utf-8")
+        for kind, risk, stage in (
+            ("develop", "normal", "feature.implement"),
+            ("repair", "light", "feature.implement"),
+            ("investigate", "normal", "feature.context"),
+            ("handoff", "normal", "feature.context"),
+        ):
+            with self.subTest(kind=kind, risk=risk):
+                (feature / ".work-item.json").write_text(
+                    json.dumps({"schemaVersion": 1, "currentBatchId": "b01", "batches": [
+                        {"id": "b01", "workKind": kind, "riskTier": risk, "status": "active"}
+                    ]}), encoding="utf-8")
+                result = workspace_status.status_result(self.root)
+                self.assertEqual(stage, result["currentStage"])
+                self.assertNotIn("缺少可执行的实施计划", result["nextActions"][0]["reason"])
+                self.assertEqual([], result["blockers"])
+                self.assertNotIn("DOCUMENT_REVIEW_MISSING_FILE", {
+                    item["code"] for item in result["features"][0]["documentDiagnostics"]
+                })
+        (feature / ".work-item.json").write_text(
+            json.dumps({"schemaVersion": 1, "currentBatchId": "b01", "batches": [
+                {"id": "b01", "workKind": "develop", "riskTier": "major", "status": "active"}
+            ]}), encoding="utf-8")
+        major = workspace_status.status_result(self.root)
+        self.assertEqual("feature.design", major["currentStage"])
+        self.assertIn("DOCUMENT_REVIEW_MISSING_FILE", {
+            item["code"] for item in major["features"][0]["documentDiagnostics"]
+        })
+        (feature / ".work-item.json").unlink()
+        legacy = workspace_status.status_result(self.root)
+        self.assertEqual("feature.design", legacy["currentStage"])
+        self.assertIn("Design 审阅包尚未获批准", legacy["nextActions"][0]["reason"])
+        self.assertIn("DOCUMENT_REVIEW_MISSING_FILE", {
+            item["code"] for item in legacy["features"][0]["documentDiagnostics"]
+        })
+
+    def test_default_created_feature_can_advance_with_change_review_only(self):
+        self.initialize_workspace()
+        feature = feature_context.create_feature(
+            self.root, "change-only", ["service"], owner="owner", updated="2026-09-23"
+        )
+        initial = workspace_status.status_result(self.root, feature_slug="change-only")
+        self.assertEqual("feature.design", initial["currentStage"])
+        self.assertEqual("semantic", initial["nextActions"][0]["confirmation"])
+        self.assertNotIn("DOCUMENT_REVIEW_MISSING_FILE", {
+            item["code"] for item in initial["features"][0]["documentDiagnostics"]
+        })
+        readme = feature / "README.md"
+        readme.write_text(readme.read_text(encoding="utf-8").replace(
+            "需求审阅：待审阅", "需求审阅：已批准"
+        ), encoding="utf-8")
+        approved = workspace_status.status_result(self.root, feature_slug="change-only")
+        self.assertEqual("feature.design", approved["currentStage"])
+        self.assertIn("更新状态为 development", approved["nextActions"][0]["reason"])
+        readme.write_text(readme.read_text(encoding="utf-8").replace(
+            "状态：planning", "状态：development"
+        ), encoding="utf-8")
+        developing = workspace_status.status_result(self.root, feature_slug="change-only")
+        self.assertEqual("feature.implement", developing["currentStage"])
+        self.assertFalse(developing["features"][0]["planExists"])
+
+    def test_invalid_work_item_is_diagnosed_without_hiding_legacy_progress(self):
+        feature = self.write_feature(
+            self.root / "docs/development/features", maintenance=True
+        )
+        (feature / ".work-item.json").write_text(
+            '{"schemaVersion": 1, "currentBatchId": "missing", "batches": []}',
+            encoding="utf-8",
+        )
+
+        item = workspace_status.status_result(self.root)["features"][0]
+
+        self.assertEqual(2, item["progress"]["total"])
+        diagnostic = next(
+            value for value in item["documentDiagnostics"] if value["code"] == "WORK_ITEM_INVALID"
+        )
+        self.assertEqual(".work-item.json", diagnostic["path"])
 
     def test_feature_progress_reports_files_without_inferring_approval(self):
         feature = self.write_feature(

@@ -33,6 +33,25 @@ def features_root(root: Path) -> Path:
     return state_root(root) / "docs" / "features"
 
 
+def feature_work_item_file(feature: Path) -> Path:
+    """Return the optional machine-readable activity container for a Feature."""
+    return Path(feature) / ".work-item.json"
+
+
+def feature_plan_file(feature: Path) -> Path:
+    """Prefer the new root plan.md and retain the legacy nested plan."""
+    feature = Path(feature)
+    for relative in ("plan.md", "plans/implementation.md"):
+        candidate = feature / relative
+        if candidate.is_file() and not candidate.is_symlink():
+            return candidate
+    return feature / "plan.md"
+
+
+def feature_plan_relative(feature: Path) -> str:
+    return feature_plan_file(feature).relative_to(feature).as_posix()
+
+
 def profiles_root(root: Path) -> Path:
     return state_root(root) / "docs" / "repositories"
 

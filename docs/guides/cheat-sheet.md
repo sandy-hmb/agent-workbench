@@ -6,23 +6,18 @@
 
 ## 1. 快速决策树
 
-### 该走“轻量改动”还是“标准需求”？
+### 从哪里开始，需要什么审阅？
 
 ```text
-               准备开始新任务
-                     │
-         涉及多仓契约变更/新增依赖？
-             ├── 是 ──> 走【标准需求流程】(kit.py feature create)
-             └── 否
-                     │
-         涉及数据库结构、状态迁移或破坏性变更？
-             ├── 是 ──> 走【标准需求流程】
-             └── 否
-                     │
-         跨会话长线追踪 / 涉及核心业务逻辑？
-             ├── 是 ──> 走【标准需求流程】
-             └── 否 ──> 走【轻量修改模式】(直接改代码 -> 跑单测 -> 交付)
+先看活动：新开发 / 修复 / 接手 / 调查 / 评审 / 验收 / 发布
+  ├─ 不需要新增实现：从现有事实和本轮验收开始，不补造历史设计
+  └─ 需要新增实现：再按真实风险选择审阅强度
+       ├─ 小改：直接实现和定向验证，不强制创建需求目录
+       ├─ 普通：一次审阅目标、验收和必要方案
+       └─ 重大：分阶段审阅范围、方案和执行边界
 ```
+
+跨仓或新增接口本身不自动升级风险；资金或权限语义变化、破坏性契约和难回滚迁移通常属于重大风险。旧 Feature 仍走原流程。
 
 ---
 
@@ -49,6 +44,10 @@ python3 scripts/kit.py registry list --json
 # 创建新需求（标准流程）
 python3 scripts/kit.py feature create <feature-slug> \
   --repo <repo-name> --title "需求标题" --summary "一句话目标" --json
+# 复杂需求显式增加 --document-kind requirements；风险档位独立指定
+
+# 查看已建立工作项的定向投影（小改无需为此创建目录）
+python3 scripts/kit.py inspect --root . --api-major 1 --json projection <feature-slug> --view summary
 
 # 生成规范的分支推荐（不自动创建分支，需人工确认）
 python3 scripts/kit.py registry branch <repo-name> \
@@ -76,11 +75,14 @@ python3 scripts/kit.py feature set-status <feature-slug> done
 ### 验证与快照 (Verify)
 
 ```bash
-# 捕获当前 Git 代码状态快照（生成 fingerprint）
-python3 scripts/kit.py verify snapshot <repo-name> --json
+# 捕获当前工作项各目标仓的代码状态快照
+python3 scripts/kit.py verify snapshot <feature-slug> --json
 
 # 运行已授权的离线验证（测试套件）
 python3 -m unittest discover -s tests -p 'test_*.py'
+
+# 一次写入证据并刷新验证摘要
+python3 scripts/kit.py verify finish <feature-slug> --input evidence.json --json
 ```
 
 ### 初始化与接入业务仓 (Setup)
@@ -104,7 +106,9 @@ python3 scripts/kit.py setup init apply --config ./workspace-input.json --previe
 
 ---
 
-## 3. 需求生命周期与文档门禁
+## 3. 旧 Feature 生命周期参考
+
+以下阶段与目录只适用于已有旧 Feature；新版按活动和风险选择文档，不为接手、调查或小改补造完整开发链。
 
 ```mermaid
 flowchart LR
@@ -136,7 +140,7 @@ flowchart LR
 
 ## 4. 任务执行决策：RUN vs BLOCKED
 
-Agent 读取 `kit brief <slug> --task <id> --json` 后，根据 `executionDecision` 决策：
+以下机器字段仅供执行与排障，日常向使用者报告实际结果、阻塞和下一步。Agent 读取 `kit brief <slug> --task <id> --json` 后，根据 `executionDecision` 决策：
 
 * **`RUN`（继续执行）**：
   * **含义**：当前任务依赖已全部满足，前置任务证据可信，具备执行条件。

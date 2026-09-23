@@ -14,7 +14,10 @@
     },
     "context": {
       "type": "object",
-      "properties": {"termRouter": {"$ref": "#/$defs/termRouter"}}
+      "properties": {
+        "termRouter": {"$ref": "#/$defs/termRouter"},
+        "workItemDefaults": {"$ref": "#/$defs/workItemDefaults"}
+      }
     },
     "branchPolicy": {"$ref": "#/$defs/branchPolicy"},
     "extensions": {
@@ -64,6 +67,14 @@
       "additionalProperties": false,
       "required": ["term", "repository"],
       "properties": {"term": {"$ref": "#/$defs/term"}, "repository": {"$ref": "#/$defs/term"}}
+    },
+    "workItemDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workKind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "riskTier": {"enum": ["light", "normal", "major"]}
+      }
     },
     "branchPolicy": {
       "type": "object",

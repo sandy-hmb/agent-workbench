@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Mapping
 
 from workspace_model import WorkspaceError, atomic_write_many
+from workspace_paths import feature_plan_file
 
 
 SCHEMA_VERSION = 2
@@ -367,7 +368,7 @@ def _normalize_record(raw: Mapping[str, object], *, migrating: bool = False) -> 
     allowed = (
         {"kind", "taskId", "recordedAt", "repository", "codeState", "checks", "artifactRefs", "validationKind", "deliveryCheck", "result", "origin", "issues"}
         if kind == "taskEvidence"
-        else {"kind", "recordedAt", "overallResult", "reviewResult", "codeState", "checks", "blockers", "artifactRefs", "origin", "issues", "verificationScope", "pendingExternalChecks"}
+        else {"kind", "recordedAt", "overallResult", "reviewResult", "codeState", "checks", "blockers", "artifactRefs", "origin", "issues", "verificationScope", "pendingExternalChecks", "applicability"}
     )
     if set(raw) - allowed:
         raise EvidenceError("EVIDENCE_RECORD_INVALID", "记录包含未知字段")
@@ -380,6 +381,8 @@ def _normalize_record(raw: Mapping[str, object], *, migrating: bool = False) -> 
         or not all(isinstance(item, str) and item.strip() for item in raw["pendingExternalChecks"])
     ):
         raise EvidenceError("EVIDENCE_RECORD_INVALID", "pendingExternalChecks 必须是非空字符串组成的数组")
+    if "applicability" in raw and raw["applicability"] not in {"applicable", "not_applicable", "unknown", "expired"}:
+        raise EvidenceError("EVIDENCE_RECORD_INVALID", "applicability 无效")
     issues = raw.get("issues", [])
     if (issues and not migrated) or not isinstance(issues, list) or not all(
         isinstance(item, dict)
@@ -820,6 +823,7 @@ def render_summary(
     passed = state.get("verificationPassed")
     lines.append(f"- verificationPassed：{'通过' if passed is True else '未通过或未执行'}")
     lines.append(f"- 验证范围：{one_line(batch.get('verificationScope', '未记录'))}")
+    lines.append(f"- 适用性：{one_line(batch.get('applicability', 'applicable'))}")
     pending = batch.get("pendingExternalChecks")
     if pending is None:
         lines.append("- 待外部验证：未记录；不能据本地通过推断业务验收完成")
@@ -943,7 +947,7 @@ def _verified_backups(transaction: Path, operation: str) -> dict[str, Path]:
 
 
 def _feature_policy(feature: Path) -> str | None:
-    plan = feature / "plans" / "implementation.md"
+    plan = feature_plan_file(feature)
     if not plan.is_file() or plan.is_symlink():
         return None
     text = plan.read_text(encoding="utf-8")
@@ -978,7 +982,7 @@ def _recover(feature: Path, operation: str) -> bool:
             raise EvidenceError("EVIDENCE_TRANSACTION_INCOMPLETE", "迁移备份缺失")
         outputs: list[tuple[Path, bytes]] = [(feature / "testing" / "verification.md", old_verification.read_bytes())]
         if old_plan is not None:
-            outputs.append((feature / "plans" / "implementation.md", old_plan.read_bytes()))
+            outputs.append((feature_plan_file(feature), old_plan.read_bytes()))
         atomic_write_many(outputs)
         evidence = feature / "testing" / "evidence"
         if evidence.exists() or evidence.is_symlink():
@@ -1089,10 +1093,10 @@ def migrate_feature(
         task_records = []
         from workspace_status import plan_analysis
 
-        analysis = plan_analysis(feature / "plans" / "implementation.md")
-        by_task = {item["id"]: item for item in analysis["tasks"]}
         root = feature.parents[3]
         mode = "workspace" if (root / ".workspace/workspace.json").is_file() else "maintenance"
+        analysis = plan_analysis(feature_plan_file(feature), maintenance_root=root if mode == "maintenance" else None)
+        by_task = {item["id"]: item for item in analysis["tasks"]}
         from workspace_status import _task_repository_roots
 
         repositories = sorted({str(task.get("repository")) for task in analysis["tasks"] if task.get("repository")})
@@ -1131,7 +1135,7 @@ def migrate_feature(
                 feature_root=feature,
             )["trusted"]
             task_records.append({**payload, "_trusted": trusted})
-    plan = feature / "plans" / "implementation.md"
+    plan = feature_plan_file(feature)
     if plan.is_symlink() or not plan.is_file() or plan.parent.is_symlink():
         raise EvidenceError("EVIDENCE_UNSAFE_PATH", "实施计划不安全或缺失")
     plan_text = plan.read_text(encoding="utf-8") if plan.is_file() else ""
@@ -1289,7 +1293,7 @@ def rollback_migration(feature: Path, archive: str) -> None:
     plan = backups.get("plan")
     if verification is None or plan is None:
         raise EvidenceError("EVIDENCE_TRANSACTION_INCOMPLETE", "迁移回滚备份缺失")
-    atomic_write_many(((Path(feature) / "testing" / "verification.md", verification.read_bytes()), (Path(feature) / "plans" / "implementation.md", plan.read_bytes())))
+    atomic_write_many(((Path(feature) / "testing" / "verification.md", verification.read_bytes()), (feature_plan_file(Path(feature)), plan.read_bytes())))
     evidence = Path(feature) / "testing" / "evidence"
     if evidence.exists():
         if evidence.is_symlink() or not evidence.is_dir():

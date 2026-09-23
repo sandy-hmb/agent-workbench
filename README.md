@@ -24,7 +24,7 @@ python3 scripts/kit.py doctor --root .
 ## 日常路径与速查
 
 - [开始使用](docs/getting-started.md)：环境要求、拓扑结构与初始化流程。
-- [第一个需求](docs/guides/first-feature.md)：从轻量改动或标准需求开始，到验证和新会话续接。
+- [第一个需求](docs/guides/first-feature.md)：从小改、普通活动或复杂需求开始，也可接手现有实现，到验证和新会话续接。
 - [常用命令速查 (Cheat Sheet)](docs/guides/cheat-sheet.md)：高频 CLI、状态机阶段及决策树一览。
 - [Agent 指令手册 (Prompt Cookbook)](docs/guides/prompt-cookbook.md)：发起需求、审阅批准、TDD 执行等实战 Prompt 模板。
 - [疑难排查 (Troubleshooting FAQ)](docs/guides/troubleshooting-faq.md)：常见阻塞原因（多需求冲突、Hash 漂移等）与解决方案。
@@ -36,7 +36,7 @@ python3 scripts/kit.py doctor --root .
 
 ## IDE 插件与周边生态
 
-- **IntelliJ IDEA 插件**：[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij) —— 基于 `kit.py inspect` 协议构建的 JetBrains IDE 官方插件，提供需求管理、任务跟踪、设计/计划文档预览、变更审查与验证状态可视化的原生图形界面。
+- **IntelliJ IDEA 插件**：[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij) —— 基于 `kit.py inspect` 协议构建的 JetBrains IDE 插件，详情聚焦计划、变更和流程；原文由 IDEA 编辑器或工程目录打开。
 
 ## 架构阅读
 

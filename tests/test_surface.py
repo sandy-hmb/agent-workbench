@@ -282,6 +282,8 @@ class SurfaceTest(unittest.TestCase):
         design = (templates / "design.md").read_text(encoding="utf-8")
         plan = (templates / "implementation.md").read_text(encoding="utf-8")
         readme = (templates / "README.md").read_text(encoding="utf-8")
+        change = (templates / "change.md").read_text(encoding="utf-8")
+        next_plan = (templates / "plan.md").read_text(encoding="utf-8")
         self.assertIn("### R1", requirements)
         self.assertIn("{summary}", requirements)
         self.assertIn("## 背景与目标", requirements)
@@ -334,6 +336,13 @@ class SurfaceTest(unittest.TestCase):
         )
         self.assertNotIn('"kind": "taskEvidence"', plan)
         self.assertIn("- [ ] T01", plan)
+        self.assertIn("普通、接手、修复、调查或发布跟进", change)
+        self.assertIn("活动类型", change)
+        self.assertIn("新版复杂需求使用根目录 `plan.md`", next_plan)
+        self.assertIn("[需求](requirements/requirements.md)", next_plan)
+        self.assertIn("[设计](design/design.md)", next_plan)
+        self.assertIn("不记录当次会话的内部命令或校验 hash", next_plan)
+        self.assertIn("普通活动使用 `change.md`", readme)
         for field in ("需求审阅：待审阅", "设计审阅：未生成", "计划审阅：未生成"):
             self.assertIn(field, readme)
 

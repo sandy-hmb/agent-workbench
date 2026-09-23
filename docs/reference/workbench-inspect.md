@@ -1,6 +1,6 @@
 # Workbench Inspect 只读查询
 
-Inspect 为本地工作台提供现有工作区、Feature、文档、验证与流程记录。它按需运行一个 Python 进程，不启动服务、不调用 Agent，不执行 Provider、Action、文档命令或 Git 写操作。现有 `status` / `brief` 调用保持原入口；使用插件不要求 Agent 额外维护展示字段。
+Inspect 为本地工作台提供现有工作区、工作项、文档、验证与流程记录。普通活动和复杂需求使用同一只读查询边界；没有复杂计划的小改动不会被当作损坏记录。它按需运行一个 Python 进程，不启动服务、不调用 Agent，不执行 Provider、Action、文档命令或 Git 写操作。现有 `status` / `brief` 调用保持原入口；使用插件不要求 Agent 额外维护展示字段。
 
 ```bash
 python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json workspace
@@ -14,7 +14,8 @@ python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json works
 |---|---|---|
 | `workspace` | 无 | 模式、工作区名称、Kit/业务仓、有效分支策略与逐字段来源、本机上下文、安全配置摘要、协议能力 |
 | `features` | `--status`、`--offset`、`--limit` | 全生命周期 Feature 概况、任务计数、审阅与记录概况、分页和坏记录计数 |
-| `feature <slug>` | 无 | summary、完整 tasks、files/artifacts、原文 description、progression、featureRevision |
+| `feature <slug>` | 无 | legacy 完整详情：summary、tasks、files/artifacts、progression、featureRevision |
+| `projection <slug>` | `--view summary\|task\|change\|handoff\|flow`，task 可带 `--task <id>` | 只读指定工作项与当前视图；summary 为入口，task 包含任务和依赖，change 返回比较对象声明，handoff 返回接手摘要，flow 返回交付事实；不因切换视图展开其他正文 |
 | `document <slug>` | `--path <relative>`、可选 `--revision <sha256>` | 原始 UTF-8 content、bytes、lineCount、mediaType、revision |
 | `verification <slug>` | 可选 `--check-code` | 批次定位、最新批次及检查、每仓代码状态、记录完整性与当前适用性 |
 | `handoff <slug>` | 无 | 即时生成的接手正文、当前任务、直接依赖、阶段、最近验证和带版本来源 |
@@ -56,8 +57,8 @@ Run 的 status 是保存值，running 不代表进程仍存活。`configurationM
 
 常用错误码包括 `INSPECT_INVALID_ARGUMENT`、`INSPECT_UNSUPPORTED_VERSION`、`INSPECT_INVALID_DATA`、`INSPECT_NOT_FOUND`、`INSPECT_UNSAFE_PATH`、`INSPECT_LIMIT_EXCEEDED`、`INSPECT_TIMEOUT`、`INSPECT_INPUT_CHANGED`、`INSPECT_REVISION_CHANGED`。坏记录可成为 partial 中的诊断，单资源不可读时为 error；消费方应保留上次成功内容并标记读取失败。
 
-[Schema](../../schemas/inspect-result.schema.json) 与十类合成响应一同维护。样例由 `python3 -B tests/test_inspect_examples.py --update-examples` 对临时工作区调用真实 CLI 生成，仅规范化临时根路径和 observedAt；不含真实业务记录。`test_inspect_examples.py` 同时校验实时查询和发布样例，`test_inspect_compatibility.py` 对固定旧基线比较默认 status/brief 输出。
+[Schema](../../schemas/inspect-result.schema.json) 与旧十类合成响应一同维护；新版 projection 的定向读取另由工作项测试覆盖。样例由 `python3 -B tests/test_inspect_examples.py --update-examples` 对临时工作区调用真实 CLI 生成，仅规范化临时根路径和 observedAt；不含真实业务记录。`test_inspect_examples.py` 同时校验实时查询和发布样例，`test_inspect_compatibility.py` 对固定旧基线比较默认 status/brief 输出。
 
 ## 客户端与 IDE 插件参考实现
 
-- **[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij)**：基于本 Inspect 协议构建的 IntelliJ IDEA / JetBrains 插件参考实现，提供工作区树、Feature 文档查看、计划任务列表、代码变更对比与验证证据可视化的全套 UI。
+- **[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij)**：基于本 Inspect 协议构建的 IntelliJ IDEA / JetBrains 插件，详情以计划、变更、流程三页为主；文档原文和低频能力通过次级入口按需打开。

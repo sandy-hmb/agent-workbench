@@ -76,12 +76,15 @@ python3 scripts/kit.py doctor --root .
 ## 接下来
 
 - [第一个需求](guides/first-feature.md)：从轻量改动或标准需求开始，到验证和新会话续接。
+- [活动与文档模型](guides/first-feature.md#活动入口与文档选择)：接手、修复、调查和需求扩大都可以从现有事实开始，不必补造历史设计。
 - [常用速查表 (Cheat Sheet)](guides/cheat-sheet.md)：一页纸日常高频命令与状态机决策速查。
 - [Agent 指令实战 (Prompt Cookbook)](guides/prompt-cookbook.md)：复制即用的 Agent 发号施令与纠偏模板。
 - [疑难排查 (Troubleshooting FAQ)](guides/troubleshooting-faq.md)：常见阻塞原因与一键恢复方案。
 - **IDE 可视化**：使用 JetBrains IDE 时，可搭配安装 [agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij) 插件，直接在编辑器侧边栏管理 Feature 生命周期、审查改动与验证记录。
 
 没有本地 Extension 时无需配置 Extension；没有 `testTarget` 的仓也可以完成实现与离线验证，提测步骤会明确停止。
+
+日常消息和插件页面只展示结果、影响、阻塞和下一步。结构检查通过会用自然语言说明；内部命令、revision 和 hash 只留在诊断或协议参考中。
 
 ## 等价命令
 

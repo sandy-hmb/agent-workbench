@@ -11,29 +11,27 @@ python3 scripts/kit.py brief <feature-slug> --json
 
 ## 先分类
 
-在开始编码前，先根据改动特征确定走“轻量路径”还是“标准需求”：
+先定位任务从新建开发、接手、修复、调查、评审还是发布开始，再根据影响范围、可逆性、不确定性和失败代价选择审阅强度。跨仓或新增接口本身不意味着重大风险；资金或权限语义、破坏性契约和难以回滚的迁移通常需要分阶段审阅。
 
 ```mermaid
 flowchart TD
-    Start([准备开始新任务]) --> Q1{涉及多个仓库 / 契约变更?}
-    Q1 -- 是 --> Standard[走【标准需求流程】<br>kit.py feature create]
-    Q1 -- 否 --> Q2{涉及数据库结构、状态迁移<br>或需要新增外部依赖?}
-    Q2 -- 是 --> Standard
-    Q2 -- 否 --> Q3{改动难以定向验证<br>或需要跨会话长线追踪?}
-    Q3 -- 是 --> Standard
-    Q3 -- 否 --> Light[走【轻量修改模式】<br>无需创建需求目录<br>本地修改 -> 跑测试 -> 记录证据]
-
-    style Standard fill:none,stroke:#0288d1,stroke-width:2px
-    style Light fill:none,stroke:#388e3c,stroke-width:2px
+    Start([现有事实与本轮目标]) --> Kind{需要新增实现吗?}
+    Kind -- 否 --> Existing[直接组织调查、接手或验收]
+    Kind -- 是 --> Risk{实际风险与复杂度}
+    Risk -- 局部且可定向验证 --> Light[小改：直接实施并验证]
+    Risk -- 普通 --> Change[普通：一次审阅目标、验收和必要方案]
+    Risk -- 重大 --> Complex[重大：分阶段审阅范围、方案和执行边界]
+    Existing --> Verify[只检查当前活动所需结果]
+    Light --> Verify
+    Change --> Verify
+    Complex --> Verify
 ```
 
-单一业务仓的局部实现、无外部契约或核心状态变化、无需新增依赖且能定向验证时，可以走轻量路径：实现、运行该仓已有验证、在当前交付中记录命令和结果。不创建需求目录。
-
-其他改动走标准需求。以下示例以 `payments-retry` 和已登记仓 `service` 为例：
+小改可走轻量路径，不创建需求目录，直接实施并运行适用检查；普通工作项按需记录 `README.md` 与 `change.md`，复杂需求再增加完整规格、设计和计划。旧 Feature 保留原流程。以下复杂需求示例以 `payments-retry` 和已登记仓 `service` 为例：
 
 ```bash
 python3 scripts/kit.py feature create payments-retry \
-  --repo service --title "支付重试" --summary "处理瞬时失败" --json
+  --repo service --title "支付重试" --summary "处理瞬时失败" --document-kind requirements --json
 python3 scripts/kit.py registry branch service \
   --type feature --slug payments-retry --json
 ```
@@ -41,6 +39,14 @@ python3 scripts/kit.py registry branch service \
 按命令返回的 `baseBranch` 和 `branch` 写入需求记录；不要手工拼接分支名。创建分支需要工作树干净且用户确认，Kit 不自动创建、切换、提交或合并分支。未明确要求 worktree 时，默认在目标仓当前工作目录开发；分支批准不包含 worktree 操作。创建、删除、切换到或把代码迁移至其他 worktree 前，必须另行展示目录和用途并取得明确确认。
 
 ## 标准需求
+
+### 活动入口与文档选择
+
+同一工作项可以经历开发、接手、修复、调查、评审、验收和发布活动。活动入口不等于固定阶段：已有实现的接手先记录版本、范围、已知事实和未知项，联调发现问题时新增修复批次；需求变复杂时保留原活动事实，再建立复杂需求文档。
+
+普通活动只创建 `README.md` 和按需的 `change.md`；复杂需求使用 `requirements.md`、`design.md` 和根目录 `plan.md`；实际验证后产生 `verification.md`。旧 `plans/implementation.md` 仍按旧语义读取，新需求不自动迁移。复杂 API 或模型只有在需要独立审阅、对接或执行时才拆附件。
+
+需求澄清和方案选择继续由用户决定。内部检查只说明“结构与链接检查通过”等结果，不要求使用者理解命令名或校验 hash。
 
 ### 人 - Agent - Kit 协作流程
 
@@ -59,7 +65,7 @@ sequenceDiagram
     H->>A: 审阅通过："确认"
     A->>A: 无新阻塞时生成 Design 草案
     H->>A: 审阅通过："ok"
-    A->>A: 生成 plans/implementation.md (拆解为 T01, T02...)
+    A->>A: 生成 plan.md (拆解为 T01, T02...)
     H->>A: 审阅通过："计划批准，开始执行"
 
     Note over H, R: 阶段 2：任务驱动与 TDD 执行 (Development)
@@ -87,16 +93,17 @@ sequenceDiagram
 └── requirements/requirements.md
 ```
 
-`requirements/requirements.md` 维护完整的当前目标规格。每个可独立失败的验收点写明角色或条件、触发、可观察结果和必要反例；同一 R 下有多个验收点时使用稳定子编号，不给句子机械编号。Design、Plan 和验证引用具体验收点，不重复正文。
+`requirements/requirements.md` 维护完整的当前目标规格。每个可独立失败的验收点写明角色或条件、触发、可观察结果和必要反例；同一 R 下有多个验收点时使用稳定子编号，不给句子机械编号。能用图表达的流程和状态优先使用 Mermaid，旁边保留文字验收条件。Design、Plan 和验证引用具体验收点，不重复正文。
 
 随后按讨论结果按需增加：
 
 - `design/design.md` 维护完整的当前目标设计，明确复用与新增边界、接口和数据流、状态与错误、兼容、关键假设及验证。关键决策使用稳定 D 编号；附件只在有独立读者或维护需要时展开主设计中的决策。
 - `workspace-writing-plan` 对全部验收点做 R → D →任务→验证的语义预检。能分别实现、验证和接受的流程拆为不同任务；同一行为的数据组合可以合并。不按技术层、文件数、Case 数或固定分钟数拆分，依赖只表达真实前置条件。
+- 普通接手、修复、调查或发布活动优先写在 `change.md`，不预建空的复杂文档；`acceptance.md` 仅作为旧记录的兼容名称。
 - 执行方式与计划一起批准：默认单 Agent；复杂工作可选择按需子 Agent，或每任务子 Agent 加独立审查。选择子 Agent 不自动并行、创建 worktree、commit 或 push。
 - 首次实际验证时创建 `testing/evidence/` 并生成 `testing/verification.md` 摘要；机器真值不依赖摘要正文，不使用占位内容。
 
-首次开发和重大变更逐阶段审阅。范围明确、沿用关键方案且不改变高风险数据、权限语义或外部影响的小迭代，可以一次准备需求差异、必要设计调整和计划，批准整个实际文档包。计划批准后直接开始已授权的执行；相同仓、环境、操作和重试范围不因阶段或 Skill 切换重复确认。
+重大风险按范围、方案和执行边界分阶段审阅；普通需求可一次审阅完整方案包，小改可直接执行。沿用关键方案且范围明确的小迭代，可一次批准受影响的实际文档包。计划批准后直接开始已授权的执行；相同仓、环境、操作和重试范围不因阶段或 Skill 切换重复确认。
 
 计划获批后由 `workspace-execute-plan` 逐项执行。`currentTask` 是默认候选；普通失败先在当前任务修复。任务确实等待用户决策或外部条件时，记录证据和恢复条件，再顺序推进 `readyTasks` 中其他独立且已授权的工作；调整顺序不等于并行。一次一个可验证任务不是会话边界，只有全部任务完成或所有剩余任务真实阻塞时才能结束。
 
@@ -104,7 +111,7 @@ sequenceDiagram
 
 ### 文档与交接
 
-五份基础文档按阶段产生，不预建空附件；各文档只维护自己的权威内容：
+下表仅是复杂需求的文档路径；普通活动不预建这些文件，各文档只维护自己的权威内容：
 
 | 阶段 | 文档 | 内容 |
 |---|---|---|

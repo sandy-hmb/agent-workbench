@@ -42,7 +42,7 @@ python3 scripts/workspace_status.py --root . --context-sources --json
 
 ## 入口判据
 
-规则入口应是仓内普通、可读的 `AGENTS.md`。已有工作区中存在 `sourceInstruction` 指向 `README.md` 的真实案例：doctor 会给出 INFO，迁移或 onboarding 不会擅自改写业务仓。`CLAUDE.md`、生成的 profile 和 README 可以作为补充事实或线索，但不能替代规范入口。
+规则入口应是仓内普通、可读的 `AGENTS.md`。已有工作区中存在 `sourceInstruction` 指向 `README.md` 的真实案例：doctor 会给出 INFO，迁移或 onboarding 不会擅自改写业务仓。`CLAUDE.md`、生成的 profile 和 README 可以作为补充事实或线索，但不能替代规范入口。Feature 的 README 是工作项入口，不承担仓级规则职责；普通活动可用 `change.md`，复杂需求才按需生成 Requirements、Design 和 `plan.md`。
 
 常见错放包括：把“金额使用定点类型”这类工程 guardrail 塞进事实轴，或把某一仓的业务状态写进根层；应按适用范围下移或上移，并让更具体层只收紧、不放宽。
 

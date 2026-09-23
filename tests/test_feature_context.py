@@ -520,10 +520,15 @@ class FeatureContextTest(unittest.TestCase):
                 ["svc"],
                 title="Payment Feature",
                 summary="Store payment records.",
+                document_kind="requirements",
             )
 
             self.assertEqual(root.resolve() / ".workspace/docs/features/payment-feature", feature)
             self.assertTrue((feature / "requirements/requirements.md").is_file())
+            work_item = json.loads((feature / ".work-item.json").read_text(encoding="utf-8"))
+            self.assertEqual("b01", work_item["currentBatchId"])
+            self.assertEqual("develop", work_item["batches"][0]["workKind"])
+            self.assertEqual("normal", work_item["batches"][0]["riskTier"])
             for directory in ("design", "plans", "testing", "artifacts"):
                 self.assertFalse((feature / directory).exists())
             readme = (feature / "README.md").read_text(encoding="utf-8")
@@ -547,6 +552,34 @@ class FeatureContextTest(unittest.TestCase):
                 feature_context.load_workspace(root), feature
             )
             self.assertEqual("payment-feature", summary.slug)
+
+    def test_create_feature_accepts_generic_activity_and_risk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_workspace(root)
+            (root / ".workspace/docs/features").mkdir(parents=True)
+            (root / ".workspace/workspace.local.json").write_text(
+                json.dumps({"branchOwner": "owner", "primaryRole": None, "extensions": {}}),
+                encoding="utf-8",
+            )
+
+            feature = feature_context.create_feature(
+                root,
+                "handoff-feature",
+                ["svc"],
+                work_kind="handoff",
+                risk_tier="light",
+            )
+
+            work_item = json.loads((feature / ".work-item.json").read_text(encoding="utf-8"))
+            self.assertEqual("handoff", work_item["batches"][0]["workKind"])
+            self.assertEqual("light", work_item["batches"][0]["riskTier"])
+            self.assertTrue((feature / "change.md").is_file())
+            self.assertIn("[本轮变更](change.md)", (feature / "README.md").read_text(encoding="utf-8"))
+            self.assertFalse((feature / "requirements").exists())
+            self.assertFalse((feature / "design").exists())
+            self.assertFalse((feature / "plans").exists())
+            self.assertFalse((feature / "testing").exists())
 
     def test_feature_commands_allow_unactivated_valid_action(self):
         with tempfile.TemporaryDirectory() as directory:

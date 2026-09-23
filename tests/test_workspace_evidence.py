@@ -205,6 +205,7 @@ class WorkspaceEvidenceTest(unittest.TestCase):
         old_bytes = old_path.read_bytes()
         legacy = workspace_evidence.render_summary(self.feature)
         self.assertIn("验证范围：未记录", legacy)
+        self.assertIn("适用性：applicable", legacy)
         self.assertIn("待外部验证：未记录", legacy)
 
         pending = ["R3：验证真实计费；测试负责人核对实际金额后关闭"]
@@ -227,6 +228,7 @@ class WorkspaceEvidenceTest(unittest.TestCase):
             {"pendingExternalChecks": None}, {"pendingExternalChecks": "R1"},
             {"pendingExternalChecks": [""]}, {"pendingExternalChecks": [" \n "]},
             {"pendingExternalChecks": [1]},
+            {"applicability": "invalid"},
         ):
             with self.subTest(fields=fields), self.assertRaises(workspace_evidence.EvidenceError):
                 workspace_evidence.record(self.feature, verification_batch(**fields))

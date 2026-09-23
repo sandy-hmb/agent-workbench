@@ -28,7 +28,7 @@ from workspace_model import (  # noqa: E402
     repository_path,
     resolve_repository,
 )
-from workspace_paths import state_root  # noqa: E402
+from workspace_paths import feature_plan_file, feature_plan_relative, feature_work_item_file, state_root  # noqa: E402
 from workspace_status import (  # noqa: E402
     _single_feature_progress,
     plan_analysis,
@@ -42,7 +42,7 @@ FEATURE_FILES = {
     "readme": "README.md",
     "requirements": "requirements/requirements.md",
     "design": "design/design.md",
-    "plan": "plans/implementation.md",
+    "plan": "plan.md",
     "verification": "testing/verification.md",
 }
 PENDING_TASK_LIMIT = 10
@@ -91,15 +91,33 @@ def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> st
     raise ValueError(f"未指定 slug 且无法确定唯一需求，候选：{candidates}")
 
 
+def _has_work_item(root: Path, slug: str) -> bool:
+    feature_root = (
+        state_root(root) / "docs" / "features"
+        if (state_root(root) / "workspace.json").is_file()
+        else root / "docs" / "development" / "features"
+    )
+    path = feature_work_item_file(feature_root / slug)
+    return path.is_file() and not path.is_symlink()
+
+
 def _file_report(feature_dir: Path) -> dict[str, dict[str, object]]:
     report = {}
     for key, relative in FEATURE_FILES.items():
-        path = feature_dir / relative
+        path = feature_plan_file(feature_dir) if key == "plan" else feature_dir / relative
+        relative = path.relative_to(feature_dir).as_posix()
         exists = path.is_file() and not path.is_symlink()
         report[key] = {
             "path": relative,
             "exists": exists,
             "bytes": path.stat().st_size if exists else 0,
+        }
+    change = feature_dir / "change.md"
+    if change.is_file() and not change.is_symlink():
+        report["change"] = {
+            "path": "change.md",
+            "exists": True,
+            "bytes": change.stat().st_size,
         }
     return report
 
@@ -160,8 +178,17 @@ def _design_attachments(feature_dir: Path) -> list[Path]:
 
 def _document_sources(feature_dir: Path) -> list[Path]:
     artifacts = feature_dir / "artifacts"
+    standard = [
+        feature_dir / relative
+        for key, relative in FEATURE_FILES.items()
+        if key != "plan"
+    ]
+    standard.append(feature_plan_file(feature_dir))
+    change = feature_dir / "change.md"
+    if change.exists() or change.is_symlink():
+        standard.append(change)
     return [
-        *(feature_dir / relative for relative in FEATURE_FILES.values()),
+        *standard,
         *_design_attachments(feature_dir),
         *([artifacts] if artifacts.is_symlink() else sorted(artifacts.rglob("*.md"))),
     ]
@@ -334,7 +361,7 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
                     "存在设计附件，但主设计没有可解析的 D 决策定义",
                 )
             )
-        plan = feature_dir / FEATURE_FILES["plan"]
+        plan = feature_plan_file(feature_dir)
         if plan.is_file() and not plan.is_symlink():
             for line_number, line in _markdown_lines(plan):
                 for reference in DECISION_REFERENCE_RE.findall(line):
@@ -361,7 +388,9 @@ def _recent_commits(
     limit: int = 5,
 ) -> dict[str, object]:
     if mode == "maintenance":
-        git_root = root
+        from workspace_status import maintenance_repository_path
+
+        git_root = maintenance_repository_path(root, repo)
     else:
         repository = resolve_repository(workspace_model.repositories, repo)
         git_root = repository_path(workspace_model, repository)
@@ -380,11 +409,13 @@ def _recent_commits(
     return {"repository": repo, "branch": branch, "commits": commits}
 
 
-def _task_summary(task: dict[str, object]) -> dict[str, object]:
+def _task_summary(
+    task: dict[str, object], plan_relative: str = "plans/implementation.md"
+) -> dict[str, object]:
     result = {
         "id": task["id"],
         "title": task["title"],
-        "path": FEATURE_FILES["plan"],
+        "path": plan_relative,
         "startLine": task["startLine"],
         "endLine": task["endLine"],
         "dependencies": task["dependencies"],
@@ -404,6 +435,7 @@ def _task_summary(task: dict[str, object]) -> dict[str, object]:
 def _task_state(
     analysis: dict[str, object],
     task_evidence: list[dict[str, object]],
+    plan_relative: str = "plans/implementation.md",
 ) -> tuple[dict[str, object] | None, list[dict[str, object]], list[str], bool]:
     diagnostics = analysis["diagnostics"]
     if any(item["severity"] == "error" for item in diagnostics):
@@ -432,20 +464,20 @@ def _task_state(
             f"任务 {task['id']} 已勾选但完成证据无效"
             for task in untrusted
         ]
-        return _task_summary(untrusted[0]), [], blockers, True
+        return _task_summary(untrusted[0], plan_relative), [], blockers, True
     ready = []
     blockers = []
     for task in tasks:
         if task["completed"]:
             continue
         if task["id"] is None:
-            ready.append(_task_summary(task))
+            ready.append(_task_summary(task, plan_relative))
             continue
         missing = [dependency for dependency in task["dependencies"] if dependency not in completed_ids]
         if missing:
             blockers.append(f"任务 {task['id']} 等待：{', '.join(missing)}")
             continue
-        ready.append(_task_summary(task))
+        ready.append(_task_summary(task, plan_relative))
     return (ready[0] if ready else None), ready, blockers, False
 
 
@@ -470,7 +502,7 @@ def _execution_decision(
 
 
 def _selected_task(
-    task_id: str | None, analysis: dict[str, object], plan: Path
+    task_id: str | None, analysis: dict[str, object], plan: Path, plan_relative: str
 ) -> dict[str, object] | None:
     if task_id is None:
         return None
@@ -482,7 +514,7 @@ def _selected_task(
     task = matches[0]
     text = plan.read_text(encoding="utf-8").splitlines()
     return {
-        **_task_summary(task),
+        **_task_summary(task, plan_relative),
         "body": "\n".join(text[task["startLine"] - 1 : task["endLine"]]),
     }
 
@@ -601,8 +633,20 @@ def _instruction_context(
             )
         )
     if mode == "maintenance":
+        from workspace_status import maintenance_repository_path
+
+        repository_root = maintenance_repository_path(root, repository_name)
+        if repository_root != root:
+            source = repository_root / "AGENTS.md"
+            relative = Path(os.path.relpath(source, root)).as_posix()
+            if _ordinary_file(repository_root, source):
+                rules.append(_instruction_rule(root, 3, "repository", relative, repository_name))
+            else:
+                diagnostics.append(_instruction_diagnostic(
+                    "INSTRUCTION_SOURCE_MISSING", relative, "仓库规范入口不存在或不安全"
+                ))
         scoped, scoped_diagnostics = _scoped_instruction_paths(
-            root, root, task, {kit_agents.resolve()}
+            root, repository_root, task, {kit_agents.resolve(), (repository_root / "AGENTS.md").resolve()}
         )
         diagnostics.extend(scoped_diagnostics)
         return {"policy": "monotonic-narrowing", "rules": [*rules, *scoped]}, diagnostics
@@ -658,18 +702,25 @@ def brief_result(
     execution: bool = False,
 ) -> dict[str, object]:
     root = Path(root).resolve()
-    status = status_result(root)
+    status = (
+        status_result(root, feature_slug=slug)
+        if slug is not None and _has_work_item(root, slug)
+        else status_result(root)
+    )
     resolved = _resolve_slug(root, status, slug)
     feature = next(item for item in status["features"] if item["featureSlug"] == resolved)
     feature_dir = root / feature["path"]
     stage = _single_feature_progress(feature, mode=str(status["mode"]))
     workspace_model = load_workspace(root) if status["mode"] == "workspace" else None
-    plan = feature_dir / FEATURE_FILES["plan"]
-    analysis = plan_analysis(plan, repositories=set(feature["repositories"]))
+    plan = feature_plan_file(feature_dir)
+    analysis = plan_analysis(
+        plan, repositories=set(feature["repositories"]),
+        maintenance_root=root if status["mode"] == "maintenance" else None,
+    )
     pending = [task["line"] for task in analysis["tasks"] if not task["completed"]]
     task_evidence = list(feature.get("taskEvidence", []))
     current_task, ready_tasks, task_blockers, completion_blocked = _task_state(
-        analysis, task_evidence
+        analysis, task_evidence, feature_plan_relative(feature_dir)
     )
     progress = plan_progress(plan)
     if analysis["completionPolicy"] == "task-evidence-v2":
@@ -681,7 +732,9 @@ def brief_result(
         record = verification_record(feature_dir)
     verification_summary = record[:VERIFICATION_SUMMARY_LIMIT] if record is not None else None
     verification_truncated = record is not None and len(record) > VERIFICATION_SUMMARY_LIMIT
-    selected_task = _selected_task(task_id, analysis, plan)
+    selected_task = _selected_task(
+        task_id, analysis, plan, feature_plan_relative(feature_dir)
+    )
     instruction_context, instruction_diagnostics = _instruction_context(
         root, str(status["mode"]), workspace_model, selected_task
     )

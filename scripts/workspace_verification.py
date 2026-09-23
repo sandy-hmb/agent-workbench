@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping
 
 from workspace_model import atomic_write_many, load_workspace, repository_path, resolve_repository
+from workspace_paths import feature_plan_file
 from workspace_evidence import (
     EvidenceError,
     MAX_JSON_BYTES,
@@ -515,6 +516,8 @@ def structured_verification_passed(
         return False
     if batch.get("overallResult") != "passed" or batch.get("reviewResult") != "passed":
         return False
+    if batch.get("applicability", "applicable") != "applicable":
+        return False
     recorded = batch.get("codeState")
     if not _valid_code_state(recorded) or not _valid_code_state(dict(current_states)):
         return False
@@ -662,26 +665,36 @@ def feature_code_state(
     ):
         raise ValueError("需求缺少可验证的涉及仓库")
     if mode == "maintenance":
-        if repositories != [root.name]:
-            raise ValueError("维护需求必须只涉及当前 Kit 仓库")
+        from workspace_status import maintenance_repository_path
+
         relative = feature.get("path")
         if not isinstance(relative, str):
             raise ValueError("维护需求缺少路径")
         feature_path = PurePosixPath(relative)
         if feature_path.is_absolute() or ".." in feature_path.parts:
             raise ValueError("维护需求路径无效")
+        plan_relative = feature_plan_file(root / feature_path).relative_to(root / feature_path).as_posix()
         excluded = tuple(
             (feature_path / item).as_posix()
             for item in (
                 "README.md",
-                "plans/implementation.md",
+                plan_relative,
                 "testing/verification.md",
                 "testing/.evidence.lock",
                 "testing/evidence",
                 "testing/archive",
             )
         )
-        return {root.name: git_fingerprint(root, excluded, timeout=timeout, max_untracked_files=INSPECT_MAX_UNTRACKED_FILES if inspect_budget else None, max_bytes=INSPECT_MAX_FINGERPRINT_BYTES if inspect_budget else None)}
+        return {
+            name: git_fingerprint(
+                maintenance_repository_path(root, name),
+                excluded if name == root.name else (),
+                timeout=timeout,
+                max_untracked_files=INSPECT_MAX_UNTRACKED_FILES if inspect_budget else None,
+                max_bytes=INSPECT_MAX_FINGERPRINT_BYTES if inspect_budget else None,
+            )
+            for name in repositories
+        }
 
     workspace = load_workspace(root)
     result = {}
@@ -753,6 +766,12 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--preview", action="store_true")
     render.add_argument("--apply", action="store_true")
     render.add_argument("--json", action="store_true")
+    finish = subcommands.add_parser("finish", help="一次写入证据并刷新验证摘要")
+    finish.add_argument("feature")
+    finish.add_argument("--root", type=Path, default=Path.cwd())
+    finish.add_argument("--input", type=Path, required=True, help="证据 JSON 文件；- 表示标准输入")
+    finish.add_argument("--preview", action="store_true")
+    finish.add_argument("--json", action="store_true")
     return parser
 
 
@@ -895,7 +914,8 @@ def _record_trust(root: Path, feature: Path, raw: Mapping[str, object]) -> bool 
     from workspace_status import _task_repository_roots, plan_analysis
 
     root = Path(root).resolve()
-    analysis = plan_analysis(feature / "plans" / "implementation.md")
+    mode = "workspace" if (root / ".workspace/workspace.json").is_file() else "maintenance"
+    analysis = plan_analysis(feature_plan_file(feature), maintenance_root=root if mode == "maintenance" else None)
     task = next((value for value in analysis["tasks"] if value.get("id") == raw.get("taskId")), None)
     if task is None:
         return False
@@ -928,7 +948,7 @@ def main(argv: list[str] | None = None) -> int:
             _, feature = _resolve_feature_path(args.root, args.feature)
             from workspace_status import plan_analysis
 
-            if plan_analysis(feature / "plans" / "implementation.md")["completionPolicy"] != "task-evidence-v2":
+            if plan_analysis(feature_plan_file(feature))["completionPolicy"] != "task-evidence-v2":
                 raise EvidenceError("EVIDENCE_POLICY_INVALID", "record 只适用于 task-evidence-v2 Feature")
             raw = _record_input(args.input)
             record(feature, raw, preview=True)
@@ -971,6 +991,25 @@ def main(argv: list[str] | None = None) -> int:
             if args.apply and result["changed"]:
                 refresh_summary(args.root, args.feature, feature)
             result["preview"] = not args.apply
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
+        if args.command == "finish":
+            _, feature = _resolve_feature_path(args.root, args.feature)
+            raw = _record_input(args.input)
+            if raw.get("kind") == "taskEvidence":
+                from workspace_status import plan_analysis
+
+                if plan_analysis(feature_plan_file(feature))["completionPolicy"] != "task-evidence-v2":
+                    raise EvidenceError("EVIDENCE_POLICY_INVALID", "finish 只适用于 task-evidence-v2 Feature")
+            record(feature, raw, preview=True)
+            trusted = _record_trust(args.root, feature, raw)
+            if args.preview:
+                result = record(feature, raw, preview=True, trusted=trusted)
+            else:
+                with mutation_lock(feature):
+                    result = record(feature, raw, preview=False, trusted=trusted, _locked=True)
+                    result["summaryChanged"] = refresh_summary(args.root, args.feature, feature)
+            result["preview"] = bool(args.preview)
             print(json.dumps(result, ensure_ascii=False))
             return 0
         if args.command in {"migrate", "compact"}:

@@ -23,13 +23,27 @@ python3 scripts/kit.py status --root . --json
 
 ## 需求阶段
 
+新版工作项先按活动和风险选择最小记录：小改动可以直接实施；普通活动使用入口和变更说明；复杂需求才建立需求、设计和计划正文。接手、调查、评审、修复和发布跟进可以从已有事实开始，不补造历史阶段。旧 Feature 继续按原目录和原语义读取。
+
+```mermaid
+flowchart LR
+    Start["工作项入口"] --> Classify{"活动与风险"}
+    Classify --> Light["小改：直接实施"]
+    Classify --> Change["普通：README + change.md"]
+    Classify --> Complex["复杂：requirements + design + plan"]
+    Light --> Verify["按适用范围验证"]
+    Change --> Verify
+    Complex --> Verify
+    Verify --> Handoff["记录结果与下一步"]
+```
+
 ```mermaid
 flowchart LR
     subgraph S_Plan ["状态: planning (方案设计)"]
         direction TB
         c1["feature.context"] --> c2["feature.classify"]
         c2 --> c3["feature.analyze"]
-        c3 --> c4["feature.design (两轮审阅)"]
+        c3 --> c4["feature.design (按风险审阅)"]
     end
 
     subgraph S_Dev ["状态: development (任务执行)"]

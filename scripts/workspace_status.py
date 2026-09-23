@@ -25,7 +25,9 @@ if str(SCRIPT_DIR) not in sys.path:
 from feature_context import (  # noqa: E402
     FEATURE_STATUSES,
     SLUG_RE,
+    branch_mappings,
     feature_metadata,
+    feature_summary,
     list_features_lenient,
     summary_payload,
 )
@@ -35,13 +37,14 @@ from workspace_model import (  # noqa: E402
     WorkspaceError,
     is_independent_git,
     load_workspace,
+    read_work_item,
     read_json,
     repository_path,
     resolve_repository,
     workspace_schema_version,
 )
 from workspace_setup import discover_sibling_repositories  # noqa: E402
-from workspace_paths import state_root, workspace_file  # noqa: E402
+from workspace_paths import feature_plan_file, features_root, state_root, workspace_file  # noqa: E402
 from workspace_extension import extension_status  # noqa: E402
 from workspace_local import load_local_settings  # noqa: E402
 from workspace_workflow import status_result as workflow_status  # noqa: E402
@@ -277,6 +280,7 @@ def plan_analysis(
     path: Path,
     text: str | None = None,
     repositories: set[str] | None = None,
+    maintenance_root: Path | None = None,
 ) -> dict[str, object]:
     if path.is_symlink():
         raise ValueError(f"实施计划不允许符号链接：{path}")
@@ -418,6 +422,8 @@ def plan_analysis(
         repository = (
             repositories_in_task[0][1] if len(repositories_in_task) == 1 else None
         )
+        if maintenance_root is not None and repository is not None:
+            repository = repository.removeprefix("`").removesuffix("`")
         repository_valid = (
             repository is not None
             and (repositories is None or repository in repositories)
@@ -463,6 +469,8 @@ def plan_analysis(
         for line_number, kind, detail in deliverable_lines:
             code_values = INLINE_CODE_RE.findall(detail)
             value = code_values[0] if code_values else ""
+            if maintenance_root is not None and repository != maintenance_root.name and value.startswith(f"{repository}/"):
+                value = value[len(repository) + 1:]
             if not _safe_deliverable_path(value):
                 diagnostics.append(
                     _diagnostic(
@@ -550,6 +558,17 @@ def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, 
     reviews: dict[str, str] = {}
     diagnostics: list[dict[str, object]] = []
     recorded = False
+    change = feature / "change.md"
+    try:
+        work_item = read_work_item(feature)
+    except WorkspaceError:
+        work_item = None
+    current = work_item.current_batch() if work_item is not None else None
+    change_activity = (
+        current is not None and current.status == "active" and current.risk_tier != "major"
+        and change.is_file() and not change.is_symlink()
+        and not (feature / DOCUMENT_PATHS["requirements"]).exists()
+    )
     for key, field in DOCUMENT_REVIEW_FIELDS.items():
         value = metadata.get(field)
         if value is None:
@@ -575,7 +594,10 @@ def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, 
             )
             continue
         reviews[key] = value
-        path = feature / DOCUMENT_PATHS[key]
+        path = feature_plan_file(feature) if key == "plan" else feature / DOCUMENT_PATHS[key]
+        if key == "requirements" and change_activity:
+            path = change
+        relative = path.relative_to(feature).as_posix()
         if value in {"待审阅", "已批准"} and (path.is_symlink() or not path.is_file()):
             diagnostics.append(
                 _diagnostic(
@@ -589,7 +611,7 @@ def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, 
                         )
                         if line.startswith(f"- {field}：")
                     ),
-                    f"{field} 为 {value}，但缺少 {DOCUMENT_PATHS[key]}",
+                    f"{field} 为 {value}，但缺少 {relative}",
                 )
             )
         elif value == "未生成" and path.is_file():
@@ -605,7 +627,7 @@ def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, 
                         )
                         if line.startswith(f"- {field}：")
                     ),
-                    f"{field} 为未生成，但 {DOCUMENT_PATHS[key]} 已存在",
+                    f"{field} 为未生成，但 {relative} 已存在",
                 )
             )
     if reviews["design"] == "待审阅" and reviews["plan"] == "已批准":
@@ -638,12 +660,50 @@ def current_branch(path: Path) -> str | None:
     return result.stdout.strip() or None if result.returncode == 0 else None
 
 
+def maintenance_repository_path(root: Path, name: str) -> Path:
+    """Resolve only this Kit or an independent, same-named sibling Git repository."""
+    root = Path(root).resolve()
+    if not name or name in {".", ".."} or Path(name).name != name or "\\" in name:
+        raise ValueError(f"维护需求仓库名称不安全：{name}")
+    if name == root.name:
+        return root
+    candidate = root.parent / name
+    if candidate.is_symlink() or not candidate.is_dir() or not is_independent_git(candidate):
+        raise ValueError(f"维护需求仓库不存在或不安全：{candidate}")
+    return candidate
+
+
+def maintenance_feature_repositories(root: Path, metadata: Mapping[str, str]) -> dict[str, object]:
+    readme_repositories = metadata.get("涉及仓库", "")
+    if not readme_repositories or not (
+        branch_mappings(metadata.get("工作分支", ""))
+        or branch_mappings(metadata.get("基线分支", ""))
+    ):
+        return {
+            "repositories": [root.name],
+            "branches": [[root.name, metadata.get("工作分支", "")]],
+            "baseBranches": [[root.name, metadata.get("基线分支", "")]],
+        }
+    names = [name.strip() for name in re.split(r"[、,，]", readme_repositories.replace("`", ""))]
+    if not names or len(set(names)) != len(names):
+        raise ValueError("维护需求涉及仓库为空或重复")
+    for name in names:
+        maintenance_repository_path(root, name)
+    result: dict[str, object] = {"repositories": names}
+    for field, key in (("工作分支", "branches"), ("基线分支", "baseBranches")):
+        mappings = branch_mappings(metadata.get(field, ""))
+        if len(mappings) != len(names) or set(name for name, _ in mappings) != set(names):
+            raise ValueError(f"维护需求 {field} 必须逐仓明确映射且不可重复")
+        result[key] = [list(mapping) for mapping in mappings]
+    return result
+
+
 def _task_repository_roots(
     root: Path, mode: str, item: dict[str, object]
 ) -> dict[str, Path]:
     repositories = [str(name) for name in item["repositories"]]
     if mode == "maintenance":
-        return {root.name: root}
+        return {name: maintenance_repository_path(root, name) for name in repositories}
     workspace = load_workspace(root)
     return {
         name: repository_path(
@@ -715,10 +775,14 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     for marker in (feature / "testing/.evidence-transaction.json", feature / "testing/evidence/.transaction.json"):
         if marker.exists() or marker.is_symlink():
             raise ValueError(f"EVIDENCE_TRANSACTION_INCOMPLETE: 证据事务尚未恢复：{marker}")
-    plan = feature / "plans" / "implementation.md"
+    change = feature / "change.md"
+    if change.is_symlink():
+        raise ValueError(f"变更文档不允许符号链接：{change}")
+    plan = feature_plan_file(feature)
     analysis = plan_analysis(
         plan,
         repositories={str(repository) for repository in item["repositories"]},
+        maintenance_root=root if mode == "maintenance" else None,
     )
     reviews, review_diagnostics, reviews_recorded = document_reviews(feature)
     trusted_progress, task_evidence, evidence_diagnostics = _task_evidence_state(
@@ -760,6 +824,23 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
         ),
         "artifacts": artifact_summary(feature),
     }
+    if change.is_file():
+        result["changeExists"] = True
+    try:
+        work_item = read_work_item(feature)
+    except WorkspaceError as exc:
+        result["documentDiagnostics"].append(
+            {
+                "severity": "error",
+                "code": "WORK_ITEM_INVALID",
+                "path": ".work-item.json",
+                "line": None,
+                "message": str(exc),
+            }
+        )
+    else:
+        if work_item is not None:
+            result["workItem"] = work_item.projection()
     if analysis["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
         result.update(
             {
@@ -821,6 +902,36 @@ def _single_feature_progress(
             "blockers": ["FEATURE_PAUSED"],
             "confirmation": _confirmation("semantic"),
         }
+    work_item = feature.get("workItem")
+    current = work_item.get("currentBatch") if isinstance(work_item, dict) else None
+    if feature.get("changeExists") is True and isinstance(current, dict) and current.get("status") == "active":
+        kind = current.get("workKind")
+        risk = current.get("riskTier")
+        if risk != "major" and kind in {"investigate", "handoff", "review", "accept", "release"}:
+            stage = "feature.context"
+            reason = f"继续需求 {feature['featureSlug']} 的 {kind} 活动，记录事实与下一步"
+            confirmation = "local"
+        elif risk != "major" and kind in {"develop", "repair"} and feature.get("planExists") is not True:
+            if feature["status"] == "planning":
+                stage = "feature.design"
+                reviews = feature.get("documentReviews", {})
+                approved = isinstance(reviews, dict) and reviews.get("requirements") == "已批准"
+                reason = (f"需求 {feature['featureSlug']} 的变更说明已批准；更新状态为 development 后执行"
+                          if approved else f"审阅需求 {feature['featureSlug']} 的 change.md 后继续")
+                confirmation = "local" if approved else "semantic"
+            else:
+                stage = "feature.implement"
+                reason = f"继续需求 {feature['featureSlug']} 的 {kind} 活动，按风险验证本轮变更"
+                confirmation = "local"
+        else:
+            stage = None
+        if stage is not None:
+            return {
+                "currentStage": stage,
+                "nextActions": [_stage_action(stage, reason, confirmation=confirmation)],
+                "blockers": [],
+                "confirmation": _confirmation(confirmation),
+            }
     progress = feature["progress"]
     assert isinstance(progress, dict)
     trusted_progress = feature.get("trustedProgress")
@@ -1037,9 +1148,7 @@ def _maintenance_features(root: Path) -> tuple[list[dict[str, object]], list[dic
             "featureSlug": feature.name,
             "path": relative,
             "status": status,
-            "repositories": [root.name],
-            "branches": [[root.name, branch]],
-            "baseBranches": [[root.name, base]],
+            **maintenance_feature_repositories(root, metadata),
             "lastUpdated": updated,
         }
         item.update(_tracking(root, "maintenance", feature, item))
@@ -1058,6 +1167,41 @@ def _workspace_features(root: Path) -> tuple[list[dict[str, object]], list[dict[
         item.update(_tracking(root, "workspace", feature.path, item))
         result.append(item)
     return result, degraded
+
+
+def _direct_feature(root: Path, mode: str, slug: str) -> dict[str, object]:
+    if not SLUG_RE.fullmatch(slug):
+        raise ValueError(f"需求短名无效：{slug}")
+    feature = (
+        root / "docs" / "development" / "features" / slug
+        if mode == "maintenance"
+        else features_root(root) / slug
+    )
+    if feature.is_symlink() or not feature.is_dir():
+        raise ValueError(f"需求不存在：{slug}")
+    readme = feature / "README.md"
+    if readme.is_symlink() or not readme.is_file():
+        raise ValueError(f"需求 README 不存在或不安全：{readme}")
+    text = readme.read_text(encoding="utf-8")
+    if mode == "maintenance":
+        metadata = feature_metadata(readme, text)
+        if metadata.get("需求短名") != slug or metadata.get("状态") not in FEATURE_STATUSES:
+            raise ValueError(f"需求元数据无效：{readme}")
+        item: dict[str, object] = {
+            "featureSlug": slug,
+            "path": feature.relative_to(root).as_posix(),
+            "status": metadata["状态"],
+            **maintenance_feature_repositories(root, metadata),
+            "lastUpdated": metadata.get("最后更新", ""),
+        }
+    else:
+        workspace = load_workspace(root)
+        summary = feature_summary(workspace, feature, text)
+        item = summary_payload(summary)
+        item["path"] = feature.relative_to(root).as_posix()
+    if item["status"] != "done":
+        item.update(_tracking(root, mode, feature, item))
+    return item
 
 
 def _blocked_workspace_summary(root: Path, extensions: dict[str, object]) -> dict[str, object]:
@@ -1135,7 +1279,9 @@ def _context_sources(root: Path) -> dict[str, object]:
     return result
 
 
-def status_result(root: Path, *, context_sources: bool = False) -> dict[str, object]:
+def status_result(
+    root: Path, *, context_sources: bool = False, feature_slug: str | None = None
+) -> dict[str, object]:
     root = root.resolve()
     if not root.is_dir():
         raise ValueError(f"治理仓目录不存在：{root}")
@@ -1147,7 +1293,11 @@ def status_result(root: Path, *, context_sources: bool = False) -> dict[str, obj
         workspace = None
         repositories: list[dict[str, object]] = []
         candidates: list[str] = []
-        features, degraded_features = _maintenance_features(root)
+        if feature_slug is None:
+            features, degraded_features = _maintenance_features(root)
+        else:
+            item = _direct_feature(root, "maintenance", feature_slug)
+            features, degraded_features = ([] if item["status"] == "done" else [item]), []
         extensions = extension_status(root)
         mode = "maintenance"
     else:
@@ -1206,7 +1356,11 @@ def status_result(root: Path, *, context_sources: bool = False) -> dict[str, obj
             for path in discover_sibling_repositories(root)
             if path.name not in registered
         ]
-        features, degraded_features = _workspace_features(root)
+        if feature_slug is None:
+            features, degraded_features = _workspace_features(root)
+        else:
+            item = _direct_feature(root, "workspace", feature_slug)
+            features, degraded_features = ([] if item["status"] == "done" else [item]), []
         workspace = workspace_model.identity.as_dict()
         extensions = extension_status(root)
         mode = "workspace"

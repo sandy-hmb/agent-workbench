@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from workspace_local import LocalSettings, canonical_local_json, load_local_settings
-from workspace_model import Workspace, WorkspaceError, load_workspace, resolve_repository
+from workspace_model import Workspace, WorkspaceError, initial_work_item, load_workspace, resolve_repository
 from workspace_model import atomic_write_many, effective_branch_policy, render_branch_name
 from workspace_paths import cache_root, features_root, local_file, state_root, workspace_file
 
@@ -345,6 +345,9 @@ def create_feature(
     owner: str | None = None,
     title: str | None = None,
     summary: str = "",
+    work_kind: str = "develop",
+    risk_tier: str = "normal",
+    document_kind: str = "change",
     updated: str | None = None,
 ) -> Path:
     if not SLUG_RE.fullmatch(slug):
@@ -393,8 +396,11 @@ def create_feature(
     template = (Path(__file__).resolve().parents[1] / "templates/feature/README.md").read_text(
         encoding="utf-8"
     )
-    requirements_template = (
-        Path(__file__).resolve().parents[1] / "templates/feature/requirements.md"
+    if document_kind not in {"change", "requirements"}:
+        raise ValueError("文档类型必须是 change 或 requirements")
+    document_name = "requirements/requirements.md" if document_kind == "requirements" else "change.md"
+    document_template = (
+        Path(__file__).resolve().parents[1] / "templates/feature" / Path(document_name).name
     ).read_text(encoding="utf-8")
     readme = template.format(
         title=title,
@@ -403,13 +409,18 @@ def create_feature(
         base_branches="；".join(bases),
         updated=updated,
     )
+    if document_kind == "change":
+        readme = readme.replace("- [需求](requirements/requirements.md)", "- [本轮变更](change.md)")
     if summary.strip():
         readme = readme.rstrip() + f"\n\n## 摘要\n\n{summary.strip()}\n"
     outputs = {
         feature / "README.md": readme,
-        feature / "requirements/requirements.md": requirements_template.format(
+        feature / document_name: document_template.format(
             title=title,
             summary=summary.strip(),
+        ),
+        feature / ".work-item.json": initial_work_item(
+            slug, work_kind=work_kind, risk_tier=risk_tier
         ),
     }
     feature.mkdir()
@@ -483,6 +494,9 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--owner")
     create.add_argument("--title")
     create.add_argument("--summary", default="")
+    create.add_argument("--work-kind", default="develop")
+    create.add_argument("--risk-tier", choices=("light", "normal", "major"), default="normal")
+    create.add_argument("--document-kind", choices=("change", "requirements"), default="change")
     create.add_argument("--date", default=date.today().isoformat())
     create.add_argument("--json", action="store_true")
     resolve = commands.add_parser("resolve", help="按仓库和工作分支解析需求")
@@ -516,6 +530,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 owner=args.owner,
                 title=args.title,
                 summary=args.summary,
+                work_kind=args.work_kind,
+                risk_tier=args.risk_tier,
+                document_kind=args.document_kind,
                 updated=args.date,
             )
             payload = {"featureSlug": args.slug, "path": str(path)}

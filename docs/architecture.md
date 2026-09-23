@@ -43,7 +43,7 @@ flowchart TB
 
 ### 协作与命令入口
 
-**Agent 和 Core Skill** 负责把用户目标转成阶段讨论、实施和验证动作。Skill 是按需读取的 runbook；讨论是否充分、结论是否得到用户确认，需要 Agent 遵守协作约定。脚本不会解释整段对话并证明用户已同意。需求与书面设计由[需求设计 Skill](../.agents/skills/workspace-feature-design/SKILL.md)在生成确认后记录；设计获批后，[计划 Skill](../.agents/skills/workspace-writing-plan/SKILL.md)直接生成可执行任务草案，再由使用者批准实际文件和执行条件。
+**Agent 和 Core Skill** 负责把用户目标转成活动、必要审阅、实施和验证动作。Skill 是按需读取的 runbook；讨论是否充分、结论是否得到用户确认，需要 Agent 遵守协作约定。脚本不会解释整段对话并证明用户已同意。小改动可不创建 Feature 文档；普通活动使用 `README.md` 与按需 `change.md`；复杂需求才使用 Requirements、Design 和根目录 `plan.md`。旧 Feature 的 `plans/implementation.md` 继续按旧语义读取。需求与书面设计由[需求设计 Skill](../.agents/skills/workspace-feature-design/SKILL.md)在生成确认后记录；设计获批后，[计划 Skill](../.agents/skills/workspace-writing-plan/SKILL.md)直接生成可执行任务草案，再由使用者批准实际文件和执行条件。
 
 **CLI 入口** [kit.py](../scripts/kit.py)只把子命令转发到对应脚本的 `main()`，不另存状态或重写业务逻辑。直接运行脚本与通过统一入口调用使用同一实现。[kit_describe.py](../scripts/kit_describe.py)提供命令与 runbook 的可读清单；它用于发现能力，不是另一个流程调度器。
 
@@ -74,7 +74,7 @@ flowchart TB
 
 ## 3. 一个需求如何推进
 
-以下以修改 `service` 仓中的支付重试逻辑为例。流程先确认目标场景和验收标准，再确定复用方案；设计获批后直接形成实施任务。泳道中的“确认”是人的决定；脚本只处理被调用的具体操作。
+先按活动选择入口，再按风险决定审阅强度；接手、调查和评审不需要补造原开发链。以下是复杂新开发示例，以修改 `service` 仓中的支付重试逻辑为例。流程先确认目标场景和验收标准，再确定复用方案；设计获批后直接形成实施任务。泳道中的“确认”是人的决定；脚本只处理被调用的具体操作。
 
 ```mermaid
 sequenceDiagram
@@ -108,7 +108,7 @@ sequenceDiagram
     A->>K: 更新为 done
 ```
 
-图中的需求创建命令针对用户治理模式；公共 Kit 维护在对应私有目录记录。图省略了各阶段失败和返工的重复往返：讨论结论需要调整时继续讨论；实现中发现范围、验收或关键方案变化时回到对应阶段；检查失败时保留证据、修复并重新验证。轻量改动使用已有局部路径，不要求创建整套需求文件。
+图中的需求创建命令针对用户治理模式；公共 Kit 维护在对应私有目录记录。图省略了各阶段失败和返工的重复往返：讨论结论需要调整时继续讨论；实现中发现范围、验收或关键方案变化时回到对应活动；检查失败时保留证据、修复并重新验证。小改动使用已有局部路径，不要求创建需求目录；普通活动可从接手、调查或修复开始，复杂化时再建立完整文档。
 
 Core Workflow 的公共锚点定义在 [feature-development.json](../workflows/feature-development.json)：
 
@@ -254,7 +254,7 @@ sequenceDiagram
 | Core Skill、脚本、Schema、模板和公开文档 | 公共 Kit Git；由 Kit 维护者修改。 | 公共更新按已确认目标快进，不更新业务仓代码。本文在此类中，但不进入 Agent 日常读取清单。 |
 | `workspace.json`、`workspace.local.json` | `.workspace/`；登记、配置或相关管理命令写入。 | 共享登记与本机偏好分别存放；都属于本地状态，不随公共 Git 同步。 |
 | 工作区 AGENTS、CONTEXT 与仓 profile | 初始化或登记流程生成；CONTEXT 保存业务事实，AGENTS 保存约定。 | 公共模板更新不会自动重写已有生成文件；相应 preview/apply 只更新其声明的范围。 |
-| 需求、设计、计划与验证 | 当前 feature；需求和设计在生成确认后记录，设计获批后直接生成计划草案，验证保存任务检查点和最终批次。 | 新计划默认 `task-evidence-v2`：机器证据位于 `testing/evidence/`，`testing/verification.md` 是 ≤200 行摘要；`task-evidence-v1` 继续只读兼容。 |
+| 工作项入口、变更、复杂设计与验证 | 当前 feature；普通活动按需使用 `change.md`，复杂需求使用 Requirements、Design 和根目录 `plan.md`，旧 `plans/implementation.md` 保留读取。 | 新计划默认 `task-evidence-v2`：机器证据位于 `testing/evidence/`，`testing/verification.md` 是 ≤200 行摘要；`task-evidence-v1` 继续只读兼容。 |
 | Extension、lock、Overlay 与 Run | `.workspace/`；扩展与 Workflow 命令管理。 | 修改后需要重新检查漂移和计划；详细日志与业务产物由扩展按授权保存。 |
 | `local-*` Adapter | 本地激活流程生成，Git 忽略。 | 不手工维护，不作为公共更新覆盖的内容。 |
 | 需求附属 SQL、临时 fixture 等 | feature 的 `artifacts/`，SQL 使用 `artifacts/sql/`。 | 只保存与本需求绑定的交付物；扩展产物不预设统一专用目录。 |

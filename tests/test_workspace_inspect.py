@@ -54,6 +54,58 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("# Requirements\n\nBody\n", document["data"]["content"])
 
+    def test_projection_reads_new_root_plan_and_activity_container(self):
+        feature = self.root / "docs/development/features/demo-feature"
+        old_plan = feature / "plans/implementation.md"
+        old_plan.unlink()
+        old_plan.parent.rmdir()
+        (feature / "plan.md").write_text("- [ ] T01 Demo\n\n  依赖：无\n", encoding="utf-8")
+        (feature / ".work-item.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "currentBatchId": "b01",
+                    "batches": [
+                        {"id": "b01", "workKind": "handoff", "riskTier": "light", "status": "active"}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        code, summary, _ = command(self.root, "projection", "demo-feature", "--view", "summary")
+        self.assertEqual(0, code)
+        self.assertEqual("handoff", summary["data"]["summary"]["workItem"]["currentBatch"]["workKind"])
+        self.assertTrue(summary["data"]["summary"]["planSummary"]["exists"])
+
+        code, task, _ = command(self.root, "projection", "demo-feature", "--view", "task", "--task", "T01")
+        self.assertEqual(0, code)
+        self.assertEqual("plan.md", task["data"]["tasks"][0]["path"])
+
+        code, change, _ = command(self.root, "projection", "demo-feature", "--view", "change")
+        self.assertEqual(0, code)
+        self.assertEqual("not_checked", change["data"]["comparison"]["state"])
+
+    def test_maintenance_projection_preserves_each_repository_branch(self):
+        from unittest.mock import patch
+
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "README.md").write_text(
+            "# Demo\n\n- 状态：development\n- 需求短名：`demo-feature`\n"
+            f"- 涉及仓库：`{self.root.name}`、`plugin`\n"
+            f"- 工作分支：`{self.root.name}` -> `main`；`plugin` -> `feature/demo`\n"
+            f"- 基线分支：`{self.root.name}` -> `main`；`plugin` -> `main`\n"
+            "- 最后更新：2026-09-08\n",
+            encoding="utf-8",
+        )
+        with patch("workspace_status.maintenance_repository_path", side_effect=lambda root, name: root if name == root.name else root.parent / "plugin"):
+            from workspace_inspect import projection
+            result = projection(self.root.resolve(), "demo-feature", "change")
+        self.assertEqual(
+            [(self.root.name, "main", "main"), ("plugin", "main", "feature/demo")],
+            [(item["repository"], item["baseBranch"], item["workBranch"]) for item in result["repositories"]],
+        )
+
     def test_feature_exposes_trusted_plan_state(self):
         source = self.root / "source.py"
         source.write_text("value = 1\n", encoding="utf-8")
@@ -161,6 +213,54 @@ class WorkspaceInspectTest(unittest.TestCase):
                 assert_progress(0, "TASK_DELIVERABLE_REF_UNAVAILABLE")
                 readme.write_text(original, encoding="utf-8")
 
+    def test_maintenance_verification_checks_each_sibling_repository(self):
+        import workspace_evidence
+        import workspace_verification
+
+        def git(path, *args):
+            subprocess.run(["git", "-C", str(path), *args], check=True, capture_output=True)
+
+        git(self.root, "init", "-q", "-b", "main")
+        sibling = self.root.parent / "plugin"
+        sibling.mkdir()
+        git(sibling, "init", "-q", "-b", "main")
+        (sibling / "app.py").write_text("value = 1\n", encoding="utf-8")
+        for path in (self.root, sibling):
+            git(path, "add", ".")
+            git(path, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "fixture")
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "README.md").write_text(
+            "# Demo\n\n- 状态：development\n- 需求短名：`demo-feature`\n"
+            "- 涉及仓库：`kit`、`plugin`\n"
+            "- 工作分支：`kit` -> `main`；`plugin` -> `main`\n"
+            "- 基线分支：`kit` -> `main`；`plugin` -> `main`\n"
+            "- 最后更新：2026-09-08\n", encoding="utf-8"
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v2`\n\n- [ ] T01 Demo\n", encoding="utf-8"
+        )
+        from workspace_status import maintenance_repository_path
+        item = {"repositories": ["kit", "plugin"], "path": feature.relative_to(self.root).as_posix()}
+        states = workspace_verification.feature_code_state(self.root, "maintenance", item)
+        workspace_evidence.record(feature, {
+            "kind": "verificationBatch", "recordedAt": "2026-09-13T10:00:00Z",
+            "overallResult": "passed", "reviewResult": "passed", "codeState": states,
+            "checks": [{"workingDirectory": str(sibling), "command": "true", "exitStatus": 0, "result": "passed", "duration": "1s", "testCount": 1}],
+            "blockers": [], "artifactRefs": [],
+        })
+        code, response, _ = command(self.root, "verification", "demo-feature", "--check-code")
+        self.assertEqual(0, code, response)
+        rows = {row["repository"]: row for row in response["data"]["repositoryStates"]}
+        self.assertEqual("matched", rows["plugin"]["state"])
+        self.assertEqual("valid", response["data"]["applicability"])
+        (sibling / "app.py").write_text("value = 2\n", encoding="utf-8")
+        code, response, _ = command(self.root, "verification", "demo-feature", "--check-code")
+        self.assertEqual(0, code, response)
+        rows = {row["repository"]: row for row in response["data"]["repositoryStates"]}
+        self.assertEqual("changed", rows["plugin"]["state"])
+        self.assertEqual("invalid", response["data"]["applicability"])
+        self.assertEqual(sibling.resolve(), maintenance_repository_path(self.root, "plugin"))
+
     def test_v2_verification_is_projected_to_the_inspect_contract(self):
         import workspace_evidence
         from schema_validation import validate
@@ -215,6 +315,67 @@ class WorkspaceInspectTest(unittest.TestCase):
         self.assertEqual("ok", response["status"])
         self.assertEqual(["demo-feature"], [item["slug"] for item in response["data"]["items"]])
         self.assertFalse(response["data"]["items"][0]["verificationSummary"]["exists"])
+
+    def test_new_activity_documents_affect_revisions_handoff_and_linked_search(self):
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "README.md").write_text(
+            (feature / "README.md").read_text(encoding="utf-8") + "\n[变更](change.md)\n", encoding="utf-8"
+        )
+        (feature / "change.md").write_text("# 变更\n\nneedle-in-change\n\n[附件](notes.md)\n", encoding="utf-8")
+        (feature / "notes.md").write_text("needle-in-notes\n", encoding="utf-8")
+        (feature / ".work-item.json").write_text(json.dumps({
+            "schemaVersion": 1, "currentBatchId": "b01",
+            "batches": [{"id": "b01", "workKind": "handoff", "riskTier": "normal", "status": "active"}],
+        }), encoding="utf-8")
+        _, detail, _ = command(self.root, "feature", "demo-feature")
+        first = detail["data"]["featureRevision"]
+        _, collection, _ = command(self.root, "features")
+        collection_revision = collection["revision"]
+        self.assertIn("change.md", {row["path"] for row in detail["data"]["files"]})
+        for path in ("change.md", "notes.md"):
+            with self.subTest(path=path):
+                code, response, _ = command(self.root, "document", "demo-feature", "--path", path)
+                self.assertEqual(0, code, response)
+        code, hidden, _ = command(self.root, "document", "demo-feature", "--path", ".work-item.json")
+        self.assertEqual(1, code)
+        self.assertEqual("INSPECT_UNSAFE_PATH", hidden["diagnostics"][0]["code"])
+        code, handoff, _ = command(self.root, "handoff", "demo-feature")
+        self.assertEqual(0, code, handoff)
+        self.assertIn("change.md", {source["path"] for source in handoff["data"]["sources"]})
+        for term, expected in (("needle-in-change", "change.md"), ("needle-in-notes", "notes.md")):
+            code, found, _ = command(self.root, "search", "--query", term)
+            self.assertEqual(0, code, found)
+            self.assertIn(expected, {row["path"] for row in found["data"]["items"]})
+        (feature / "change.md").write_text("# 变更\n\nupdated\n\n[附件](notes.md)\n", encoding="utf-8")
+        _, changed, _ = command(self.root, "feature", "demo-feature")
+        self.assertNotEqual(first, changed["data"]["featureRevision"])
+        _, changed_collection, _ = command(self.root, "features")
+        self.assertNotEqual(collection_revision, changed_collection["revision"])
+        second = changed["data"]["featureRevision"]
+        work_item = feature / ".work-item.json"
+        work_item.write_text(work_item.read_text(encoding="utf-8").replace('"normal"', '"light"'), encoding="utf-8")
+        _, changed_again, _ = command(self.root, "feature", "demo-feature")
+        self.assertNotEqual(second, changed_again["data"]["featureRevision"])
+        _, flow, _ = command(self.root, "projection", "demo-feature", "--view", "flow")
+        self.assertEqual(changed_again["data"]["featureRevision"], flow["data"]["featureRevision"])
+
+    def test_new_handoff_without_plan_and_unsafe_activity_file(self):
+        feature = self.root / "docs/development/features/demo-feature"
+        (feature / "plans/implementation.md").unlink()
+        (feature / "change.md").write_text("# 接手范围\n", encoding="utf-8")
+        (feature / ".work-item.json").write_text(json.dumps({
+            "schemaVersion": 1, "currentBatchId": "b01",
+            "batches": [{"id": "b01", "workKind": "handoff", "riskTier": "normal", "status": "active"}],
+        }), encoding="utf-8")
+        code, handoff, _ = command(self.root, "handoff", "demo-feature")
+        self.assertEqual(0, code, handoff)
+        self.assertEqual("feature.context", handoff["data"]["progression"]["currentStage"])
+        self.assertIn("change.md", {item["path"] for item in handoff["data"]["sources"]})
+        (feature / "change.md").unlink()
+        (feature / "change.md").symlink_to(self.root / "outside.md")
+        code, detail, _ = command(self.root, "feature", "demo-feature")
+        self.assertEqual(1, code)
+        self.assertEqual("INSPECT_UNSAFE_PATH", detail["diagnostics"][0]["code"])
 
     def test_feature_collection_revision_is_page_independent(self):
         _, first, _ = command(self.root, "features", "--offset", "0", "--limit", "1")

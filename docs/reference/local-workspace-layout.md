@@ -41,7 +41,7 @@ graph TD
 
         subgraph DocsDir ["docs/ (文档状态)"]
             RepoDocs["repositories/<repo>.md<br>(各业务仓规范与镜像)"]
-            FeatDocs["features/<feature-slug>/<br>(需求、设计、计划、验证报告)"]
+            FeatDocs["features/<feature-slug>/<br>(入口、变更或复杂需求文档、验证)"]
         end
 
         subgraph ExtDir ["extensions/ (扩展与运行时状态)"]
@@ -81,7 +81,7 @@ graph TD
 | `workspace.local.json` | 本机使用者的分支 owner、角色、本地 Extension 配置和活跃需求指针。 |
 | `CONTEXT.md` | 跨仓上下文的生成内容。 |
 | `docs/repositories/` | 每个已登记仓的生成 profile。 |
-| `docs/features/` | 用户工作区的需求记录；设计、计划和验证文件按已确认阶段出现。 |
+| `docs/features/` | 用户工作区的工作项记录；普通活动按需使用 `change.md`，复杂需求才出现设计、计划和验证文件。 |
 | `docs/features/<slug>/history/` | 同一 Feature 已结束迭代的文档快照；当前入口只链接索引，历史正文按需读取。 |
 | `docs/features/<slug>/artifacts/` | 需求绑定的 SQL、DDL、DML、fixture 和其他交付物；按需创建，不是业务仓代码目录。 |
 | `extensions/` | 本地 Extension 源目录；`.state/` 收纳其输入、锁、可移植来源摘要和缓存。 |

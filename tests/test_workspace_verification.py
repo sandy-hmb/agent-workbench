@@ -484,6 +484,62 @@ class WorkspaceVerificationTest(unittest.TestCase):
         self.assertIn("# 验证摘要", summary)
         self.assertNotIn("python3 -m unittest", summary)
 
+    def test_finish_cli_writes_evidence_and_summary_in_one_entry(self) -> None:
+        feature = self.repository / "docs/development/features/demo-feature"
+        (feature / "plans").mkdir(parents=True)
+        (feature / "testing").mkdir()
+        (feature / "README.md").write_text(
+            "# Demo\n\n- 状态：development\n- 需求短名：`demo-feature`\n"
+            "- 工作分支：`main`\n- 基线分支：`main`\n- 最后更新：2026-09-07\n",
+            encoding="utf-8",
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v2`\n", encoding="utf-8"
+        )
+        source = self.repository / "finish.json"
+        source.write_text(json.dumps({**task_evidence_payload(self.repository.name)}), encoding="utf-8")
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = workspace_verification.main([
+                "finish", "demo-feature", "--root", str(self.repository),
+                "--input", str(source), "--json",
+            ])
+
+        self.assertEqual(0, code)
+        self.assertFalse(json.loads(output.getvalue())["preview"])
+        self.assertTrue((feature / "testing/evidence/index.json").is_file())
+        self.assertTrue((feature / "testing/verification.md").is_file())
+
+    def test_finish_does_not_trust_wrong_repository_or_missing_deliverables(self) -> None:
+        from workspace_evidence import load_index
+
+        feature = self.repository / "docs/development/features/demo-feature"
+        (feature / "plans").mkdir(parents=True)
+        (feature / "README.md").write_text(
+            "# Demo\n\n- 状态：development\n- 需求短名：`demo-feature`\n"
+            "- 工作分支：`main`\n- 基线分支：`main`\n- 最后更新：2026-09-07\n", encoding="utf-8"
+        )
+        (feature / "plans/implementation.md").write_text(
+            "- 完成门禁：`task-evidence-v2`\n\n- [x] T01 Demo\n\n"
+            f"  目标仓：`{self.repository.name}`\n  验证性质：行为\n"
+            "  - Modify：`source.txt`\n  - Test：`tests/test_service.py`\n", encoding="utf-8"
+        )
+        source = self.repository / "finish.json"
+        for repository in ("other", self.repository.name):
+            with self.subTest(repository=repository):
+                source.write_text(json.dumps(task_evidence_payload(repository)), encoding="utf-8")
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    code = workspace_verification.main([
+                        "finish", "demo-feature", "--root", str(self.repository),
+                        "--input", str(source), "--json",
+                    ])
+                self.assertEqual(0, code, output.getvalue())
+                pointers = load_index(feature)["tasks"]["T01"]
+                self.assertNotIn("latestTrusted", pointers)
+                self.assertEqual(json.loads(output.getvalue())["id"], pointers["latestObserved"]["id"])
+
     def test_record_rejects_non_object_and_symlinked_input(self) -> None:
         source = self.repository / "record.json"
         source.write_text("[]\n", encoding="utf-8")

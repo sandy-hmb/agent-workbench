@@ -32,4 +32,4 @@
 
 - [需求](requirements/requirements.md)
 
-仅登记已生成的需求、设计及附件、计划、验证摘要和前端指南。需求绑定的交付物放在 `artifacts/`；SQL 等成组文件通过目录 README 导航，不预建空文件。
+按实际活动登记已生成的文档：普通活动使用 `change.md`，复杂活动按需使用 `design.md` 和 `plan.md`，验证后生成 `verification.md`。旧 Feature 的 `plans/implementation.md` 继续可读；新文档不预建空附件。需求绑定的交付物放在 `artifacts/`；SQL 等成组文件通过目录 README 导航。

@@ -29,6 +29,10 @@ DEFAULT_BRANCH_POLICY = {
     "hotfixBase": "main",
     "namePattern": "{owner}/{type}/{slug}",
 }
+WORK_ITEM_SCHEMA_VERSION = 1
+WORK_ITEM_RISK_TIERS = frozenset({"light", "normal", "major"})
+WORK_ITEM_BATCH_STATUSES = frozenset({"active", "blocked", "paused", "completed"})
+WORK_ITEM_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 TOP_LEVEL_FIELDS = frozenset(
     {"version", "workspace", "context", "branchPolicy", "extensions", "repositories"}
 )
@@ -147,6 +151,177 @@ class Repository:
         if self.validation:
             result["validation"] = list(self.validation)
         return result
+
+
+@dataclass(frozen=True)
+class ActivityBatch:
+    batch_id: str
+    work_kind: str
+    risk_tier: str
+    status: str
+    parent_batch_id: str | None = None
+    scope: Mapping[str, object] = field(default_factory=dict)
+    expected_outcome: str | None = None
+    acceptance_refs: tuple[str, ...] = ()
+    next_actions: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, object]:
+        result: dict[str, object] = {
+            "id": self.batch_id,
+            "workKind": self.work_kind,
+            "riskTier": self.risk_tier,
+            "status": self.status,
+            "scope": dict(self.scope),
+            "acceptanceRefs": list(self.acceptance_refs),
+            "nextActions": list(self.next_actions),
+        }
+        if self.parent_batch_id is not None:
+            result["parentBatchId"] = self.parent_batch_id
+        if self.expected_outcome is not None:
+            result["expectedOutcome"] = self.expected_outcome
+        return result
+
+
+@dataclass(frozen=True)
+class WorkItem:
+    current_batch_id: str | None
+    batches: tuple[ActivityBatch, ...]
+    schema_version: int = WORK_ITEM_SCHEMA_VERSION
+
+    def current_batch(self) -> ActivityBatch | None:
+        if self.current_batch_id is None:
+            return None
+        return next(
+            (batch for batch in self.batches if batch.batch_id == self.current_batch_id),
+            None,
+        )
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "schemaVersion": self.schema_version,
+            "currentBatchId": self.current_batch_id,
+            "batches": [batch.as_dict() for batch in self.batches],
+        }
+
+    def projection(self) -> dict[str, object]:
+        current = self.current_batch()
+        return {
+            "schemaVersion": self.schema_version,
+            "currentBatch": current.as_dict() if current is not None else None,
+            "batchCount": len(self.batches),
+            "legacy": False,
+        }
+
+
+def _work_item_text(value: object, label: str, *, required: bool = False) -> str | None:
+    if value is None and not required:
+        return None
+    if not isinstance(value, str) or not value.strip() or "\n" in value or "\r" in value:
+        raise WorkspaceError(f"工作项 {label} 必须是单行非空字符串")
+    return value.strip()
+
+
+def _work_item_list(value: object, label: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() or "\n" in item or "\r" in item
+        for item in value
+    ):
+        raise WorkspaceError(f"工作项 {label} 必须是字符串数组")
+    return tuple(item.strip() for item in value)
+
+
+def _activity_batch(raw: object, index: int) -> ActivityBatch:
+    if not isinstance(raw, dict):
+        raise WorkspaceError(f"工作项批次 {index + 1} 必须是对象")
+    batch_id = _work_item_text(raw.get("id"), f"批次 {index + 1} id", required=True)
+    assert batch_id is not None
+    if not WORK_ITEM_ID_RE.fullmatch(batch_id):
+        raise WorkspaceError(f"工作项批次 id 无效：{batch_id}")
+    work_kind = _work_item_text(raw.get("workKind"), f"批次 {batch_id} workKind", required=True)
+    assert work_kind is not None
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", work_kind):
+        raise WorkspaceError(f"工作项 workKind 无效：{work_kind}")
+    risk_tier = _work_item_text(raw.get("riskTier"), f"批次 {batch_id} riskTier", required=True)
+    assert risk_tier is not None
+    if risk_tier not in WORK_ITEM_RISK_TIERS:
+        raise WorkspaceError(f"工作项 riskTier 无效：{risk_tier}")
+    status = _work_item_text(raw.get("status", "active"), f"批次 {batch_id} status", required=True)
+    assert status is not None
+    if status not in WORK_ITEM_BATCH_STATUSES:
+        raise WorkspaceError(f"工作项批次状态无效：{status}")
+    parent_batch_id = _work_item_text(raw.get("parentBatchId"), f"批次 {batch_id} parentBatchId")
+    scope = raw.get("scope", {})
+    if not isinstance(scope, dict):
+        raise WorkspaceError(f"工作项批次 {batch_id} scope 必须是对象")
+    return ActivityBatch(
+        batch_id=batch_id,
+        work_kind=work_kind,
+        risk_tier=risk_tier,
+        status=status,
+        parent_batch_id=parent_batch_id,
+        scope=dict(scope),
+        expected_outcome=_work_item_text(raw.get("expectedOutcome"), f"批次 {batch_id} expectedOutcome"),
+        acceptance_refs=_work_item_list(raw.get("acceptanceRefs"), f"批次 {batch_id} acceptanceRefs"),
+        next_actions=_work_item_list(raw.get("nextActions"), f"批次 {batch_id} nextActions"),
+    )
+
+
+def read_work_item(feature: Path) -> WorkItem | None:
+    """Read the optional activity container; absent means a legacy Feature."""
+    from workspace_paths import feature_work_item_file
+
+    path = feature_work_item_file(feature)
+    if path.is_symlink():
+        raise WorkspaceError(f"工作项文件不安全：{path}")
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise WorkspaceError(f"工作项文件不安全：{path}")
+    raw = read_json(path)
+    version = raw.get("schemaVersion")
+    if version != WORK_ITEM_SCHEMA_VERSION:
+        raise WorkspaceError(f"工作项 schemaVersion 不支持：{version}")
+    current_batch_id = _work_item_text(raw.get("currentBatchId"), "currentBatchId")
+    batches_raw = raw.get("batches")
+    if not isinstance(batches_raw, list) or not batches_raw:
+        raise WorkspaceError("工作项 batches 必须是非空数组")
+    batches = tuple(_activity_batch(value, index) for index, value in enumerate(batches_raw))
+    ids = [batch.batch_id for batch in batches]
+    if len(set(ids)) != len(ids):
+        raise WorkspaceError("工作项批次 id 不能重复")
+    known_ids = set(ids)
+    if current_batch_id is not None and current_batch_id not in known_ids:
+        raise WorkspaceError(f"工作项 currentBatchId 不存在：{current_batch_id}")
+    for batch in batches:
+        if batch.parent_batch_id is not None and batch.parent_batch_id not in known_ids:
+            raise WorkspaceError(f"工作项 parentBatchId 不存在：{batch.parent_batch_id}")
+    return WorkItem(current_batch_id=current_batch_id, batches=batches)
+
+
+def initial_work_item(
+    slug: str, *, work_kind: str = "develop", risk_tier: str = "normal"
+) -> str:
+    """Render the smallest current activity container for a newly created Feature."""
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+        raise WorkspaceError(f"工作项 feature slug 无效：{slug}")
+    if risk_tier not in WORK_ITEM_RISK_TIERS:
+        raise WorkspaceError(f"工作项 riskTier 无效：{risk_tier}")
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", work_kind):
+        raise WorkspaceError(f"工作项 workKind 无效：{work_kind}")
+    item = WorkItem(
+        current_batch_id="b01",
+        batches=(
+            ActivityBatch(
+                batch_id="b01",
+                work_kind=work_kind,
+                risk_tier=risk_tier,
+                status="active",
+            ),
+        ),
+    )
+    return json.dumps(item.as_dict(), ensure_ascii=False, indent=2) + "\n"
 
 
 @dataclass(frozen=True)
