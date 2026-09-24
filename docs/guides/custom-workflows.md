@@ -95,7 +95,7 @@ python3 scripts/workspace_workflow.py plan \
 
 ```bash
 python3 scripts/workspace_workflow.py run \
-  --root . --run <run-id> --stage <stage-id> --plan-hash <plan-hash> --json
+  --root . --run <run-id> --stage <stage-id> --plan-hash <plan-hash> --request-id <request-id> --json
 ```
 
 Skill-only Action 由 Agent 读取 plan 返回的唯一 `skillPath` 后执行，再记录结果：
@@ -114,9 +114,22 @@ python3 scripts/workspace_workflow.py skip \
   --plan-hash <plan-hash> --reason "deferred by user" --json
 ```
 
-标准需求默认以需求短名作为 Run ID，重复执行 `start --feature <feature-slug>` 会返回同一 Run。每次执行都要求当前 plan hash。Extension、Action、参数或 Stage 位置改变后，旧 hash 失效；成功或明确跳过的相同 fingerprint 默认不重复执行。`running` 表示上次中断，重新 run 或 skip 是一次明确的续接决定。
+标准需求默认以需求短名作为 Run ID，重复执行 `start --feature <feature-slug>` 会返回同一 Run。每次执行都要求当前 plan hash。Extension、Action、参数或 Stage 位置改变后，旧 hash 失效；成功或明确跳过的相同 fingerprint 默认不重复执行。运行状态需结合执行者锁与尝试记录判断；遗留 `running` 无法证明进程存活，也不能证明外部操作失败。
 
-Run 位于 `.workspace/runs/`，只保存状态与短摘要，不复制 Skill、manifest、日志或凭据。详细日志由 Action 保存到自己的已授权路径。
+Run 位于 `.workspace/runs/`，命令执行尝试保存在 `attempts/<run-id>.json`。查询 `workflow result --run <run-id> --request-id <id> --json` 可在断线后取回结果；同一请求重复 run 不重复执行。明确失败后使用 `workflow retry`，带当前 plan hash、新 request id、previous-request-id 和 reason；结果未知必须先核对，并通过 `workflow reconcile` 附 summary 与 evidence 记录实际结论。说明书型 Action 保留 finish 语义。
+
+执行尝试是事实来源，Run 的 Stage 和验证 Markdown 是摘要。摘要写入失败不触发命令重跑；Inspect 的 attempts 可查看权威结果。保持前台执行，不提供脱离终端运行的后台任务。详细日志仍由 Action 保存在已授权位置，不在记录中保存凭据。新旧 Runner 不应混用。
+
+```bash
+python3 scripts/kit.py workflow result --run <run-id> --request-id <request-id> --json
+python3 scripts/kit.py workflow reconcile --run <run-id> --request-id <request-id> \
+  --status failed --summary "已确认操作未完成" --evidence "外部操作编号或证据路径" --json
+python3 scripts/kit.py workflow retry --run <run-id> --stage <stage-id> \
+  --plan-hash <current-plan-hash> --previous-request-id <request-id> \
+  --request-id <new-request-id> --reason "已核对，可以重试" --json
+```
+
+重新执行仍需已有授权覆盖目标与实际影响。去重只保证 Kit 对同一请求不重复调度，不证明任意外部系统恰好执行一次。
 
 ## 跳过建议
 

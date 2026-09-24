@@ -11,12 +11,16 @@ description: Run authorized repository validation for the current workspace feat
 
 没有 feature 目录的轻量改动，从本轮已选仓和任务取得范围，读取其验证入口并执行已授权的本地检查。在当前回复给出工作目录、命令、退出状态和结果；不调用 feature resolve、不写 `testing/verification.md`、不更新需求状态。未声明命令、外部环境或范围变化仍先核对实际影响。
 
+## 文档位置
+
+新需求摘要为根目录 `verification.md`，旧记录沿已有 `testing/verification.md`；实际位置由 Kit 返回。机器证据仍在 `testing/evidence/`。普通活动没有独立计划时按 change.md 的实际工作项与验收验证，使用 `verify finish` 记录 verificationBatch，不要求生成计划或逐任务证据。新计划使用 plan.md，旧 plans/implementation.md 保留原位置。
+
 ## 流程
 
 1. 在治理根运行 `python3 scripts/workspace_status.py --root . --json`，按用户本轮明确指定、有效活跃指针、唯一未完成需求的顺序定位当前需求及其仓库、工作分支、基线、计划进度和验证记录。无法确定时停止询问，不猜测需求。
 2. 用户治理模式从 `.workspace/docs/features/<slug>/` 读取当前需求；公共 Kit 维护模式从 `docs/development/features/<slug>/` 读取当前需求。默认只读取 README、验收标准、未完成计划项和最近验证摘要；需要追溯时才定向读取设计或历史验证正文。用户模式再读取 `.workspace/docs/repositories/<repo>.md`、仓内 `AGENTS.md` 或登记的 `sourceInstruction`。不要加载无关历史需求。
 3. 新计划必须先确认 `trustedProgress` 已全部可信完成；任务证据缺失、零测试、跳过、交付路径漂移或验证性质不足时返回实现阶段。旧计划保持原复选框语义。
-4. 只采用仓 profile 的 `validation` 或仓内规范明确声明的验证命令。已获授权的同范围离线验证直接执行；外部环境、部署、真实接口和未声明命令仍需单独确认。没有声明时先询问，不自行发明命令。
+4. 从仓 profile 的 `validation`、仓内规范、项目 manifest、CI 或现有测试入口核实验证命令。已获授权的同范围离线验证直接执行，不因缺少预登记重复询问；涉及新增外部环境、部署或真实接口时核对授权。不能执行文档中任意未核实的代码块。
 5. 执行获批命令并复核执行 Skill 的整体审查结论。有前端接入或回归影响且相关实现与本地验证通过时，先按 `workspace-api-contract` 生成或核对同一份前端指南、更新适用版本并登记 README。已有设计稿须对照字段、包装和页面行为校准，部署未确认时单独说明。所有检查及必要交付核对结束后运行 `python3 scripts/kit.py verify snapshot <slug> --root . --json`，取得当前需求涉及仓库的代码状态。v2 计划用 `python3 scripts/kit.py verify record <slug> --input <json-file> --json` 写入批次，再生成 `testing/verification.md`；v1 才追加旧 Markdown 批次。无论成功、失败或阻塞，都记录一个批次，不把计划中的预期当作实际证据：
 
    ```json

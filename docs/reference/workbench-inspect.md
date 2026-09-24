@@ -18,7 +18,7 @@ python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json works
 | `projection <slug>` | `--view summary\|task\|change\|handoff\|flow`，task 可带 `--task <id>` | 只读指定工作项与当前视图；summary 为入口，task 包含任务和依赖，change 返回比较对象声明，handoff 返回接手摘要，flow 返回交付事实；不因切换视图展开其他正文 |
 | `document <slug>` | `--path <relative>`、可选 `--revision <sha256>` | 原始 UTF-8 content、bytes、lineCount、mediaType、revision |
 | `verification <slug>` | 可选 `--check-code` | 批次定位、最新批次及检查、每仓代码状态、记录完整性与当前适用性 |
-| `handoff <slug>` | 无 | 即时生成的接手正文、当前任务、直接依赖、阶段、最近验证和带版本来源 |
+| `handoff <slug>` | 可选 `--check-code` | 即时生成的接手正文、当前任务、直接依赖、阶段、最近验证和带版本来源 |
 | `search` | `--query`，可选 `--repo`、`--status`、`--offset`、`--limit` | 当前工作区 Feature 文档的匹配片段、原文位置和分页 |
 | `workflow` | 无 | Core/Overlay 的解析顺序、当前声明、扩展与绑定摘要 |
 | `runs` | 可选 `--feature`、`--offset`、`--limit` | 独立 Run 列表、记录数量与分页 |
@@ -28,7 +28,7 @@ python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json works
 
 ## 响应与兼容
 
-每个响应有 `apiVersion, operation, status, observedAt, root, revision, data, diagnostics`。API 当前为 `{major: 1, minor: 1}`，`--api-major` 默认 1，消费方应显式指定。未知 major 返回错误；新 minor 的可选字段可以忽略，未知枚举不得当作成功。参数无法识别 operation 时错误信封的 operation 为 null。
+每个响应有 `apiVersion, operation, status, observedAt, root, revision, data, diagnostics`。API 当前为 `{major: 1, minor: 2}`，`--api-major` 默认 1，消费方应显式指定。未知 major 返回错误；新 minor 的可选字段可以忽略，未知枚举不得当作成功。参数无法识别 operation 时错误信封的 operation 为 null。
 
 - `status: ok`：读取成功，退出 0。
 - `status: partial`：保留成功记录并单列诊断，退出 0；不代表工作流成功。
@@ -45,7 +45,7 @@ python3 -B scripts/kit.py inspect --root /path/to/kit --api-major 1 --json works
 
 验证记录与代码核对是不同事实。默认查询只读记录，每仓为 not_checked；显式 `--check-code` 才计算代码指纹。`selectedBatch.recordedResult` 是 passed/failed/unknown，completeness 是 complete/incomplete/legacy/missing。applicability 使用 valid/invalid/unknown/not_checked/historical；完成需求属于历史记录。每仓可以同时出现 matched、changed 和 unknown，不能用整体失败替代逐仓结果。无耗时或测试数量就返回 null，不根据命令推断。
 
-Run 的 status 是保存值，running 不代表进程仍存活。`configurationMatch` 的 matched/changed/unknown/removed 只说明当前步骤配置和记录的关系，不推断代码有效性，也不还原不存在的历史配置内容。rawRecord 仅返回已校验的字段，扩展参数与环境变量不通过该入口补充。
+Run 的 rawRecord 保留兼容快照；records 叠加最新命令尝试，attempts 返回权威结果及核对来源。结果未知在兼容 records 中投影为 failed，并在 attempts 中明确为 unknown；running 结合当前执行者锁判断，旧记录不能证明进程存活。`configurationMatch` 的 matched/changed/unknown/removed 只说明当前步骤配置和记录的关系，不推断代码有效性，也不还原不存在的历史配置内容。rawRecord 仅返回已校验的字段，扩展参数与环境变量不通过该入口补充。
 
 文档限于所选需求的标准文档、明确链接的安全附件和 artifacts 文本。绝对路径、父级跳转、符号链接、设备文件、非法 UTF-8、超限文件均不能作为成功正文。`INSPECT_REVISION_CHANGED` 表示原定位版本已变化，消费方应重读详情与文档再定位。原始 Markdown/HTML 是展示数据，消费方还需转义原始 HTML、禁自动加载图片及外部资源。
 
@@ -62,3 +62,11 @@ Run 的 status 是保存值，running 不代表进程仍存活。`configurationM
 ## 客户端与 IDE 插件参考实现
 
 - **[agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij)**：基于本 Inspect 协议构建的 IntelliJ IDEA / JetBrains 插件，详情以计划、变更、流程三页为主；文档原文和低频能力通过次级入口按需打开。
+
+## 通用续接与新文档布局
+
+`brief <slug> --projection resume --json` 与 handoff 共用定向事实，返回 activity、taskExecution、verification、repositoryContext 和带版本 sources。taskExecution.applicable=false 表示普通活动没有独立计划，不能解释成流程阻塞。默认验证 applicability=not_checked；显式 --check-code 才核对当前代码，记录通过不等于当前通过。检测到分支不匹配时报告，不自动 checkout。
+
+新工作项标记 documentLayout=flat-v1，根目录使用 requirements.md、design.md、plan.md、verification.md；旧记录按已有路径读取。同一角色有多个有效文件时报告冲突。机器证据仍在 testing/evidence/，历史默认不进入接手上下文。
+
+工作区的活动绑定由调用方显式传入 Feature；Kit 不要求 Cindy 或其他宿主的会话接口。公开协议新字段为可选增量，原有完成、验证和交付字段的含义保持不变。

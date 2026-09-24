@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import json
 from pathlib import Path
 
 
@@ -38,14 +39,44 @@ def feature_work_item_file(feature: Path) -> Path:
     return Path(feature) / ".work-item.json"
 
 
-def feature_plan_file(feature: Path) -> Path:
-    """Prefer the new root plan.md and retain the legacy nested plan."""
+DOCUMENT_ROLES = {
+    "requirements": ("requirements.md", "requirements/requirements.md"),
+    "design": ("design.md", "design/design.md"),
+    "plan": ("plan.md", "plans/implementation.md"),
+    "verification": ("verification.md", "testing/verification.md"),
+}
+
+
+def feature_document_file(feature: Path, role: str) -> Path:
+    """Resolve a single authoritative document without migrating existing records."""
     feature = Path(feature)
-    for relative in ("plan.md", "plans/implementation.md"):
+    alternatives = DOCUMENT_ROLES[role]
+    existing = []
+    for relative in alternatives:
         candidate = feature / relative
-        if candidate.is_file() and not candidate.is_symlink():
-            return candidate
-    return feature / "plan.md"
+        if candidate.is_symlink() or candidate.parent.is_symlink():
+            raise ValueError(f"DOCUMENT_UNSAFE_PATH: 文档路径包含符号链接：{candidate}")
+        if candidate.exists():
+            if not candidate.is_file():
+                raise ValueError(f"DOCUMENT_UNSAFE_PATH: 文档不是普通文件：{candidate}")
+            existing.append(candidate)
+    if len(existing) > 1:
+        raise ValueError(f"DOCUMENT_ROLE_CONFLICT: {role} 存在多个有效文档：" + ", ".join(str(x) for x in existing))
+    if existing:
+        return existing[0]
+    marker = feature_work_item_file(feature)
+    layout = None
+    if marker.is_file() and not marker.is_symlink():
+        try:
+            raw = json.loads(marker.read_text(encoding="utf-8"))
+            layout = raw.get("documentLayout") if isinstance(raw, dict) else None
+        except (OSError, ValueError):
+            pass  # The work-item reader reports malformed metadata separately.
+    return feature / alternatives[0 if layout == "flat-v1" or role == "plan" else 1]
+
+
+def feature_plan_file(feature: Path) -> Path:
+    return feature_document_file(feature, "plan")
 
 
 def feature_plan_relative(feature: Path) -> str:

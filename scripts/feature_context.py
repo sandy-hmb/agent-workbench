@@ -398,7 +398,7 @@ def create_feature(
     )
     if document_kind not in {"change", "requirements"}:
         raise ValueError("文档类型必须是 change 或 requirements")
-    document_name = "requirements/requirements.md" if document_kind == "requirements" else "change.md"
+    document_name = "requirements.md" if document_kind == "requirements" else "change.md"
     document_template = (
         Path(__file__).resolve().parents[1] / "templates/feature" / Path(document_name).name
     ).read_text(encoding="utf-8")
@@ -409,8 +409,10 @@ def create_feature(
         base_branches="；".join(bases),
         updated=updated,
     )
+    if document_kind == "requirements":
+        readme = readme.replace("requirements/requirements.md", "requirements.md")
     if document_kind == "change":
-        readme = readme.replace("- [需求](requirements/requirements.md)", "- [本轮变更](change.md)")
+        readme = readme.replace("- [需求](requirements.md)", "- [本轮变更](change.md)")
     if summary.strip():
         readme = readme.rstrip() + f"\n\n## 摘要\n\n{summary.strip()}\n"
     outputs = {

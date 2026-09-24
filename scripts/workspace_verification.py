@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping
 
 from workspace_model import atomic_write_many, load_workspace, repository_path, resolve_repository
-from workspace_paths import feature_plan_file
+from workspace_paths import feature_document_file, feature_plan_file
 from workspace_evidence import (
     EvidenceError,
     MAX_JSON_BYTES,
@@ -536,7 +536,7 @@ def structured_verification_passed(
     )
 
 
-def describe_verification_document(text: str) -> dict[str, object]:
+def describe_verification_document(text: str, relative: str = "testing/verification.md") -> dict[str, object]:
     """Explain existing evidence without executing checks or inferring missing facts."""
     # Use the same record boundaries as status; defer the import to avoid its
     # verification -> status -> verification module cycle at import time.
@@ -552,7 +552,7 @@ def describe_verification_document(text: str) -> dict[str, object]:
         batches.append({
             "id": f"{revision}:{start_line}",
             "recordedAt": match.group(0).split(" ", 2)[-1].strip(),
-            "source": {"path": "testing/verification.md", "startLine": start_line,
+            "source": {"path": relative, "startLine": start_line,
                        "endLine": start_line + len(text[match.start():end].rstrip().splitlines()) - 1},
         })
     if not matches:
@@ -568,7 +568,7 @@ def describe_verification_document(text: str) -> dict[str, object]:
     source_line = selected["source"]["startLine"]
 
     def issue(code: str, message: str, line: int = source_line) -> None:
-        issues.append({"code": code, "message": message, "path": "testing/verification.md", "line": line})
+        issues.append({"code": code, "message": message, "path": relative, "line": line})
 
     def required(lines: list[str], field: str, line: int) -> str | None:
         value = _field(lines, field)
@@ -605,7 +605,7 @@ def describe_verification_document(text: str) -> dict[str, object]:
         test_count = _field(lines, "测试数量：")
         checks.append({
             "id": match.group(0).strip().split(" ")[-1],
-            "source": {"path": "testing/verification.md", "startLine": line,
+            "source": {"path": relative, "startLine": line,
                        "endLine": source_line + len(record[:end].rstrip().splitlines()) - 1},
             "workingDirectory": fields["工作目录："], "command": fields["命令："],
             "exitStatus": fields["退出状态："], "result": fields["结果："],
@@ -679,7 +679,7 @@ def feature_code_state(
             for item in (
                 "README.md",
                 plan_relative,
-                "testing/verification.md",
+                feature_document_file(root / feature_path, "verification").relative_to(root / feature_path).as_posix(),
                 "testing/.evidence.lock",
                 "testing/evidence",
                 "testing/archive",
@@ -812,8 +812,12 @@ def summary_text(
 ) -> str:
     from workspace_status import status_result
 
-    status = status_result(Path(root).resolve())
-    tracked = next((item for item in status.get("features", []) if item["featureSlug"] == slug), {})
+    try:
+        status = status_result(Path(root).resolve(), feature_slug=slug)
+        tracked = next((item for item in status.get("features", []) if item["featureSlug"] == slug), {})
+    except ValueError as exc:
+        # Older extension-only Runs require a README, not full Feature metadata.
+        tracked = {"documentDiagnostics": [{"code": "FEATURE_METADATA_INVALID", "message": str(exc)}]}
     return render_status_summary(root, slug, feature, tracked, action_summaries=action_summaries)
 
 
@@ -855,7 +859,7 @@ def render_status_summary(
 
 
 def refresh_summary(root: Path, slug: str, feature: Path) -> bool:
-    path = feature / "testing" / "verification.md"
+    path = feature_document_file(feature, "verification")
     text = summary_text(root, slug, feature)
     if path.is_file() and not path.is_symlink() and path.read_text(encoding="utf-8") == text:
         return False
@@ -865,10 +869,10 @@ def refresh_summary(root: Path, slug: str, feature: Path) -> bool:
 
 def render_preview(root: Path, slug: str, feature: Path) -> dict[str, object]:
     text = summary_text(root, slug, feature)
-    path = feature / "testing/verification.md"
+    path = feature_document_file(feature, "verification")
     if path.is_symlink() or (path.exists() and not path.is_file()):
         raise EvidenceError("EVIDENCE_UNSAFE_PATH", "人类摘要路径不安全")
-    return {"featureSlug": slug, "path": "testing/verification.md", "lines": len(text.splitlines()),
+    return {"featureSlug": slug, "path": path.relative_to(feature).as_posix(), "lines": len(text.splitlines()),
             "bytes": len(text.encode("utf-8")), "changed": not path.is_file() or path.read_text(encoding="utf-8") != text}
 
 
@@ -948,9 +952,9 @@ def main(argv: list[str] | None = None) -> int:
             _, feature = _resolve_feature_path(args.root, args.feature)
             from workspace_status import plan_analysis
 
-            if plan_analysis(feature_plan_file(feature))["completionPolicy"] != "task-evidence-v2":
-                raise EvidenceError("EVIDENCE_POLICY_INVALID", "record 只适用于 task-evidence-v2 Feature")
             raw = _record_input(args.input)
+            if raw.get("kind") == "taskEvidence" and plan_analysis(feature_plan_file(feature))["completionPolicy"] != "task-evidence-v2":
+                raise EvidenceError("EVIDENCE_POLICY_INVALID", "任务 record 只适用于 task-evidence-v2 Feature")
             record(feature, raw, preview=True)
             trusted = _record_trust(args.root, feature, raw)
             if args.preview:

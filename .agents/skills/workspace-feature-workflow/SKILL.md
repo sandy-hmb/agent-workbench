@@ -36,7 +36,7 @@ python3 scripts/workspace_workflow.py plan \
 
 - `manual`：Action API v1 必须带 confirmation，才能进入 plan。使用 plan 的 `confirmation.title`、`confirmation.summary`、非敏感 `with` 参数和 effects 核对实际影响；已有授权明确覆盖同一目标、环境、参数和 effects 时直接继续，否则等待用户明确执行或跳过。`planHash` 只用于防漂移，不是新的确认对象。
 - `auto`：自动选中 Action；仅当 effects 包含未授权网络、远端 Git、外部环境或其他共享副作用时暂停授权。
-- Action 失败、中断或前置未完成时停止后续 Stage，不猜测重试。
+- Action 失败、中断或前置未完成时停止依赖它的 Stage；结果未知先核对，不猜测重试。
 
 ## 执行
 
@@ -44,10 +44,24 @@ python3 scripts/workspace_workflow.py plan \
 
 ```bash
 python3 scripts/workspace_workflow.py run \
-  --root . --run <run-id> --stage <stage-id> --plan-hash <plan-hash> --json
+  --root . --run <run-id> --stage <stage-id> --plan-hash <plan-hash> --request-id <request-id> --json
 ```
 
 无 `command` 的 Action 只读取 plan 返回的精确 `SKILL.md`，完成后使用 `finish`；用户决定不执行时使用带理由的 `skip`。所有命令都必须使用当前 plan hash，失配就重新 plan。
+
+## 请求结果与中断恢复
+
+命令型 Action 使用 plan 返回的 requestId。重复 run 同一请求只返回原结果或运行状态，不启动第二次命令；省略编号沿稳定初次请求兼容。结果查询不依赖当前扩展仍可用：
+
+```bash
+python3 scripts/kit.py workflow result --root . --run <run-id> --request-id <request-id> --json
+```
+
+明确失败后的重新执行使用 `workflow retry --run <run-id> --stage <stage-id> --plan-hash <current-hash> --previous-request-id <old-id> --request-id <new-id> --reason "已核对失败原因" --json`。已有授权覆盖重试范围时不重复确认。
+
+结果 unknown 表示执行者退出、超时或协议失败后外部结果尚未确认；查询命令不写状态。先核对真实目标，用 `workflow reconcile --run <run-id> --request-id <id> --status succeeded|failed|skipped --summary "实际结论" --evidence "证据位置或外部操作编号" --json` 记录核对来源，再按结果继续或 retry。不能把进程消失推断为动作没有发生。遗留 running 无请求记录时，使用当前 plan 返回的稳定 requestId 核对并 reconcile，或明确 skip；不得直接 run 重放。
+
+保持前台执行与工作区互斥，不启动后台守护进程。说明书型 Action 仍由 Agent 按授权执行并 finish，不承诺工具外操作去重。新旧 Runner 不混用。
 
 ## 上下文和边界
 

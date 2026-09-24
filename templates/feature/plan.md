@@ -10,7 +10,7 @@
 
 **技术栈：** 只列本计划实际使用的语言、框架和工具。
 
-**设计来源：** [需求](requirements/requirements.md)、[设计](design/design.md)。
+**设计来源：** [需求](requirements.md)、[设计](design.md)。
 
 ## 执行概览
 

@@ -171,7 +171,7 @@ stateDiagram-v2
 
 v2 批次的可选 `verificationScope`、`pendingExternalChecks` 补充实际验证范围及当前外部验收缺口；旧记录缺失时显示“未记录”，不更改历史证据或本地通过判定。生成摘要合并批次问题与诊断，交付入口合并 artifacts 和最新批次引用。README 单独记录提交、提测、部署与验收入口，任务全部完成或本地验证通过均不证明部署成功。
 
-多需求并行时，当前会话可以明确指定需求；用户治理模式还可用本机 `activeFeature` 指针帮助新会话选择。没有唯一选择时，status 报告阻塞。显式指定 slug 的 brief 可以返回目标需求摘要，但仍保留工作区级阻塞供调用方判断，不会静默清除其他需求。
+多需求并行时，当前会话可以明确指定需求；用户治理模式还可用本机 `activeFeature` 指针帮助新会话选择。没有唯一选择时，status 报告阻塞。显式指定 slug 的 status/brief 定向读取该需求，不受其他需求数量或无效默认指针阻塞；共同配置异常仍需处理。宿主绑定自己的目标标识，Kit 不保存聊天会话。
 
 没有 `testTarget` 时，阶段建议不代表已经具备交付条件：提测命令会停止并报告目标缺失，由使用者明确后续处理。配置检查、验证通过、正式提测和业务验收是不同事实。
 
@@ -192,9 +192,9 @@ stateDiagram-v2
     failed --> skipped: 明确跳过
 ```
 
-Skill-only Action 由 Agent 执行后直接用 `finish` 记录 `succeeded` 或 `failed`，不经过 Runner 的 `running` 写入。命令执行中断后可能遗留 `running`；使用者可明确重试，或用 `skip` 记录跳过原因。
+Skill-only Action 由 Agent 执行后直接用 `finish` 记录 `succeeded` 或 `failed`，不经过 Runner 的 `running` 写入。命令型 Action 使用持久尝试记录与执行者锁。中断后结果不明时查询 result 并核对，reconcile 记录外部事实后再显式 retry；旧 running 无尝试记录只能明确核对或跳过。
 
-相同 fingerprint 已成功或明确跳过时，plan 默认不再列出该步骤；失败或遗留 `running` 会提示阻塞，等待明确续接。Extension 内容或 Action 参数等输入改变时，旧 fingerprint 不代表新内容已完成，需要重新生成当前计划。Run 主要保存每个 Stage 的当前记录，不是完整执行日志或业务事务回滚系统。
+相同 fingerprint 已成功或明确跳过时，plan 默认不再列出该步骤；失败或遗留 `running` 会提示阻塞，等待明确续接。Extension 内容或 Action 参数等输入改变时，旧 fingerprint 不代表新内容已完成，需要重新生成当前计划。Run 保存兼容 Stage 摘要，命令尝试保存 requestId、输入身份、结果和核对来源；同一请求重放不重新执行。它不提供外部事务回滚或后台任务管理。
 
 ## 5. 扩展如何接入
 
@@ -254,7 +254,7 @@ sequenceDiagram
 | Core Skill、脚本、Schema、模板和公开文档 | 公共 Kit Git；由 Kit 维护者修改。 | 公共更新按已确认目标快进，不更新业务仓代码。本文在此类中，但不进入 Agent 日常读取清单。 |
 | `workspace.json`、`workspace.local.json` | `.workspace/`；登记、配置或相关管理命令写入。 | 共享登记与本机偏好分别存放；都属于本地状态，不随公共 Git 同步。 |
 | 工作区 AGENTS、CONTEXT 与仓 profile | 初始化或登记流程生成；CONTEXT 保存业务事实，AGENTS 保存约定。 | 公共模板更新不会自动重写已有生成文件；相应 preview/apply 只更新其声明的范围。 |
-| 工作项入口、变更、复杂设计与验证 | 当前 feature；普通活动按需使用 `change.md`，复杂需求使用 Requirements、Design 和根目录 `plan.md`，旧 `plans/implementation.md` 保留读取。 | 新计划默认 `task-evidence-v2`：机器证据位于 `testing/evidence/`，`testing/verification.md` 是 ≤200 行摘要；`task-evidence-v1` 继续只读兼容。 |
+| 工作项入口、变更、复杂设计与验证 | 当前 feature；普通活动按需使用 `change.md`，复杂需求使用 Requirements、Design 和根目录 `plan.md`，旧 `plans/implementation.md` 保留读取。 | 新计划默认 `task-evidence-v2`：机器证据位于 `testing/evidence/`，新 `verification.md`（旧 testing/verification.md 原样保留）是 ≤200 行摘要；`task-evidence-v1` 继续只读兼容。 |
 | Extension、lock、Overlay 与 Run | `.workspace/`；扩展与 Workflow 命令管理。 | 修改后需要重新检查漂移和计划；详细日志与业务产物由扩展按授权保存。 |
 | `local-*` Adapter | 本地激活流程生成，Git 忽略。 | 不手工维护，不作为公共更新覆盖的内容。 |
 | 需求附属 SQL、临时 fixture 等 | feature 的 `artifacts/`，SQL 使用 `artifacts/sql/`。 | 只保存与本需求绑定的交付物；扩展产物不预设统一专用目录。 |

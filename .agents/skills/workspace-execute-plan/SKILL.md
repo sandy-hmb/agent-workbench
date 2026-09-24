@@ -9,6 +9,10 @@ description: Execute an approved implementation plan task by task with risk-base
 
 计划和执行条件已批准且用户明确开始或继续后，只要目标仓、环境、操作类型、验收和实际影响不变，该授权持续覆盖计划内实施、验证和修复重试。阶段、Skill、任务切换和技术哈希刷新不是新的确认点；新增环境、部署、数据范围或其他实际影响时再确认。`confirmationRequired=false` 只表示当前 Core Stage 无文档确认要求，不代表所有外部操作均已授权。
 
+## 普通活动与续接
+
+新会话可用 `python3 scripts/kit.py brief <slug> --projection resume --json` 取得聚焦接手包，执行前用 `--check-code` 核对当前版本。`taskExecution.applicable=false` 表示没有独立计划，按已批准 change.md 工作项实施与记录，不将它当作阻塞。工作项完成后验证当前结果，再处理适用交付或结束。`executionDecision=COMPLETE` 仅表示计划任务完成，不证明验证有效、已部署或已验收。
+
 ## 执行
 
 先预检计划声明的来源、实际代码、分支和范围是否一致。普通代码漂移，例如文件移动、类位于另一现有模块或等价测试入口变化，在不改变范围和方案时修正计划事实并继续；任务边界、验证强度、公共契约、关键方案或目标仓改变时，将相应文档退回待审阅。

@@ -20,6 +20,20 @@ def run(args, cwd):
 
 
 class MaintenanceBriefTest(unittest.TestCase):
+    def test_resume_is_explicit_and_does_not_scan_other_features(self):
+        import kit_feature_brief
+        from unittest import mock
+        import workspace_status
+
+        self.write_feature('chosen')
+        self.write_feature('other')
+        with mock.patch.object(workspace_status, '_maintenance_features', side_effect=AssertionError('unrelated scan')):
+            result = kit_feature_brief.resume_result(self.root, 'chosen')
+        self.assertEqual('chosen', result['featureSlug'])
+        self.assertEqual('not_checked', result['verification']['applicability'])
+        self.assertTrue(result['taskExecution']['applicable'])
+        self.assertTrue(result['sources'])
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = (Path(self.temp.name) / "kit").resolve()

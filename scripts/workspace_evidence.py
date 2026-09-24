@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Mapping
 
 from workspace_model import WorkspaceError, atomic_write_many
-from workspace_paths import feature_plan_file
+from workspace_paths import feature_document_file, feature_plan_file
 
 
 SCHEMA_VERSION = 2
@@ -980,7 +980,7 @@ def _recover(feature: Path, operation: str) -> bool:
         old_plan = backups.get("plan")
         if old_verification is None:
             raise EvidenceError("EVIDENCE_TRANSACTION_INCOMPLETE", "迁移备份缺失")
-        outputs: list[tuple[Path, bytes]] = [(feature / "testing" / "verification.md", old_verification.read_bytes())]
+        outputs: list[tuple[Path, bytes]] = [(feature_document_file(feature, "verification"), old_verification.read_bytes())]
         if old_plan is not None:
             outputs.append((feature_plan_file(feature), old_plan.read_bytes()))
         atomic_write_many(outputs)
@@ -1005,7 +1005,7 @@ def _recover(feature: Path, operation: str) -> bool:
     outputs = [(feature / "testing" / "evidence" / "index.json", old_index.read_bytes())]
     old_verification = backups.get("verification")
     if old_verification is not None:
-        outputs.append((feature / "testing" / "verification.md", old_verification.read_bytes()))
+        outputs.append((feature_document_file(feature, "verification"), old_verification.read_bytes()))
     atomic_write_many(outputs)
     marker.unlink()
     safe_path(feature, "evidence/.transaction.json").unlink(missing_ok=True)
@@ -1039,7 +1039,7 @@ def migrate_feature(
         _recover(feature, "migrate")
     if _feature_policy(feature) == "task-evidence-v2":
         raise EvidenceError("EVIDENCE_ALREADY_V2", "Feature 已是 task-evidence-v2")
-    verification = feature / "testing" / "verification.md"
+    verification = feature_document_file(feature, "verification")
     if verification.is_symlink() or (verification.exists() and not verification.is_file()):
         raise EvidenceError("EVIDENCE_UNSAFE_PATH", "旧验证记录不安全")
     if not verification.is_file():
@@ -1245,7 +1245,7 @@ def compact_feature(feature: Path, *, preview: bool = True, _locked: bool = Fals
     transaction.mkdir(parents=True, exist_ok=True)
     index_path = safe_path(feature, "evidence/index.json")
     _backup_file(index_path, transaction / "index.json")
-    verification = feature / "testing" / "verification.md"
+    verification = feature_document_file(feature, "verification")
     if verification.is_file() and not verification.is_symlink():
         _backup_file(verification, transaction / "verification.md")
     compact_backups = {"index": transaction / "index.json"}
@@ -1293,7 +1293,7 @@ def rollback_migration(feature: Path, archive: str) -> None:
     plan = backups.get("plan")
     if verification is None or plan is None:
         raise EvidenceError("EVIDENCE_TRANSACTION_INCOMPLETE", "迁移回滚备份缺失")
-    atomic_write_many(((Path(feature) / "testing" / "verification.md", verification.read_bytes()), (feature_plan_file(Path(feature)), plan.read_bytes())))
+    atomic_write_many(((feature_document_file(Path(feature), "verification"), verification.read_bytes()), (feature_plan_file(Path(feature)), plan.read_bytes())))
     evidence = Path(feature) / "testing" / "evidence"
     if evidence.exists():
         if evidence.is_symlink() or not evidence.is_dir():
@@ -1313,5 +1313,5 @@ def rollback_compact(feature: Path, archive: str) -> None:
     outputs = [(Path(feature) / "testing" / "evidence" / "index.json", index.read_bytes())]
     verification = backups.get("verification")
     if verification is not None:
-        outputs.append((Path(feature) / "testing" / "verification.md", verification.read_bytes()))
+        outputs.append((feature_document_file(Path(feature), "verification"), verification.read_bytes()))
     atomic_write_many(outputs)

@@ -1,13 +1,13 @@
 {
   "apiVersion": {
     "major": 1,
-    "minor": 1
+    "minor": 2
   },
   "operation": "run",
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:8dad3182380439f08583242eab50f6191b57c81ebb418f680633dc05774d9cd0",
+  "revision": "sha256:4adf7b32b17eb95144bb0fd481c3f60f31c79790e6e6adf0465dd509163181ea",
   "data": {
     "id": "demo-run",
     "workflow": "feature-development",
@@ -27,6 +27,7 @@
         }
       }
     ],
+    "events": [],
     "source": ".workspace/runs/demo-run.json",
     "sourceRevision": "sha256:aea1607abe5413e1ace03e38a773ab826068447878f522ec44952a8500747f18",
     "rawRecord": {
@@ -44,7 +45,8 @@
           "summary": "样例检查通过"
         }
       }
-    }
+    },
+    "attempts": []
   },
   "diagnostics": []
 }

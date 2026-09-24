@@ -1,13 +1,17 @@
 # 第一个需求
 
-每次新会话先读取状态和当前需求摘要：
+每次新会话先读取状态；已知需求时可直接取得定向接手包：
 
 ```bash
 python3 scripts/kit.py status --root . --json
-python3 scripts/kit.py brief <feature-slug> --json
+python3 scripts/kit.py brief <feature-slug> --projection resume --json
 ```
 
 第二条只在你已明确选择某个未完成需求时使用。status 的 `mode` 决定需求目录：用户工作区使用 `.workspace/docs/features/`，维护公共 Kit 才使用 `docs/development/features/`。
+
+已知需求还可使用 `status --feature <feature-slug> --json`。显式需求优先，不改全局 activeFeature；错误目标直接报错，不回退到别的需求。执行前加 `brief --projection resume --check-code` 核对代码与验证版本；无正式计划的普通活动用 change.md 推进，任务完成与验证、部署、外部验收分别说明。
+
+新需求使用根目录文档；旧 requirements/requirements.md、design/design.md、plans/implementation.md、testing/verification.md 保持原位置可读，不批量迁移。实际入口从查询结果取得，发现同一角色有冲突文件时先处理冲突。
 
 ## 先分类
 
@@ -90,18 +94,18 @@ sequenceDiagram
 ```text
 .workspace/docs/features/payments-retry/
 ├── README.md
-└── requirements/requirements.md
+└── requirements.md
 ```
 
-`requirements/requirements.md` 维护完整的当前目标规格。每个可独立失败的验收点写明角色或条件、触发、可观察结果和必要反例；同一 R 下有多个验收点时使用稳定子编号，不给句子机械编号。能用图表达的流程和状态优先使用 Mermaid，旁边保留文字验收条件。Design、Plan 和验证引用具体验收点，不重复正文。
+`requirements.md` 维护完整的当前目标规格。每个可独立失败的验收点写明角色或条件、触发、可观察结果和必要反例；同一 R 下有多个验收点时使用稳定子编号，不给句子机械编号。能用图表达的流程和状态优先使用 Mermaid，旁边保留文字验收条件。Design、Plan 和验证引用具体验收点，不重复正文。
 
 随后按讨论结果按需增加：
 
-- `design/design.md` 维护完整的当前目标设计，明确复用与新增边界、接口和数据流、状态与错误、兼容、关键假设及验证。关键决策使用稳定 D 编号；附件只在有独立读者或维护需要时展开主设计中的决策。
+- `design.md` 维护完整的当前目标设计，明确复用与新增边界、接口和数据流、状态与错误、兼容、关键假设及验证。关键决策使用稳定 D 编号；附件只在有独立读者或维护需要时展开主设计中的决策。
 - `workspace-writing-plan` 对全部验收点做 R → D →任务→验证的语义预检。能分别实现、验证和接受的流程拆为不同任务；同一行为的数据组合可以合并。不按技术层、文件数、Case 数或固定分钟数拆分，依赖只表达真实前置条件。
 - 普通接手、修复、调查或发布活动优先写在 `change.md`，不预建空的复杂文档；`acceptance.md` 仅作为旧记录的兼容名称。
 - 执行方式与计划一起批准：默认单 Agent；复杂工作可选择按需子 Agent，或每任务子 Agent 加独立审查。选择子 Agent 不自动并行、创建 worktree、commit 或 push。
-- 首次实际验证时创建 `testing/evidence/` 并生成 `testing/verification.md` 摘要；机器真值不依赖摘要正文，不使用占位内容。
+- 首次实际验证时创建 `testing/evidence/` 并生成 `verification.md` 摘要；机器真值不依赖摘要正文，不使用占位内容。
 
 重大风险按范围、方案和执行边界分阶段审阅；普通需求可一次审阅完整方案包，小改可直接执行。沿用关键方案且范围明确的小迭代，可一次批准受影响的实际文档包。计划批准后直接开始已授权的执行；相同仓、环境、操作和重试范围不因阶段或 Skill 切换重复确认。
 

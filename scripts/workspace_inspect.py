@@ -26,19 +26,20 @@ from feature_context import FEATURE_STATUSES, feature_metadata, feature_summary,
 from extension_registry import discover_extensions
 from extension_model import extension_digest
 from context_measure import estimate_tokens
-from kit_feature_brief import brief_result
+from kit_feature_brief import _instruction_context, _selected_task, _task_state
 from workspace_local import load_local_settings
 from workspace_model import WorkspaceError, effective_branch_policy, load_workspace, parse_json_bytes, parse_workspace, read_json, read_work_item, repository_path, resolve_repository
 from workspace_model import VERSION
 from workspace_extension import _read_lock, extension_status
-from workspace_paths import feature_plan_file, feature_plan_relative, features_root, state_root, workflow_file, workflow_runs_root
+from workspace_paths import feature_document_file, feature_plan_file, feature_plan_relative, features_root, state_root, workflow_file, workflow_runs_root
 from workspace_status import _single_feature_progress, _task_evidence_state, _task_repository_roots, artifact_summary, document_reviews, maintenance_feature_repositories, maintenance_repository_path, plan_analysis, plan_progress, verification_record
 from workspace_verification import _git, describe_structured_evidence, describe_verification_document, feature_code_state, structured_verification_passed, verification_passed
+import workspace_action_attempts as attempts
 from workspace_workflow import CORE_WORKFLOW, FINGERPRINT_RE, RUN_FIELDS, RUN_STATUSES, RUN_V2_FIELDS, STAGE_RECORD_FIELDS, _resolve, _stage_fingerprint, _valid_run_id
 from workflow_model import load_core_workflow, load_overlay, resolve_stages
 
 API_MAJOR = 1
-API_MINOR = 1
+API_MINOR = 2
 MAX_FILE = 1024 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
 MAX_PAGE = 200
@@ -47,7 +48,6 @@ MAX_SEARCH_BYTES = 16 * 1024 * 1024
 NORMAL_TIMEOUT = 10.0
 CODE_TIMEOUT = 30.0
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml", ".sql", ".csv"}
-STANDARD_FILES = {"README.md", "requirements/requirements.md", "design/design.md", "testing/verification.md"}
 ACTIVITY_FILES = {"change.md", ".work-item.json"}
 H1 = re.compile(r"^#\s+(.+?)\s*$")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
@@ -222,7 +222,7 @@ def _file_info(feature: Path, relative: str, root: Path, deadline: Deadline | No
 
 
 def _standard_files(feature: Path) -> set[str]:
-    files = {*STANDARD_FILES, feature_plan_relative(feature)}
+    files = {"README.md", *(feature_document_file(feature, role).relative_to(feature).as_posix() for role in ("requirements", "design", "plan", "verification"))}
     if (feature / ".work-item.json").exists() or (feature / ".work-item.json").is_symlink():
         files.add(".work-item.json")
     if (feature / "change.md").exists() or (feature / "change.md").is_symlink():
@@ -429,7 +429,7 @@ def _view_task_evidence(
                 for metadata, path in [entry.split(b"\t", 1)]
             }
     return _task_evidence_state(
-        root, _mode(root), feature, item, plan, feature / "testing/verification.md",
+        root, _mode(root), feature, item, plan, feature_document_file(feature, "verification"),
         repository_trees=trees,
     )
 
@@ -445,9 +445,9 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
         plan_path, plan_text, repositories=set(item["repositories"]),
         maintenance_root=root if _mode(root) == "maintenance" else None,
     )
-    reviews, _, _ = document_reviews(feature, readme_text)
-    verification_path = feature / "testing" / "verification.md"
-    if plan["completionPolicy"] == "task-evidence-v2":
+    reviews, review_diagnostics, _ = document_reviews(feature, readme_text)
+    verification_path = feature_document_file(feature, "verification")
+    if plan["completionPolicy"] == "task-evidence-v2" or (feature / "testing/evidence/index.json").is_file():
         verification = describe_structured_evidence(feature)["index"]["summary"]["records"] > 0
     else:
         verification_text = _read(verification_path, root, deadline=deadline).decode("utf-8") if verification_path.is_file() else None
@@ -457,7 +457,7 @@ def _summary(root: Path, item: dict[str, object], deadline: Deadline | None = No
     plan_summary = {
         "exists": plan_path.is_file(),
         **progress,
-        "diagnostics": [*plan["diagnostics"], *evidence_diagnostics],
+        "diagnostics": [*plan["diagnostics"], *review_diagnostics, *evidence_diagnostics],
     }
     if plan["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
         plan_summary.update(
@@ -582,7 +582,7 @@ def feature(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str
     else:
         p = {"completed": sum(bool(task["completed"]) for task in plan["tasks"]), "total": len(plan["tasks"])}
         reviews, _, recorded = document_reviews(directory, readme_text)
-        known = {**item, "progress": p, "documentReviews": reviews, "documentReviewsRecorded": recorded, "planExists": plan_path.is_file(), "designExists": (directory / "design/design.md").is_file(), "verificationPassed": False, "workItem": summary.get("workItem"), "changeExists": (directory / "change.md").is_file() and "change.md" in _standard_files(directory)}
+        known = {**item, "progress": p, "documentReviews": reviews, "documentReviewsRecorded": recorded, "planExists": plan_path.is_file(), "designExists": (feature_document_file(directory, "design")).is_file(), "verificationPassed": False, "workItem": summary.get("workItem"), "changeExists": (directory / "change.md").is_file() and "change.md" in _standard_files(directory), "activityProgress": plan_progress(directory / "change.md")}
         if plan["completionPolicy"] in {"task-evidence-v1", "task-evidence-v2"}:
             known.update({"completionPolicy": plan["completionPolicy"], "trustedProgress": summary["planSummary"]["trustedProgress"], "taskEvidence": evidence_results})
         existing = _single_feature_progress(known, mode=_mode(root))
@@ -707,20 +707,34 @@ def _source(
     }, content
 
 
-def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object]:
+def _handoff_once(root: Path, slug: str, deadline: Deadline, *, check_code: bool = False, task_id: str | None = None) -> dict[str, object]:
     detail = feature(root, slug, deadline)
     directory = _feature_dir(root, slug)
-    compact = (
-        brief_result(root, slug, execution=True)
-        if detail["summary"]["status"] != "done"
-        else {}
-    )
-    current = compact.get("currentTask")
+    plan_path = feature_plan_file(directory)
+    analysis = plan_analysis(plan_path, repositories={x["repository"] for x in detail["summary"]["repositoryBindings"]}, maintenance_root=root if _mode(root) == "maintenance" else None)
+    evidence = [{"taskId": t["id"], "trusted": t.get("trusted", t["completed"])} for t in detail["tasks"]]
+    current, ready, task_blockers, completion_blocked = _task_state(analysis, evidence, feature_plan_relative(directory))
+    if task_id is not None:
+        current = _selected_task(task_id, analysis, plan_path, feature_plan_relative(directory))
+    if detail["summary"]["status"] == "done":
+        current = None
+    selected = _selected_task(current["id"], analysis, plan_path, feature_plan_relative(directory)) if current and current.get("id") else None
+    workspace_model = load_workspace(root) if _mode(root) == "workspace" else None
+    instruction, instruction_diagnostics = _instruction_context(root, _mode(root), workspace_model, selected)
+    if selected is None:
+        rules = []
+        for binding in detail["summary"]["repositoryBindings"]:
+            context, diagnostics = _instruction_context(root, _mode(root), workspace_model,
+                                                       {"repository": binding["repository"], "deliverables": []})
+            if context:
+                rules.extend(rule for rule in context["rules"] if rule["path"] not in {x["path"] for x in rules})
+            instruction_diagnostics.extend(diagnostics)
+        instruction = {"policy": "monotonic-narrowing", "rules": sorted(rules, key=lambda rule: rule["level"])}
     current_task = None
     relevant_paths = {
         "README.md",
-        "requirements/requirements.md",
-        "design/design.md",
+        feature_document_file(directory, "requirements").relative_to(directory).as_posix(),
+        feature_document_file(directory, "design").relative_to(directory).as_posix(),
         feature_plan_relative(directory),
     }
     if "change.md" in _standard_files(directory):
@@ -749,13 +763,8 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
             ):
                 relevant_paths.add(resolved.relative_to(directory).as_posix())
 
-    allowed_roots: list[Path] = []
-    repository = current.get("repository") if isinstance(current, dict) else None
-    if _mode(root) == "workspace" and isinstance(repository, str):
-        model = load_workspace(root)
-        repo = next((item for item in model.repositories if item.path == repository), None)
-        if repo is not None:
-            allowed_roots.append(repository_path(model, repo))
+    bound_item = _direct_item(root, slug, deadline)
+    allowed_roots = list(_task_repository_roots(root, _mode(root), bound_item).values())
 
     sources = []
     for relative in sorted(relevant_paths):
@@ -770,8 +779,11 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
             deadline=deadline,
         )
         sources.append(source)
-    instruction = compact.get("instructionContext")
-    rules = instruction.get("rules", []) if isinstance(instruction, dict) else []
+    rules = instruction.get("rules", []) if isinstance(instruction, dict) else [
+        {"path": path, "level": level, "scope": scope}
+        for path, level, scope in (("AGENTS.md", 1, "kit"), (".workspace/AGENTS.md", 2, "workspace"))
+        if (root / path).is_file() and not (root / path).is_symlink()
+    ]
     for rule in rules:
         if not isinstance(rule, dict) or not isinstance(rule.get("path"), str):
             continue
@@ -788,6 +800,16 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
         )
         sources.append(source)
 
+    context_sources = []
+    fact_paths = [root / ".workspace/CONTEXT.md"] if workspace_model is not None else []
+    if workspace_model is not None:
+        for binding in detail["summary"]["repositoryBindings"]:
+            fact_paths.append(root / ".workspace/docs/repositories" / (binding["repository"] + ".md"))
+    for fact_path in fact_paths:
+        if fact_path.is_file() and not fact_path.is_symlink():
+            source, _ = _source(fact_path, root=root, feature_root=directory, kind="document", deadline=deadline)
+            context_sources.append(source)
+
     task_by_id = {task.get("id"): task for task in detail["tasks"]}
     dependencies = [] if current_task is None else [
         {
@@ -799,9 +821,11 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
         for dependency in current_task.get("dependencies", [])
     ]
 
-    verification_path = directory / "testing/verification.md"
+    verification_path = feature_document_file(directory, "verification")
     latest_verification = None
     policy = detail["summary"]["planSummary"].get("completionPolicy")
+    if (directory / "testing/evidence/index.json").is_file():
+        policy = "task-evidence-v2"
     if policy == "task-evidence-v2":
         selected = describe_structured_evidence(directory)["latestBatch"]
         if selected is not None:
@@ -815,7 +839,7 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
     if verification_path.is_file() and not verification_path.is_symlink():
         verification_data = _read(verification_path, root, deadline=deadline)
         verification_text = verification_data.decode("utf-8")
-        selected = describe_verification_document(verification_text)["selectedBatch"] if policy != "task-evidence-v2" else None
+        selected = describe_verification_document(verification_text, verification_path.relative_to(directory).as_posix())["selectedBatch"] if policy != "task-evidence-v2" else None
         if selected is not None:
             latest_verification = {
                 key: selected.get(key)
@@ -830,7 +854,7 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
         sources.append(
             {
                 "kind": "verification",
-                "path": "testing/verification.md",
+                "path": verification_path.relative_to(directory).as_posix(),
                 "revision": _revision(verification_data),
                 "startLine": 1,
                 "endLine": max(1, len(verification_text.splitlines())),
@@ -838,7 +862,28 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
         )
 
     summary = detail["summary"]
-    progression = detail["progression"]
+    checked = verification(root, slug, check_code, deadline, _detail=detail)
+    progression = checked["progression"]
+    errors = [d["code"] for d in instruction_diagnostics if d.get("severity") == "error"]
+    errors.extend(extension_status(root)["blockedCodes"])
+    if isinstance(summary.get("workItem"), dict) and summary["workItem"].get("diagnostic"):
+        errors.append("WORK_ITEM_INVALID")
+    errors.extend(d.get("code", "DOCUMENT_INVALID") for d in detail["summary"]["planSummary"].get("diagnostics", []) if d.get("severity") == "error")
+    dependency_blockers = task_blockers if current is None and detail["tasks"] and summary["status"] != "done" else []
+    progression = {**progression, "blockers": list(dict.fromkeys([*progression["blockers"], *errors, *dependency_blockers]))}
+    repository_context = []
+    item = _direct_item(root, slug, deadline)
+    roots = _task_repository_roots(root, _mode(root), item)
+    for binding in detail["summary"]["repositoryBindings"]:
+        repo = roots.get(binding["repository"])
+        actual = _git_read(["git", "-C", str(repo), "branch", "--show-current"], deadline).stdout.strip() if repo else ""
+        mismatch = bool(actual and binding["workBranch"] and actual != binding["workBranch"])
+        repository_context.append({**binding, "currentBranch": actual or None, "state": "mismatch" if mismatch else "matched" if actual else "unknown"})
+        if mismatch and summary["status"] != "done":
+            progression["blockers"].append("WORKING_BRANCH_MISMATCH")
+    task_execution = {"applicable": analysis["exists"] and summary["status"] != "done", "decision": None}
+    if task_execution["applicable"]:
+        task_execution["decision"] = "BLOCKED" if progression["blockers"] or completion_blocked else "RUN" if current and progression["currentStage"] == "feature.implement" else "COMPLETE" if detail["tasks"] and current is None else "BLOCKED"
     description = detail.get("description")
     goal = description.get("content") if isinstance(description, dict) else None
     markdown = [
@@ -873,7 +918,8 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
                 "",
                 "## 最近验证",
                 "",
-                f"- 结果：{latest_verification['recordedResult']}",
+                f"- 记录结果：{latest_verification['recordedResult']}",
+                f"- 当前适用性：{checked['applicability']}",
                 f"- 时间：{latest_verification['recordedAt']}",
             ]
         )
@@ -881,7 +927,13 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
         ["", "## 必读来源", ""]
         + [f"- `{item['path']}` @ `{item['revision']}`" for item in sources]
     )
+    if context_sources:
+        markdown.extend(["", "## 业务事实来源", ""] + [f"- `{item['path']}` @ `{item['revision']}`" for item in context_sources])
     content = "\n".join(markdown).rstrip() + "\n"
+    for source in context_sources:
+        current_source, _ = _source(root / source["path"], root=root, feature_root=directory, kind="document", deadline=deadline)
+        if current_source["revision"] != source["revision"]:
+            raise InspectError("INSPECT_INPUT_CHANGED", "事实来源在生成期间发生变化", source=source["path"])
     for item in sources:
         source_path = (
             root / str(item["path"])
@@ -908,6 +960,11 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
         )
     return {
         "slug": slug,
+        "activity": summary.get("workItem"),
+        "contextSources": context_sources,
+        "taskExecution": task_execution,
+        "repositoryContext": repository_context,
+        "verification": {"recordedResult": latest_verification.get("recordedResult") if latest_verification else "unknown", "applicability": checked["applicability"], "checkMode": checked["checkMode"], "repositoryStates": checked["repositoryStates"]},
         "title": summary["title"],
         "status": summary["status"],
         "documentReviews": summary["documentReviews"],
@@ -922,11 +979,11 @@ def _handoff_once(root: Path, slug: str, deadline: Deadline) -> dict[str, object
     }
 
 
-def handoff(root: Path, slug: str, deadline: Deadline | None = None) -> dict[str, object]:
-    deadline = deadline or Deadline(NORMAL_TIMEOUT)
+def handoff(root: Path, slug: str, deadline: Deadline | None = None, *, check_code: bool = False, task_id: str | None = None) -> dict[str, object]:
+    deadline = deadline or Deadline(CODE_TIMEOUT if check_code else NORMAL_TIMEOUT)
     for attempt in range(2):
         try:
-            return _handoff_once(root, slug, deadline)
+            return _handoff_once(root, slug, deadline, check_code=check_code, task_id=task_id)
         except InspectError as exc:
             if exc.code != "INSPECT_INPUT_CHANGED" or attempt:
                 raise
@@ -1139,13 +1196,15 @@ def search(
     }
 
 
-def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | None = None) -> dict[str, object]:
-    detail = feature(root, slug, deadline); directory = _feature_dir(root, slug); mode = _mode(root)
+def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | None = None, *, _detail: dict | None = None) -> dict[str, object]:
+    detail = _detail if _detail is not None else feature(root, slug, deadline); directory = _feature_dir(root, slug); mode = _mode(root)
     policy = detail["summary"]["planSummary"].get("completionPolicy")
+    if (directory / "testing/evidence/index.json").is_file():
+        policy = "task-evidence-v2"
     structured_batch = None
     document_text = (
-        _read(directory / "testing" / "verification.md", root, deadline=deadline).decode("utf-8")
-        if policy != "task-evidence-v2" and (directory / "testing" / "verification.md").is_file()
+        _read(feature_document_file(directory, "verification"), root, deadline=deadline).decode("utf-8")
+        if policy != "task-evidence-v2" and (feature_document_file(directory, "verification")).is_file()
         else ""
     )
     if policy == "task-evidence-v2":
@@ -1186,7 +1245,7 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
         record = None
     else:
         record = verification_record(directory, document_text if document_text else None)
-        described = describe_verification_document(document_text)
+        described = describe_verification_document(document_text, feature_document_file(directory, "verification").relative_to(directory).as_posix())
     states: list[dict[str, object]] = []
     result = "unknown"
     if record:
@@ -1207,7 +1266,7 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
         applicability = recorded_applicability
     if check_code and detail["summary"]["status"] != "done" and (record or described["selectedBatch"] is not None):
         try:
-            item = next(x for x in _features(root, deadline)[0] if x["featureSlug"] == slug)
+            item = _direct_item(root, slug, deadline)
             expected = dict(item["branches"])
             recorded = {}
             if described["selectedBatch"] is not None:
@@ -1260,8 +1319,19 @@ def verification(root: Path, slug: str, check_code: bool, deadline: Deadline | N
             states.append({"repository": name if 'name' in locals() else None, "state": "unknown", "reasonCodes": ["INSPECT_INVALID_DATA"], "recordedFingerprint": recorded.get(name) if 'name' in locals() else None, "currentFingerprint": None, "currentHead": None, "source": "git"}); applicability = "unknown"
     elif record is None and described["selectedBatch"] is None and detail["summary"]["status"] != "done": applicability = "not_checked"
     if not states:
-        item = next((x for x in _features(root, deadline)[0] if x["featureSlug"] == slug), None)
+        item = _direct_item(root, slug, deadline)
         states = [{"repository": name, "state": "not_checked", "reasonCodes": [], "recordedFingerprint": None, "currentFingerprint": None, "currentHead": None, "source": "record"} for name in item["repositories"]] if item else []
+    if check_code and detail["summary"]["status"] != "done":
+        item = _direct_item(root, slug, deadline)
+        reviews, diagnostics, recorded_reviews = document_reviews(directory)
+        known = {**item, "progress": {"completed": sum(bool(t["completed"]) for t in detail["tasks"]), "total": len(detail["tasks"])},
+                 "documentReviews": reviews, "documentReviewsRecorded": recorded_reviews,
+                 "designExists": feature_document_file(directory, "design").is_file(), "planExists": feature_plan_file(directory).is_file(),
+                 "verificationPassed": applicability == "valid", "workItem": detail["summary"].get("workItem"),
+                 "changeExists": (directory / "change.md").is_file(), "activityProgress": plan_progress(directory / "change.md"),
+                 "trustedProgress": detail["summary"]["planSummary"].get("trustedProgress")}
+        progress = _single_feature_progress(known, mode=mode)
+        detail = {**detail, "progression": {"state": "known", **{k: progress[k] for k in ("currentStage", "nextActions", "blockers")}}}
     result = {"slug": slug, "featureRevision": detail["featureRevision"], "documentRevision": described["documentRevision"] if (document_text or policy == "task-evidence-v2") else None, "batches": described["batches"], "latestBatchId": described["latestBatchId"], "selectedBatch": described["selectedBatch"], "checkMode": "code_checked" if check_code else "records_only", "repositoryStates": states, "applicability": applicability, "progression": detail["progression"]}
     if policy in {"task-evidence-v1", "task-evidence-v2"}:
         result["taskEvidence"] = [
@@ -1344,7 +1414,7 @@ def runs(root: Path, feature_slug: str | None, offset: int, limit: int, deadline
         try:
             deadline.check(); run, _ = _inspect_run(candidate, root, deadline)
             if feature_slug and run["featureSlug"] != feature_slug: continue
-            records = run["stages"]
+            records = attempts.project(root, run)["stages"]
             items.append({"id": run["id"], "workflow": run["workflow"], "featureSlug": run["featureSlug"], "repository": run["repository"], "branch": run["branch"], "updatedAt": max((x.get("updatedAt") for x in records.values()), default=None), "source": candidate.relative_to(root).as_posix(), "recordCounts": {"total": len(records)}})
         except Exception as exc: diagnostics.append(_diag("INSPECT_INVALID_DATA", str(exc), candidate.relative_to(root).as_posix()))
     return {"items": items[offset:offset + limit], "counts": {"parsed": len(items), "diagnostics": len(diagnostics)}, "page": {"offset": offset, "limit": limit, "total": len(items), "hasMore": offset + limit < len(items)}, "diagnostics": diagnostics, "_collectionRevision": _revision(json.dumps(items, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode())}
@@ -1354,23 +1424,24 @@ def run(root: Path, run_id: str, deadline: Deadline | None = None) -> dict[str, 
     deadline = deadline or Deadline(NORMAL_TIMEOUT)
     if not _valid_run_id(run_id): raise InspectError("INSPECT_INVALID_ARGUMENT", "run id 无效")
     source = workflow_runs_root(root) / f"{run_id}.json"; raw, data = _inspect_run(source, root, deadline)
+    effective = attempts.project(root, raw)
     try:
         _, overlay, _, actions = _resolve(root)
         stages = {stage.id: stage for stage in overlay.stages}
         records = []
-        for stage_id, record in raw["stages"].items():
+        for stage_id, record in effective["stages"].items():
             stage = stages.get(stage_id)
             if stage is None: match = {"state": "removed", "reasonCodes": ["INSPECT_STAGE_REMOVED"]}
             elif stage.uses not in actions: match = {"state": "unknown", "reasonCodes": ["INSPECT_ACTION_UNAVAILABLE"]}
             else: match = {"state": "matched" if _stage_fingerprint(stage, actions[stage.uses], raw) == record["fingerprint"] else "changed", "reasonCodes": []}
             records.append({"stage": stage_id, **record, "configurationMatch": match})
     except Exception:
-        records = [{"stage": stage, **record, "configurationMatch": {"state": "unknown", "reasonCodes": ["INSPECT_CONFIGURATION_UNAVAILABLE"]}} for stage, record in raw["stages"].items()]
-    return {"id": raw["id"], "workflow": raw["workflow"], "featureSlug": raw["featureSlug"], "repository": raw["repository"], "branch": raw["branch"], "records": records, "events": raw.get("events", []), "source": source.relative_to(root).as_posix(), "sourceRevision": _revision(data), "rawRecord": raw}
+        records = [{"stage": stage, **record, "configurationMatch": {"state": "unknown", "reasonCodes": ["INSPECT_CONFIGURATION_UNAVAILABLE"]}} for stage, record in effective["stages"].items()]
+    return {"id": raw["id"], "workflow": raw["workflow"], "featureSlug": raw["featureSlug"], "repository": raw["repository"], "branch": raw["branch"], "records": records, "events": raw.get("events", []), "source": source.relative_to(root).as_posix(), "sourceRevision": _revision(data), "rawRecord": raw, "attempts": [attempts.observed(root, row) for row in attempts.read(root, run_id)["requests"].values()]}
 
 
 def execute(args: argparse.Namespace) -> dict[str, object]:
-    deadline = Deadline(CODE_TIMEOUT if args.operation == "verification" and args.check_code else NORMAL_TIMEOUT)
+    deadline = Deadline(CODE_TIMEOUT if args.operation in {"verification", "handoff"} and args.check_code else NORMAL_TIMEOUT)
     root = Path(args.root)
     if args.api_major != API_MAJOR: raise InspectError("INSPECT_UNSUPPORTED_VERSION", f"不支持的 api major：{args.api_major}")
     if root.is_symlink() or not root.is_dir(): raise InspectError("INSPECT_INVALID_ARGUMENT", "root 必须是普通目录")
@@ -1381,7 +1452,7 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
     elif op == "projection": data = projection(root, args.slug, args.view, args.task, deadline)
     elif op == "document": data = document(root, args.slug, args.path, args.revision, deadline)
     elif op == "verification": data = verification(root, args.slug, args.check_code, deadline)
-    elif op == "handoff": data = handoff(root, args.slug, deadline)
+    elif op == "handoff": data = handoff(root, args.slug, deadline, check_code=args.check_code)
     elif op == "search": data = search(root, args.query, args.repo, args.status, args.offset, args.limit, deadline)
     elif op == "workflow": data = workflow(root, deadline)
     elif op == "runs": data = runs(root, args.feature, args.offset, args.limit, deadline)
@@ -1399,7 +1470,7 @@ def build_parser() -> argparse.ArgumentParser:
     x = sub.add_parser("feature"); x.add_argument("slug"); d = sub.add_parser("document"); d.add_argument("slug"); d.add_argument("--path", required=True); d.add_argument("--revision")
     pview = sub.add_parser("projection"); pview.add_argument("slug"); pview.add_argument("--view", choices=("summary", "task", "change", "handoff", "flow"), required=True); pview.add_argument("--task")
     v = sub.add_parser("verification"); v.add_argument("slug"); v.add_argument("--check-code", action="store_true")
-    h = sub.add_parser("handoff"); h.add_argument("slug")
+    h = sub.add_parser("handoff"); h.add_argument("slug"); h.add_argument("--check-code", action="store_true")
     s = sub.add_parser("search"); s.add_argument("--query", required=True); s.add_argument("--repo"); s.add_argument("--status"); s.add_argument("--offset", type=int, default=0); s.add_argument("--limit", type=int, default=20)
     sub.add_parser("workflow"); rs = sub.add_parser("runs"); rs.add_argument("--feature"); rs.add_argument("--offset", type=int, default=0); rs.add_argument("--limit", type=int, default=100); r = sub.add_parser("run"); r.add_argument("run_id")
     return p

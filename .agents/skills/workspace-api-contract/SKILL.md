@@ -7,6 +7,10 @@ description: Create or update API integration notes for workspace features that 
 
 用于标准需求中涉及 API、前后端契约或联调风险的变更。通常在 `workspace-cross-repo-analysis` 识别提供方/消费方之后，由 `workspace-feature-design` 管理需求目录时使用。
 
+## 文档布局适配
+
+本文件旧 design/ 和 testing/ 路径适用于已有 Feature。新复杂需求主设计为 design.md，独立接口附件为 references/api-contract.md；普通活动优先在 change.md 说明必要契约。文件位置从当前工作项确认，按独立对接需要拆分，不因 API 变化机械新增附件。
+
 ## 触发条件
 
 仅当本次需求满足至少一项时使用：

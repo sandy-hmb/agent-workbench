@@ -187,6 +187,7 @@ class WorkItem:
     current_batch_id: str | None
     batches: tuple[ActivityBatch, ...]
     schema_version: int = WORK_ITEM_SCHEMA_VERSION
+    document_layout: str | None = None
 
     def current_batch(self) -> ActivityBatch | None:
         if self.current_batch_id is None:
@@ -199,6 +200,7 @@ class WorkItem:
     def as_dict(self) -> dict[str, object]:
         return {
             "schemaVersion": self.schema_version,
+            **({"documentLayout": self.document_layout} if self.document_layout else {}),
             "currentBatchId": self.current_batch_id,
             "batches": [batch.as_dict() for batch in self.batches],
         }
@@ -297,7 +299,10 @@ def read_work_item(feature: Path) -> WorkItem | None:
     for batch in batches:
         if batch.parent_batch_id is not None and batch.parent_batch_id not in known_ids:
             raise WorkspaceError(f"工作项 parentBatchId 不存在：{batch.parent_batch_id}")
-    return WorkItem(current_batch_id=current_batch_id, batches=batches)
+    layout = raw.get("documentLayout")
+    if layout not in {None, "flat-v1"}:
+        raise WorkspaceError(f"工作项 documentLayout 不支持：{layout}")
+    return WorkItem(current_batch_id=current_batch_id, batches=batches, document_layout=layout)
 
 
 def initial_work_item(
@@ -311,6 +316,7 @@ def initial_work_item(
     if not re.fullmatch(r"[a-z][a-z0-9-]*", work_kind):
         raise WorkspaceError(f"工作项 workKind 无效：{work_kind}")
     item = WorkItem(
+        document_layout="flat-v1",
         current_batch_id="b01",
         batches=(
             ActivityBatch(

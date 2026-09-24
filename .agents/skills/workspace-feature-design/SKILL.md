@@ -15,7 +15,7 @@ description: Classify a workspace change and create or review its scoped require
 
 ## 先分级
 
-轻量改动必须只影响一个仓的局部实现，不改变外部契约、持久化结构、权限或核心状态，不新增依赖，并可定向验证；轻量流程不创建需求目录，完成定向验证后直接汇报命令和结果。其他情况按标准需求处理，涉及多个仓、契约、数据、权限、迁移或难以回滚时提高风险级别。
+按活动与实际风险判断：小改局部、明确、可逆，可不创建需求目录，完成定向验证后汇报。普通需求用 `change.md` 记录目标、验收、必要方案和工作项，一次审阅后实施。重大需求涉及资金或权限语义、破坏性契约、难回滚迁移或关键架构变化，分阶段审阅。跨仓、新接口、新依赖不单独升级风险。调查、评审、接手不补造原开发链。
 
 纯咨询、评审或只需解释现状时不创建目录、不建分支。
 
@@ -27,7 +27,7 @@ Plan mode 且原生交互工具可用并支持当前选择类型时使用交互�
 
 Requirements 和 Design 写入并自审后由用户审阅实际文件。当前只有一个明确审阅对象时，无附加条件的“确认”“ok”“可以”“好的”“批准”等肯定回复均表示批准；回复包含修改、否定或暂停时先处理其具体含义，对象不唯一时先澄清。批准适用于已展示内容，实质修改后重新审阅受影响产物。
 
-首次开发和重大变更分别审阅 Requirements、Design 和 Plan。范围明确、沿用关键方案且不改变高风险数据、权限语义或外部影响的小迭代，可以一次准备需求差异、必要设计调整和实施计划，统一将受影响文档标为“待审阅”，由用户批准整个实际文档包；没有变化的设计注明沿用原批准，不为形式重复澄清。
+新重大需求分别审阅 Requirements、Design 和 Plan；普通新需求一次审阅完整 change.md 方案包。旧 Feature 按原审批记录继续。范围明确、沿用关键方案且不改变高风险数据、权限语义或外部影响的小迭代，可以一次准备需求差异、必要设计调整和实施计划，统一将受影响文档标为“待审阅”，由用户批准整个实际文档包；没有变化的设计注明沿用原批准，不为形式重复澄清。
 
 阶段提问、确认和停顿的用户可见表达只包含当前结果、下一步和需要用户决定的内容，跟随用户当前语言并默认使用中文。不引用 Skill 名称，不解释内部门禁或复述本文件；命令、路径、API 标识和错误原文可以保留，周围说明保持用户语言一致。
 
@@ -35,13 +35,21 @@ Requirements 开头说明目标，按需包含背景、范围、用户场景、�
 
 同一 Feature 后续变更保持原 slug 和固定文档入口。遇到已完成 Feature 的新增或变更，或当前 README 声明了迭代时，读取[同一 Feature 的后续迭代](references/feature-iterations.md)；日常首次开发不读取该参考。
 
-`design/design.md` 是唯一必需的设计文档、完整技术方案和唯一主入口。读完需求与主设计必须能理解整体方案、组件和数据流、全部 D01-DNN 决策的结论与理由、关键数据模型及迁移概览、主要接口和状态映射、风险与验证方式。主设计拥有全部规范 D 编号；附件只能引用并展开这些决策，不能成为其唯一定义。多实体复杂关系、完整字段字典、DDL、迁移、回填、双写、兼容、数据校验或回滚需要较大篇幅时，先提议并取得用户确认，再创建 `design/data-model.md`。跨仓或跨团队接口、多个端点或事件、请求响应样例、版本兼容、鉴权、错误契约和独立联调计划需要独立审阅时，按 `workspace-api-contract` 的规则确认后创建 `design/api-integration.md`。其他专题也必须有独立负责人、审批或长期维护理由；附件从主设计链接并在开头链接回主设计、声明所扩展的 D 编号，不重复总体方案、其他专题或需求正文。
+复杂需求的主设计（新建为 `design.md`，旧记录为 `design/design.md`）是唯一必需的设计文档、完整技术方案和唯一主入口。读完需求与主设计必须能理解整体方案、组件和数据流、全部 D01-DNN 决策的结论与理由、关键数据模型及迁移概览、主要接口和状态映射、风险与验证方式。主设计拥有全部规范 D 编号；附件只能引用并展开这些决策，不能成为其唯一定义。多实体复杂关系、完整字段字典、DDL、迁移、回填、双写、兼容、数据校验或回滚需要较大篇幅时，先提议并取得用户确认，再创建 `design/data-model.md`。跨仓或跨团队接口、多个端点或事件、请求响应样例、版本兼容、鉴权、错误契约和独立联调计划需要独立审阅时，按 `workspace-api-contract` 的规则确认后创建 `design/api-integration.md`。其他专题也必须有独立负责人、审批或长期维护理由；附件从主设计链接并在开头链接回主设计、声明所扩展的 D 编号，不重复总体方案、其他专题或需求正文。
 
 主设计先写目标、选定方案、关键约束和现状与方案比较，再按关键业务流程组织；全部 D 决策就近说明选择及理由，跨流程共享的数据/API/状态概览才单列，避免完整重述相同流程。最后写跨模块风险与验证、需求覆盖和附件导航。其他结构按问题选择：角色权限、字段映射和方案比较使用表格；审批、事务、迁移和发布顺序使用编号步骤；简单选择使用短段落。具体风险就近记录，末尾不重复所有决策风险，不设文档行数上限。
 
 前端需要并行开发时，可按 `workspace-api-contract` 提前生成 `artifacts/frontend-integration.md` 设计稿；实现后核对同一文件。交接文档不是 Design 审阅包，纯接入说明、示例或环境信息更新不触发设计重新审阅；契约变化仍修订 R/D。不预建空文档，生成后登记 README 入口；历史命名保留可读，不自动迁移。
 
-## 标准需求流程
+## 新工作项与文档角色
+
+用户治理模式使用 `python3 scripts/kit.py feature create <slug> --repo <repo> --document-kind change --risk-tier normal --json`；新复杂需求改用 `--document-kind requirements` 并记录实际风险。新建 `.work-item.json` 保存 `documentLayout: flat-v1`。维护模式直接在当前 Feature 记录同等元数据；不能为了维护 Kit 初始化业务工作区。
+
+普通活动只创建 README 和 change.md，不使用下文复杂需求文档链；其中必要方案与工作项随同目标和验收一次批准。新复杂需求使用根目录 requirements.md、design.md、plan.md；独立附件使用 references/data-model.md、references/api-contract.md。新模板中的链接基于该布局。
+
+下文旧嵌套路径只用于已有 legacy Feature 的续接；新复杂需求按同一文档角色替换为根目录路径。新普通需求不执行以下分阶段审批步骤。未知命令用 `kit.py describe --json`；没有 Skill 发现能力时读取本文件即可，不依赖任何宿主工具名。
+
+## 旧 Feature 与重大复杂需求流程
 
 1. 先判断模式：没有 `.workspace/workspace.json` 时为公共 Kit 维护模式，直接检查 `docs/development/features/`，不调用依赖 workspace registry 的脚本；存在时为用户治理模式，用 `python3 scripts/feature_context.py list --json` 和 `.workspace/docs/features/` 判断。选择顺序是用户明确指定、有效活跃指针、唯一未完成需求；用户明确指定已完成 Feature 时也检查其目录，并按迭代参考判断原地修订或开启下一轮，不因默认列表忽略 `done` 就创建重复 Feature。明确值无效或仍不唯一时停止询问。
 2. 先讨论需求澄清，按交互协议收敛目标、场景、范围、验收、边界和假设。纯咨询、评审或尚未收敛范围时不创建目录、不建分支，也不预写后续文档。结论收敛后直接使用稳定的小写 `kebab-case` `<slug>` 和目标仓生成需求草案。
@@ -49,11 +57,11 @@ Requirements 开头说明目标，按需包含背景、范围、用户场景、�
 
    ```bash
    python3 scripts/feature_context.py create <slug> \
-     --repo <repo> --title "<title>" --summary "<summary>" --json
+     --repo <repo> --title "<title>" --summary "<summary>" --document-kind requirements --risk-tier major --json
    ```
 
-   每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md` 和 `templates/feature/requirements.md`，只创建 `.workspace/docs/features/<slug>/README.md` 和 `requirements/requirements.md`，并写入 registry 计算的分支与基线。按文档协议填入实际内容，自审需求可验证、无歧义且没有占位内容，将 README 的需求审阅记为“待审阅”，再请用户审阅实际文件；未获批准不得进入 Design。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 和 `python3 scripts/kit.py brief <slug> --check --json` 校验元数据与本地结构。
-4. 用户批准实际需求文件后将 README 的需求审阅记为“已批准”，并在同一轮继续方案设计；只有真实关键取舍未决时才提问。结论收敛后直接创建 `design/design.md` 及已确认必要的附件并从 README 链接。附件只能因独立读者、审阅、执行或维护需要拆分，先说明内容归属和读取任务；主设计保留完整方案和全部规范 D 决策的结论、理由、关键结构、影响和风险，附件只展开字段字典、DDL、请求响应样例或逐步执行清单等细节。写入后执行内容、结构和阅读自审：检查占位内容、内部矛盾、范围和表述歧义，再核对需求覆盖、关键假设和方案一致性；运行 `brief <slug> --check --json`；查看 Markdown 预览的标题顺序、表格、步骤、空行和长内容。预览不可用时检查源文件块结构并说明限制。修正后将 README 的设计审阅记为“待审阅”，再请用户审阅整个 Design 审阅包。新建、删除或实质修改任一附件时，设计审阅及已有计划审阅都回到“待审阅”。唯一例外是尚未生成计划时，计划生成阶段已按 `workspace-writing-plan` 的定向修订规则取得用户对已披露变更的明确选择；写回并自审后保持设计审阅为“已批准”。用户批准整个 Design 审阅包后将设计记为“已批准”，并在没有新阻塞时于同一轮生成实施计划草案；书面设计未获批准，不得生成实施计划或开始实现。
+   每个涉及仓重复一次 `--repo`。命令使用 `templates/feature/README.md` 和 `templates/feature/requirements.md`，只创建 `.workspace/docs/features/<slug>/README.md`、根目录 `requirements.md` 和布局元数据；已有 `requirements/requirements.md` 保留原位置，并写入 registry 计算的分支与基线。按文档协议填入实际内容，自审需求可验证、无歧义且没有占位内容，将 README 的需求审阅记为“待审阅”，再请用户审阅实际文件；未获批准不得进入 Design。需求绑定的 SQL、DDL、DML、fixture 和其他交付物按需放入 `artifacts/`，SQL 使用 `artifacts/sql/`；填完需求内容后运行 `python3 scripts/feature_context.py list --json` 和 `python3 scripts/kit.py brief <slug> --check --json` 校验元数据与本地结构。
+4. 用户批准实际需求文件后将 README 的需求审阅记为“已批准”，并在同一轮继续方案设计；只有真实关键取舍未决时才提问。结论收敛后直接创建 `design/design.md` 及已确认必要的附件并从 README 链接。附件只能因独立读者、审阅、执行或维护需要拆分，先说明内容归属和读取任务；主设计保留完整方案和全部规范 D 决策的结论、理由、关键结构、影响和风险，附件只展开字段字典、DDL、请求响应样例或逐步执行清单等细节。写入后执行内容、结构和阅读自审：检查占位内容、内部矛盾、范围和表述歧义，再核对需求覆盖、关键假设和方案一致性；运行 `brief <slug> --check --json`；查看 Markdown 预览的标题顺序、表格、步骤、空行和长内容。预览不可用时检查源文件块结构并说明限制。修正后将 README 的设计审阅记为“待审阅”，再请用户审阅整个 Design 审阅包。新建、删除或实质修改任一附件时，设计审阅及已有计划审阅都回到“待审阅”。唯一例外是尚未生成计划时，计划生成阶段已按 `workspace-writing-plan` 的定向修订规则取得用户对已披露变更的明确选择；写回并自审后保持设计审阅为“已批准”。用户批准整个 Design 审阅包后将设计记为“已批准”，并在没有新阻塞时于同一轮生成实施计划草案；重大需求或沿旧审批规则续接时，书面设计未获批准不得生成实施计划或开始实现。
 5. 书面设计获批准后，读取 `workspace-writing-plan`，由它直接生成和自审 `plans/implementation.md` 草案，不再要求用户确认计划摘要。实际计划、基线、分支和执行方式的批准属于计划 Skill；计划获批前需求保持 `planning`。
 6. 实现中发现影响范围、验收标准或关键方案的新事实时，回到受影响文档；小迭代可合并审阅，重大变化仍逐阶段审阅。`testing/evidence/` 只在首次实际验证时创建并保存机器证据，`testing/verification.md` 是有界人类摘要。
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 import unittest
+import tempfile
+import json
 from pathlib import Path
 
 
@@ -30,6 +32,23 @@ from workspace_paths import (  # noqa: E402
 
 
 class WorkspacePathsTest(unittest.TestCase):
+    def test_document_roles_preserve_existing_layout_and_detect_conflicts(self):
+        import workspace_paths as paths
+
+        with tempfile.TemporaryDirectory() as temp:
+            feature = Path(temp)
+            (feature / '.work-item.json').write_text(json.dumps({'documentLayout': 'flat-v1'}))
+            for role in ('requirements', 'design', 'plan', 'verification'):
+                self.assertEqual(feature / (role + '.md'), paths.feature_document_file(feature, role))
+            (feature / '.work-item.json').unlink()
+            (feature / 'design').mkdir()
+            old = feature / 'design/design.md'
+            old.write_text('# existing')
+            self.assertEqual(old, paths.feature_document_file(feature, 'design'))
+            (feature / 'design.md').write_text('# competing')
+            with self.assertRaisesRegex(ValueError, 'DOCUMENT_ROLE_CONFLICT'):
+                paths.feature_document_file(feature, 'design')
+
     def test_state_and_governance_paths(self):
         root = Path("relative-root")
         resolved = root.resolve()

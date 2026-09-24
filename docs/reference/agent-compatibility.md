@@ -14,3 +14,7 @@
 
 - 多数宿主提供"额外目录"/"工作区文件夹"一类的白名单机制，登记 Kit 的父目录后即可访问兄弟仓；具体设置项因宿主而异，请查阅宿主自身的文档确认。
 - 严格限制当前工作目录（cwd）访问范围、且找不到上述白名单设置的宿主：替代姿势是从 Kit 的**父目录**（而不是 Kit 目录本身）启动会话，并显式请求 Agent 先读取 `<kit-directory>/AGENTS.md`——这样 Kit 目录和兄弟仓库都落在同一个可访问范围内。
+
+## 不依赖宿主的续接
+
+任意 Agent 可调用 `python3 scripts/kit.py brief <slug> --root <kit-root> --projection resume --json`，按 sources 读取必要规则并从 nextActions 继续。执行前增加 --check-code 核对当前版本；没有原生 Skill 或子 Agent 能力仍可完成默认路径。宿主自行保留项目、Feature、任务标识，每次显式传入；Kit 不保存聊天会话、模型或宿主标识。

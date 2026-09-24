@@ -44,7 +44,7 @@ from workspace_model import (  # noqa: E402
     workspace_schema_version,
 )
 from workspace_setup import discover_sibling_repositories  # noqa: E402
-from workspace_paths import feature_plan_file, features_root, state_root, workspace_file  # noqa: E402
+from workspace_paths import feature_document_file, feature_plan_file, features_root, state_root, workspace_file  # noqa: E402
 from workspace_extension import extension_status  # noqa: E402
 from workspace_local import load_local_settings  # noqa: E402
 from workspace_workflow import status_result as workflow_status  # noqa: E402
@@ -91,11 +91,7 @@ DOCUMENT_REVIEW_FIELDS = {
     "plan": "计划审阅",
 }
 DOCUMENT_REVIEW_VALUES = {"未生成", "待审阅", "已批准"}
-DOCUMENT_PATHS = {
-    "requirements": "requirements/requirements.md",
-    "design": "design/design.md",
-    "plan": "plans/implementation.md",
-}
+
 
 
 def artifact_summary(feature: Path) -> list[dict[str, str]]:
@@ -536,7 +532,7 @@ def plan_progress(path: Path) -> dict[str, int]:
 
 def verification_record(feature: Path, text: str | None = None) -> str | None:
     """Read the latest legacy record or verification batch without fallback."""
-    path = feature / "testing/verification.md"
+    path = feature_document_file(feature, "verification")
     if text is None and (not path.is_file() or path.is_symlink()):
         return None
     text = path.read_text(encoding="utf-8") if text is None else text
@@ -565,9 +561,9 @@ def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, 
         work_item = None
     current = work_item.current_batch() if work_item is not None else None
     change_activity = (
-        current is not None and current.status == "active" and current.risk_tier != "major"
+        current is not None and current.status in {"active", "completed"} and current.risk_tier != "major"
         and change.is_file() and not change.is_symlink()
-        and not (feature / DOCUMENT_PATHS["requirements"]).exists()
+        and not (feature_document_file(feature, "requirements")).exists()
     )
     for key, field in DOCUMENT_REVIEW_FIELDS.items():
         value = metadata.get(field)
@@ -594,7 +590,14 @@ def document_reviews(feature: Path, text: str | None = None) -> tuple[dict[str, 
             )
             continue
         reviews[key] = value
-        path = feature_plan_file(feature) if key == "plan" else feature / DOCUMENT_PATHS[key]
+        try:
+            path = feature_plan_file(feature) if key == "plan" else feature_document_file(feature, key)
+        except ValueError as exc:
+            diagnostics.append(_diagnostic(
+                "DOCUMENT_ROLE_CONFLICT" if "DOCUMENT_ROLE_CONFLICT" in str(exc) else "DOCUMENT_REVIEW_MISSING_FILE",
+                "error", readme, 1, str(exc),
+            ))
+            continue
         if key == "requirements" and change_activity:
             path = change
         relative = path.relative_to(feature).as_posix()
@@ -766,10 +769,10 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     for directory in (feature / "design", feature / "plans", feature / "testing"):
         if directory.is_symlink():
             raise ValueError(f"需求记录目录不允许符号链接：{directory}")
-    design = feature / "design" / "design.md"
+    design = feature_document_file(feature, "design")
     if design.is_symlink():
         raise ValueError(f"设计文档不允许符号链接：{design}")
-    verification = feature / "testing" / "verification.md"
+    verification = feature_document_file(feature, "verification")
     if verification.is_symlink():
         raise ValueError(f"验证记录不允许符号链接：{verification}")
     for marker in (feature / "testing/.evidence-transaction.json", feature / "testing/evidence/.transaction.json"):
@@ -790,7 +793,7 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     )
     structured = (
         describe_structured_evidence(feature)
-        if analysis["completionPolicy"] == "task-evidence-v2"
+        if analysis["completionPolicy"] == "task-evidence-v2" or (feature / "testing/evidence/index.json").is_file()
         else None
     )
     record = verification_record(feature) if structured is None else None
@@ -826,6 +829,7 @@ def _tracking(root: Path, mode: str, feature: Path, item: dict[str, object]) -> 
     }
     if change.is_file():
         result["changeExists"] = True
+        result["activityProgress"] = plan_progress(change)
     try:
         work_item = read_work_item(feature)
     except WorkspaceError as exc:
@@ -889,6 +893,8 @@ def _confirmation(category: str) -> dict[str, object]:
 def _single_feature_progress(
     feature: dict[str, object], *, mode: str = "workspace"
 ) -> dict[str, object]:
+    if feature["status"] == "done":
+        return {"currentStage": None, "nextActions": [], "blockers": [], "confirmation": _confirmation("none")}
     if feature["status"] == "paused":
         return {
             "currentStage": None,
@@ -904,7 +910,7 @@ def _single_feature_progress(
         }
     work_item = feature.get("workItem")
     current = work_item.get("currentBatch") if isinstance(work_item, dict) else None
-    if feature.get("changeExists") is True and isinstance(current, dict) and current.get("status") == "active":
+    if feature.get("changeExists") is True and isinstance(current, dict) and current.get("status") in {"active", "completed"}:
         kind = current.get("workKind")
         risk = current.get("riskTier")
         if risk != "major" and kind in {"investigate", "handoff", "review", "accept", "release"}:
@@ -925,6 +931,19 @@ def _single_feature_progress(
                 confirmation = "local"
         else:
             stage = None
+        activity_progress = feature.get("activityProgress", {})
+        if stage is not None and feature["status"] != "planning" and (
+            current.get("status") == "completed" or (
+                activity_progress.get("total", 0) > 0
+                and activity_progress.get("completed") == activity_progress.get("total")
+            )
+        ):
+            stage = "feature.verify" if not feature["verificationPassed"] else (
+                "feature.complete" if mode == "maintenance" or feature["status"] == "testing"
+                else "feature.submit-test"
+            )
+            reason = "本轮工作项已完成；核对当前版本的验证与交付条件"
+            confirmation = "local"
         if stage is not None:
             return {
                 "currentStage": stage,
@@ -1287,7 +1306,7 @@ def status_result(
         raise ValueError(f"治理仓目录不存在：{root}")
     registry = workspace_file(root)
     state = state_root(root)
-    findings = audit(root, verbose=True)
+    findings = audit(root, verbose=True, feature_slug=feature_slug) if feature_slug is not None else audit(root, verbose=True)
     counts = Counter(item.level for item in findings)
     if not registry.exists() and not registry.is_symlink():
         workspace = None
@@ -1297,7 +1316,7 @@ def status_result(
             features, degraded_features = _maintenance_features(root)
         else:
             item = _direct_feature(root, "maintenance", feature_slug)
-            features, degraded_features = ([] if item["status"] == "done" else [item]), []
+            features, degraded_features = [item], []
         extensions = extension_status(root)
         mode = "maintenance"
     else:
@@ -1360,7 +1379,7 @@ def status_result(
             features, degraded_features = _workspace_features(root)
         else:
             item = _direct_feature(root, "workspace", feature_slug)
-            features, degraded_features = ([] if item["status"] == "done" else [item]), []
+            features, degraded_features = [item], []
         workspace = workspace_model.identity.as_dict()
         extensions = extension_status(root)
         mode = "workspace"
@@ -1397,7 +1416,7 @@ def status_result(
         from workspace_verification import render_status_summary
 
         feature_path = root / str(item["path"])
-        human = feature_path / "testing/verification.md"
+        human = feature_document_file(feature_path, "verification")
         if not human.is_file():
             item["humanViewState"] = "missing"
         else:
@@ -1513,6 +1532,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="治理仓目录（默认脚本所在项目目录）",
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--feature", help="只读取明确选择的需求，不修改默认指针")
     parser.add_argument(
         "--projection", choices=("summary", "full"), default="summary",
         help="summary 省略逐任务证据；full 为 v1 兼容输出",
@@ -1528,7 +1548,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = status_result(args.root, context_sources=args.context_sources)
+        result = status_result(args.root, context_sources=args.context_sources, feature_slug=args.feature)
         projected = _project(result, args.projection)
         if args.json:
             print(json.dumps(projected, ensure_ascii=False))

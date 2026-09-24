@@ -376,12 +376,12 @@ def _check_instruction_layers(
             )
 
 
-def _check_feature_metadata(workspace: Workspace, findings: list[Finding]) -> None:
+def _check_feature_metadata(workspace: Workspace, findings: list[Finding], feature_slug: str | None = None) -> None:
     features = features_root(workspace.root)
     if not _safe_directory(workspace.root, features, required=True):
         return
     try:
-        children = sorted(features.iterdir())
+        children = [features / feature_slug] if feature_slug is not None else sorted(features.iterdir())
     except OSError as exc:
         findings.append(
             finding("ERROR", "FEATURE_METADATA_INVALID", f"{features}：{exc}")
@@ -622,7 +622,7 @@ def _check_clients_and_skills(root: Path, findings: list[Finding]) -> None:
             )
 
 
-def markdown_files(root: Path) -> Iterable[Path]:
+def markdown_files(root: Path, feature_slug: str | None = None) -> Iterable[Path]:
     for path in sorted(root.glob("*.md")):
         if path.is_file() and not path.is_symlink():
             yield path
@@ -635,6 +635,7 @@ def markdown_files(root: Path) -> Iterable[Path]:
                 name
                 for name in directories
                 if not (current_path.name == "testing" and name in {"archive", "evidence"})
+                if not (feature_slug is not None and current_path in {root / "docs/development/features", features_root(root)} and name != feature_slug)
                 if _safe_directory(root, current_path / name, required=True)
             ]
             for name in sorted(files):
@@ -752,7 +753,7 @@ def local_link_targets(path: Path) -> Iterable[str]:
 
 
 def _check_markdown_links(
-    root: Path, findings: list[Finding], workspace: Workspace | None = None
+    root: Path, findings: list[Finding], workspace: Workspace | None = None, feature_slug: str | None = None
 ) -> None:
     root = root.resolve()
     markdown_roots = (
@@ -780,7 +781,7 @@ def _check_markdown_links(
         if workspace is not None
         else {}
     )
-    for markdown in markdown_files(root):
+    for markdown in markdown_files(root, feature_slug):
         try:
             targets = list(local_link_targets(markdown))
         except (OSError, UnicodeError) as exc:
@@ -866,7 +867,8 @@ def _check_extensions(root: Path, findings: list[Finding]) -> None:
 
 
 def audit(
-    root: Path, repository: str | None = None, verbose: bool = False
+    root: Path, repository: str | None = None, verbose: bool = False,
+    feature_slug: str | None = None,
 ) -> list[Finding]:
     try:
         root = root.resolve()
@@ -903,7 +905,7 @@ def audit(
                 )
             )
         _check_clients_and_skills(root, findings)
-        _check_markdown_links(root, findings)
+        _check_markdown_links(root, findings, feature_slug=feature_slug)
         return findings
     state = state_root(root)
     if state.is_symlink() or not state.is_dir() or not _safe_path_chain(root, state):
@@ -1011,14 +1013,14 @@ def audit(
     except WorkspaceError as exc:
         findings.append(finding("ERROR", "GENERATED_CONTENT_INVALID", str(exc)))
     _check_instruction_layers(root, workspace, findings)
-    _check_feature_metadata(workspace, findings)
+    _check_feature_metadata(workspace, findings, feature_slug)
     for item in workspace.repositories:
         if target is not None and item != target:
             continue
         _check_repository(workspace, item, findings, target=target is not None)
     _check_clients_and_skills(root, findings)
     _check_extensions(root, findings)
-    _check_markdown_links(root, findings, workspace)
+    _check_markdown_links(root, findings, workspace, feature_slug)
     if verbose:
         _unregistered_siblings(workspace, findings)
     return findings

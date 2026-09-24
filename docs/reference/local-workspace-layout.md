@@ -128,3 +128,9 @@ python3 scripts/workspace_doctor.py --root .
 ## 模板更新
 
 公共 Kit 更新不会重写已有 `.workspace/AGENTS.md`、`CONTEXT.md`、repository profile 或需求记录。新初始化会使用当时的模板；已有工作区只在相应 preview/apply 流程明确生成这些文件时变化。更新前先备份 `.workspace/`，需要采用新版模板时先审阅生成内容再写入。
+
+## 新文档布局与升级
+
+新建工作项的 .work-item.json 保存 documentLayout=flat-v1：普通活动为 README.md 和 change.md，复杂需求按需增加根目录 requirements.md、design.md、plan.md，实际验证后生成 verification.md。机器证据仍在 testing/evidence/；references/ 放独立契约，artifacts/ 放交付物。已有嵌套路径不自动迁移，继续沿原位置读写。公共更新不覆盖 .workspace/AGENTS.md；升级后请核对其中是否仍有“普通需求必须逐阶段审批”等旧规则，并按实际团队要求人工调整。
+
+命令 Action 的 .workspace/runs/attempts/ 属于持久执行事实，备份工作区时一并保留；删掉该目录会失去请求去重依据。执行者锁文件也不要在命令运行时删除。

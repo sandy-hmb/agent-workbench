@@ -1,13 +1,13 @@
 {
   "apiVersion": {
     "major": 1,
-    "minor": 1
+    "minor": 2
   },
   "operation": "workspace",
   "status": "ok",
   "observedAt": "2026-09-08T10:00:00Z",
   "root": "/synthetic/kit",
-  "revision": "sha256:3e48e0b6a3a555303df90c6615f2afc67792e9f205f574f2a9457ca4546adee5",
+  "revision": "sha256:afadc6835dd9abbe6a31433b67d9ce6e5bd23aaf128cfb51a6c8cea5a0e0adc0",
   "data": {
     "mode": "workspace",
     "identity": {
@@ -94,6 +94,7 @@
         "workspace",
         "features",
         "feature",
+        "projection",
         "document",
         "verification",
         "handoff",
@@ -104,7 +105,7 @@
       ],
       "apiVersion": {
         "major": 1,
-        "minor": 1
+        "minor": 2
       },
       "limits": {
         "maxFileBytes": 1048576,

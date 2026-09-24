@@ -1900,6 +1900,71 @@
       "type": "object",
       "required": ["slug", "title", "status", "documentReviews", "progression", "currentTask", "dependencies", "latestVerification", "sources", "content", "estimatedTokens", "featureRevision"],
       "properties": {
+        "activity": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "taskExecution": {
+          "type": "object",
+          "required": [
+            "applicable",
+            "decision"
+          ],
+          "properties": {
+            "applicable": {
+              "type": "boolean"
+            },
+            "decision": {
+              "enum": [
+                "RUN",
+                "BLOCKED",
+                "COMPLETE",
+                null
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "verification": {
+          "type": "object",
+          "required": [
+            "recordedResult",
+            "applicability",
+            "checkMode",
+            "repositoryStates"
+          ],
+          "properties": {
+            "recordedResult": {
+              "enum": [
+                "passed",
+                "failed",
+                "blocked",
+                "unknown"
+              ]
+            },
+            "applicability": {
+              "type": "string"
+            },
+            "checkMode": {
+              "enum": [
+                "records_only",
+                "code_checked"
+              ]
+            },
+            "repositoryStates": {
+              "type": "array"
+            }
+          },
+          "additionalProperties": true
+        },
+        "repositoryContext": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
         "slug": {"type": "string"},
         "title": {"type": "string"},
         "status": {"type": "string"},
@@ -1944,6 +2009,51 @@
       },
       "additionalProperties": true
     },
+    "actionAttempt": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "run",
+        "stage",
+        "status",
+        "origin",
+        "updatedAt",
+        "summary"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "succeeded",
+            "failed",
+            "unknown",
+            "skipped"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "runner",
+            "reconciled"
+          ]
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "run": {
       "type": "object",
       "required": [
@@ -1958,6 +2068,12 @@
         "rawRecord"
       ],
       "properties": {
+        "attempts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/actionAttempt"
+          }
+        },
         "id": {
           "type": "string"
         },

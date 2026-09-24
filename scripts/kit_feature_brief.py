@@ -28,7 +28,7 @@ from workspace_model import (  # noqa: E402
     repository_path,
     resolve_repository,
 )
-from workspace_paths import feature_plan_file, feature_plan_relative, feature_work_item_file, state_root  # noqa: E402
+from workspace_paths import feature_document_file, feature_plan_file, feature_plan_relative  # noqa: E402
 from workspace_status import (  # noqa: E402
     _single_feature_progress,
     plan_analysis,
@@ -72,7 +72,7 @@ DECISION_REFERENCE_RE = re.compile(r"\bD\d+\b", re.IGNORECASE)
 
 
 def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> str:
-    by_slug = {item["featureSlug"]: item for item in status["features"]}
+    by_slug = {item["featureSlug"]: item for item in status["features"] if item["status"] != "done"}
     if slug is not None:
         if slug not in by_slug:
             raise ValueError(f"未找到进行中的需求：{slug}（可能已完成或不存在）")
@@ -91,20 +91,10 @@ def _resolve_slug(root: Path, status: dict[str, object], slug: str | None) -> st
     raise ValueError(f"未指定 slug 且无法确定唯一需求，候选：{candidates}")
 
 
-def _has_work_item(root: Path, slug: str) -> bool:
-    feature_root = (
-        state_root(root) / "docs" / "features"
-        if (state_root(root) / "workspace.json").is_file()
-        else root / "docs" / "development" / "features"
-    )
-    path = feature_work_item_file(feature_root / slug)
-    return path.is_file() and not path.is_symlink()
-
-
 def _file_report(feature_dir: Path) -> dict[str, dict[str, object]]:
     report = {}
     for key, relative in FEATURE_FILES.items():
-        path = feature_plan_file(feature_dir) if key == "plan" else feature_dir / relative
+        path = feature_dir / relative if key == "readme" else feature_document_file(feature_dir, key)
         relative = path.relative_to(feature_dir).as_posix()
         exists = path.is_file() and not path.is_symlink()
         report[key] = {
@@ -123,7 +113,7 @@ def _file_report(feature_dir: Path) -> dict[str, dict[str, object]]:
 
 
 def _verification_tail(feature_dir: Path, limit: int = 10) -> list[str]:
-    path = feature_dir / "testing/verification.md"
+    path = feature_document_file(feature_dir, "verification")
     if not path.is_file() or path.is_symlink():
         return []
     return path.read_text(encoding="utf-8").splitlines()[-limit:]
@@ -166,7 +156,9 @@ def _document_diagnostic(
 
 
 def _design_attachments(feature_dir: Path) -> list[Path]:
-    design_dir = feature_dir / "design"
+    design_dir = feature_document_file(feature_dir, "design").parent
+    if design_dir == feature_dir:
+        design_dir = feature_dir / "references"
     if design_dir.is_symlink() or not design_dir.is_dir():
         return []
     return [
@@ -179,7 +171,7 @@ def _design_attachments(feature_dir: Path) -> list[Path]:
 def _document_sources(feature_dir: Path) -> list[Path]:
     artifacts = feature_dir / "artifacts"
     standard = [
-        feature_dir / relative
+        (feature_dir / relative if key == "readme" else feature_document_file(feature_dir, key))
         for key, relative in FEATURE_FILES.items()
         if key != "plan"
     ]
@@ -319,7 +311,7 @@ def _link_diagnostics(feature_dir: Path) -> list[dict[str, object]]:
                 "DOCUMENT_MISSING_README_LINK", "warning", readme, feature_dir, 1,
                 f"README 缺少已生成文档入口：{source.relative_to(feature_dir).as_posix()}",
             ))
-    design = feature_dir / "design/design.md"
+    design = feature_document_file(feature_dir, "design")
     attachments = _design_attachments(feature_dir)
     if design.is_file() and not design.is_symlink():
         design_path = design.resolve()
@@ -704,7 +696,7 @@ def brief_result(
     root = Path(root).resolve()
     status = (
         status_result(root, feature_slug=slug)
-        if slug is not None and _has_work_item(root, slug)
+        if slug is not None
         else status_result(root)
     )
     resolved = _resolve_slug(root, status, slug)
@@ -757,7 +749,7 @@ def brief_result(
         "blockers": [
             blocker
             for blocker in status["blockers"]
-            if slug is None or blocker not in {"MULTIPLE_ACTIVE_FEATURES", "ACTIVE_FEATURE_INVALID"}
+            if slug is None or blocker not in {"MULTIPLE_ACTIVE_FEATURES", "ACTIVE_FEATURE_INVALID", "FEATURE_PAUSED"}
         ],
         "progress": progress,
         "pendingTasks": pending[:PENDING_TASK_LIMIT],
@@ -797,6 +789,26 @@ def brief_result(
             }
         )
     return result
+
+
+def resume_result(root: Path, slug: str | None = None, task_id: str | None = None, *, check_code: bool = False) -> dict[str, object]:
+    """Host-neutral handoff without persistent session state."""
+    from workspace_inspect import handoff
+
+    root = Path(root).resolve()
+    if slug is None:
+        slug = _resolve_slug(root, status_result(root), None)
+    value = handoff(root, slug, check_code=check_code, task_id=task_id)
+    return {
+        "schemaVersion": 1, "root": str(root), "featureSlug": slug,
+        "status": value["status"], "activity": value["activity"],
+        **value["progression"],
+        "taskExecution": value["taskExecution"], "currentTask": value["currentTask"],
+        "dependencies": value["dependencies"], "verification": value["verification"],
+        "repositoryContext": value["repositoryContext"],
+        "sources": value["sources"], "contextSources": value["contextSources"], "featureRevision": value["featureRevision"],
+        "content": value["content"], "estimatedTokens": value["estimatedTokens"],
+    }
 
 
 def _render_text(result: dict[str, object]) -> None:
@@ -898,11 +910,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("slug", nargs="?", help="不传时取活跃指针或唯一的进行中需求")
     parser.add_argument("--task", dest="task_id", help="展开指定编号任务的正文与引用")
+    parser.add_argument("--check-code", action="store_true", help="续接时核对当前代码与验证版本")
     parser.add_argument("--check", action="store_true", help="检查已有文档的本地结构与引用")
     parser.add_argument("--execution", action="store_true", help="补充连续执行决策与可执行队列")
     parser.add_argument(
         "--projection",
-        choices=("summary", "execution", "full"),
+        choices=("summary", "execution", "resume", "full"),
         default="summary",
         help="summary 为默认有界输出；execution 只保留执行循环字段；full 为 v1 兼容输出",
     )
@@ -913,6 +926,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.projection == "resume":
+            result = resume_result(args.root, args.slug, args.task_id, check_code=args.check_code)
+            print(json.dumps(result, ensure_ascii=False) if args.json else result["content"])
+            return 1 if args.check and result["blockers"] else 0
         result = brief_result(args.root, args.slug, args.task_id, execution=args.execution)
     except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError) as exc:
         print(f"错误：{exc}", file=sys.stderr)

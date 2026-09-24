@@ -29,6 +29,7 @@ from extension_model import (  # noqa: E402
     extension_digest,
 )
 from extension_registry import discover_extensions  # noqa: E402
+import workspace_action_attempts as attempts
 from provider_protocol import run_provider  # noqa: E402
 from workspace_extension import (  # noqa: E402
     ExtensionCommandError,
@@ -36,7 +37,8 @@ from workspace_extension import (  # noqa: E402
     extension_lock,
 )
 from workspace_model import WorkspaceError, atomic_write_many, parse_json_bytes  # noqa: E402
-from workspace_paths import (  # noqa: E402
+from workspace_paths import (
+    feature_document_file,  # noqa: E402
     ignored_by_root_gitignore,
     features_root,
     state_root,
@@ -372,7 +374,7 @@ def _verification_file(root: Path, feature_slug: str | None) -> Path | None:
     _safe_path(root, readme)
     if not readme.is_file():
         raise _command("WORKFLOW_FEATURE_MISSING", f"标准需求缺少 README：{readme}")
-    path = feature / "testing" / "verification.md"
+    path = feature_document_file(feature, "verification")
     _safe_path(root, path)
     if not path.exists():
         return None
@@ -384,7 +386,7 @@ def _verification_file(root: Path, feature_slug: str | None) -> Path | None:
 def _feature_uses_v2(root: Path, feature_slug: str | None) -> bool:
     if feature_slug is None:
         return False
-    plan = features_root(root) / feature_slug / "plans" / "implementation.md"
+    plan = feature_document_file(features_root(root) / feature_slug, "plan")
     if plan.is_symlink() or not plan.is_file():
         return False
     return bool(re.search(r"(?:completion-policy:\s*|完成门禁：\s*`?)task-evidence-v2\b", plan.read_text(encoding="utf-8")))
@@ -506,7 +508,7 @@ def _load_run(root: Path, run_id: str) -> dict[str, object]:
             ):
                 raise _command("WORKFLOW_RUN_MISSING", "Workflow Run event 结构无效")
             _summary(event["summary"], "Workflow Run event summary")
-    return raw
+    return attempts.project(root, raw)
 
 
 def _region_stages(resolved: ResolvedWorkflow, anchor: str, *, before: bool) -> tuple[CustomStage, ...]:
@@ -579,6 +581,8 @@ def _plan_item(
         "fingerprint": _stage_fingerprint(stage, binding, run),
     }
     item["planHash"] = _hash(item)
+    if binding.action.command is not None:
+        item["requestId"] = attempts.default_request_id(str(run["id"]), stage.id, item["planHash"])
     return item
 
 
@@ -611,6 +615,10 @@ def plan_result(
         if binding is None:
             raise _command("ACTION_MISSING", f"Action 未安装或未锁定：{stage.uses}")
         item = _plan_item(stage, binding, run)
+        last_attempt = attempts.latest(attempts.read(root, run_id), stage.id)
+        if last_attempt is not None:
+            item["attempt"] = attempts.observed(root, last_attempt)
+            item["requestId"] = last_attempt["requestId"]
         fingerprint = item["fingerprint"]
         assert isinstance(fingerprint, str)
         record = stage_records.get(stage.id)
@@ -670,14 +678,18 @@ def _assert_plan_hash(item: Mapping[str, object], expected_hash: str) -> None:
 
 
 def _assert_predecessors(
-    run: Mapping[str, object], previous: Sequence[str]
+    root: Path, run: Mapping[str, object], previous: Sequence[str]
 ) -> None:
+    _, overlay, _, actions = _resolve(root)
+    current = {stage.id: stage for stage in overlay.stages}
     records = run["stages"]
     assert isinstance(records, dict)
     for stage_id in previous:
         record = records.get(stage_id)
-        if not isinstance(record, dict) or record.get("status") not in {"succeeded", "skipped"}:
-            raise _command("ACTION_BLOCKED", f"前置 Custom Stage 尚未完成：{stage_id}")
+        stage = current[stage_id]
+        expected = _stage_fingerprint(stage, actions[stage.uses], run)
+        if not isinstance(record, dict) or record.get("status") not in {"succeeded", "skipped"} or record.get("fingerprint") != expected:
+            raise _command("ACTION_BLOCKED", f"前置 Custom Stage 尚未完成或配置已变化：{stage_id}")
 
 
 def _write_run(root: Path, run: Mapping[str, object]) -> None:
@@ -745,7 +757,7 @@ def _record_stage(
                     features_root(root) / feature_slug,
                     action_summaries=[item for item in run.get("events", []) if isinstance(item, dict)],
                 )
-                outputs.append((features_root(root) / feature_slug / "testing" / "verification.md", human_summary))
+                outputs.append((feature_document_file(features_root(root) / feature_slug, "verification"), human_summary))
             except (OSError, ValueError) as exc:
                 raise _command("WORKFLOW_INVALID", f"无法生成 v2 验证摘要：{exc}") from exc
     if verification is not None:
@@ -784,7 +796,7 @@ def finish(
     with extension_lock(root, fcntl.LOCK_EX, create_cache=True):
         run, _, binding, item, previous = _stage_context(root, run_id, stage_id)
         _assert_plan_hash(item, plan_hash)
-        _assert_predecessors(run, previous)
+        _assert_predecessors(root, run, previous)
         if binding.action.command is not None:
             raise _command("ACTION_COMMAND_REQUIRED", f"Action 必须使用 run：{binding.ref}")
         record = _record_stage(root, run, item, status=status, summary=_summary(summary, "summary"))
@@ -798,8 +810,14 @@ def skip(
     with extension_lock(root, fcntl.LOCK_EX, create_cache=True):
         run, _, _, item, previous = _stage_context(root, run_id, stage_id)
         _assert_plan_hash(item, plan_hash)
-        _assert_predecessors(run, previous)
-        record = _record_stage(root, run, item, status="skipped", summary=_summary(reason, "skip reason"))
+        _assert_predecessors(root, run, previous)
+        summary = _summary(reason, "skip reason")
+        data = attempts.read(root, run_id)
+        last = attempts.latest(data, stage_id)
+        if last is not None:
+            last["stageDisposition"] = {"status": "skipped", "summary": summary, "updatedAt": attempts.stamp()}
+            attempts.save(root, run_id, data)
+        record = _record_stage(root, run, item, status="skipped", summary=summary)
         return {"run": run_id, "stage": stage_id, **record}
 
 
@@ -812,59 +830,150 @@ def _result_summary(result: Mapping[str, object]) -> str:
     return "Action completed" if result.get("status") == "ok" else "Action failed"
 
 
+def action_result(root: Path, run_id: str, request_id: str) -> dict[str, object]:
+    root = _root(root)
+    attempts.identifier(request_id)
+    item = attempts.read(root, run_id)["requests"].get(request_id)
+    if item is None:
+        raise _command("ACTION_REQUEST_NOT_FOUND", "请求不存在；旧 running 记录需明确核对或跳过")
+    return attempts.observed(root, item)
+
+
+def _replay(root: Path, run_id: str, stage_id: str, plan_hash: str, request_id: str) -> dict | None:
+    item = attempts.read(root, run_id)["requests"].get(request_id)
+    if item is None:
+        return None
+    if item["stage"] != stage_id or item["planHash"] != plan_hash:
+        raise _command("ACTION_REQUEST_CONFLICT", "请求编号已绑定其他输入")
+    return {**attempts.observed(root, item), "replayed": True}
+
+
 def run_action(
-    root: Path, run_id: str, stage_id: str, plan_hash: str
+    root: Path, run_id: str, stage_id: str, plan_hash: str, *,
+    request_id: str | None = None, previous_request_id: str | None = None,
+    reason: str | None = None,
 ) -> dict[str, object]:
     root = _root(root)
+    request_id = attempts.identifier(request_id or attempts.default_request_id(run_id, stage_id, plan_hash))
+    replay = _replay(root, run_id, stage_id, plan_hash, request_id)
+    if replay is not None:
+        return replay
     with extension_lock(root, fcntl.LOCK_EX, create_cache=True):
+        replay = _replay(root, run_id, stage_id, plan_hash, request_id)
+        if replay is not None:
+            return replay
         run, stage, binding, item, previous = _stage_context(root, run_id, stage_id)
         _assert_plan_hash(item, plan_hash)
-        _assert_predecessors(run, previous)
+        _assert_predecessors(root, run, previous)
         if binding.action.command is None:
             raise _command("ACTION_SKILL_ONLY", f"Action 没有 command：{binding.ref}")
         command = extension_command(binding.manifest, binding.action)
         if command is None:
             raise _command("ACTION_DRIFT", f"Action command 不安全或不可执行：{binding.ref}")
-        _record_stage(root, run, item, status="running", summary="Action command started")
-        request = {
-            "workflow": run["workflow"],
-            "run": run_id,
-            "stage": stage.id,
-            "featureSlug": run["featureSlug"],
-            "repository": run["repository"],
-            "branch": run["branch"],
-            "with": dict(stage.config),
+        data = attempts.read(root, run_id)
+        last = attempts.latest(data, stage_id)
+        if last is not None:
+            last = attempts.observed(root, last)
+            if last["status"] in {"unknown", "running"} and not last.get("stageDisposition"):
+                raise _command("ACTION_RECONCILIATION_REQUIRED", "前次结果未确认，先查询并核对")
+            if previous_request_id != last["requestId"]:
+                raise _command("ACTION_RETRY_REQUIRED", "重新执行必须引用最新请求并说明原因")
+            _summary(reason, "retry reason")
+        elif previous_request_id is not None:
+            raise _command("ACTION_REQUEST_NOT_FOUND", "没有可重试的请求")
+        else:
+            old = run["stages"].get(stage_id)
+            if old is not None:
+                if old["status"] == "running":
+                    raise _command("ACTION_RECONCILIATION_REQUIRED", "旧 running 记录无法确认，先核对或跳过")
+                if old["fingerprint"] == item["fingerprint"] and old["status"] in {"succeeded", "skipped"}:
+                    return {"run": run_id, "stage": stage_id, **old, "replayed": True}
+        record = {
+            "requestId": request_id, "run": run_id, "stage": stage_id,
+            "planHash": plan_hash, "fingerprint": item["fingerprint"],
+            "sequence": max((x["sequence"] for x in data["requests"].values()), default=0) + 1,
+            "action": binding.ref, "status": "running", "origin": "runner",
+            "updatedAt": attempts.stamp(), "summary": "Action command started",
+            "diagnosticCodes": [], "effects": list(binding.action.effects),
+            "previousRequestId": previous_request_id, "reason": reason,
+            "context": {key: run[key] for key in ("featureSlug", "repository", "branch")},
         }
-        result = run_provider(
-            command,
-            cwd=binding.manifest.root,
-            provider=binding.ref,
-            request=request,
-            environment=binding.action.environment or (),
-        )
-        status = "succeeded" if result.get("status") == "ok" else "failed"
-        record = _record_stage(
-            root,
-            run,
-            item,
-            status=status,
-            summary=_result_summary(result),
-        )
-        diagnostics = result.get("diagnostics")
-        codes = [
-            item.get("code")
-            for item in diagnostics
-            if isinstance(item, Mapping) and isinstance(item.get("code"), str)
-        ] if isinstance(diagnostics, list) else []
-        return {
-            "run": run_id,
-            "stage": stage_id,
-            "action": binding.ref,
-            "status": record["status"],
-            "summary": record["summary"],
-            "diagnosticCodes": codes[:20],
-            "effects": list(binding.action.effects),
-        }
+        with attempts.lease(root, run_id, request_id):
+            data["requests"][request_id] = record
+            attempts.save(root, run_id, data)  # Publish intent before any process can start.
+            try:
+                _record_stage(root, run, item, status="running", summary=record["summary"])
+            except (OSError, ValueError):
+                record.update(status="failed", summary="启动前状态写入失败；命令未执行", updatedAt=attempts.stamp())
+                attempts.save(root, run_id, data)
+                raise
+            request = {
+                "workflow": run["workflow"], "run": run_id, "stage": stage.id,
+                "featureSlug": run["featureSlug"], "repository": run["repository"],
+                "branch": run["branch"], "with": dict(stage.config),
+            }
+            try:
+                result = run_provider(command, cwd=binding.manifest.root, provider=binding.ref,
+                                      request=request, environment=binding.action.environment or ())
+            except BaseException:
+                record.update(status="unknown", summary="执行中断，需核对外部结果", updatedAt=attempts.stamp())
+                attempts.save(root, run_id, data)
+                raise
+            codes = [x.get("code") for x in result.get("diagnostics", []) if isinstance(x, Mapping) and isinstance(x.get("code"), str)][:20]
+            did_not_start = any(d.get("code") == "PROVIDER_PROCESS_ERROR" and d.get("message") == "Provider 进程无法启动"
+                                for d in result.get("diagnostics", []) if isinstance(d, Mapping))
+            unknown = not did_not_start and any(code in {"PROVIDER_TIMEOUT", "PROVIDER_PROCESS_ERROR", "PROVIDER_PROTOCOL_ERROR", "PROVIDER_OUTPUT_LIMIT"} for code in codes)
+            state = "succeeded" if result.get("status") == "ok" else "unknown" if unknown else "failed"
+            record.update(status=state, summary="执行结果未知，先核对再重试" if unknown else _result_summary(result),
+                          diagnosticCodes=codes, updatedAt=attempts.stamp())
+            attempts.save(root, run_id, data)  # Result is authoritative even if its projection fails.
+            try:
+                _record_stage(root, run, item, status="failed" if unknown else state, summary=record["summary"])
+            except (OSError, ValueError):
+                return {**record, "projectionPending": True, "replayed": False}
+            return {**record, "replayed": False}
+
+
+def reconcile_action(root: Path, run_id: str, request_id: str, *, status: str, summary: str, evidence: str) -> dict[str, object]:
+    root = _root(root)
+    if status not in {"succeeded", "failed", "skipped"}:
+        raise _command("WORKFLOW_INVALID", "核对结果必须是 succeeded、failed 或 skipped")
+    summary = _summary(summary, "reconcile summary")
+    evidence = _summary(evidence, "reconcile evidence")
+    with extension_lock(root, fcntl.LOCK_EX, create_cache=True):
+        data = attempts.read(root, run_id)
+        record = data["requests"].get(attempts.identifier(request_id))
+        if record is None:
+            # Adopt only the stable ID of an explicitly unresolved legacy command.
+            legacy = _load_run(root, run_id)
+            for stage_id, saved in legacy["stages"].items():
+                if saved["status"] != "running":
+                    continue
+                _, _, binding, item, _ = _stage_context(root, run_id, stage_id)
+                if binding.action.command is None or item.get("requestId") != request_id or item["fingerprint"] != saved["fingerprint"]:
+                    continue
+                record = {"requestId": request_id, "run": run_id, "stage": stage_id,
+                          "planHash": item["planHash"], "fingerprint": item["fingerprint"],
+                          "sequence": max((x["sequence"] for x in data["requests"].values()), default=0) + 1,
+                          "action": binding.ref, "status": "unknown", "origin": "runner",
+                          "summary": "遗留执行结果待核对", "updatedAt": saved["updatedAt"],
+                          "diagnosticCodes": [], "effects": list(binding.action.effects), "legacy": True}
+                data["requests"][request_id] = record
+                break
+            if record is None:
+                raise _command("ACTION_REQUEST_NOT_FOUND", "请求不存在")
+        if attempts.alive(root, run_id, request_id):
+            raise _command("ACTION_BUSY", "请求仍在执行，不能覆盖结果")
+        if attempts.latest(data, record["stage"])["requestId"] != request_id:
+            raise _command("ACTION_REQUEST_STALE", "只能核对当前最新尝试")
+        observed = attempts.observed(root, record)
+        if record["origin"] == "reconciled" and record["status"] == status and record["summary"] == summary and record.get("evidence") == evidence:
+            return observed
+        if observed["status"] != "unknown":
+            raise _command("ACTION_RESULT_FINAL", "已有明确结果，不能改写历史")
+        record.update(status=status, summary=summary, evidence=evidence, origin="reconciled", updatedAt=attempts.stamp())
+        attempts.save(root, run_id, data)
+        return record
 
 
 def status_result(root: Path) -> dict[str, object]:
@@ -895,7 +1004,7 @@ def status_result(root: Path) -> dict[str, object]:
     _safe_path(root, runs)
     if runs.is_symlink() or not runs.is_dir():
         return {"enabled": True, "blockedCodes": ["WORKFLOW_INVALID"]}
-    pending = failed = interrupted = 0
+    pending = failed = interrupted = running = 0
     next_stage: str | None = None
     source = {stage.id: stage for stage in active.stages}
     custom_ids = [stage.id for stage in resolved.stages if not stage.core]
@@ -917,16 +1026,24 @@ def status_result(root: Path) -> dict[str, object]:
                     status = record.get("status")
                     if status in {"succeeded", "skipped"}:
                         continue
+                    last = attempts.latest(attempts.read(root, str(run["id"])), stage_id)
+                    actual = attempts.observed(root, last)["status"] if last else None
+                    if actual == "unknown":
+                        interrupted += 1
+                        continue
                     if status == "failed":
                         failed += 1
                         continue
                     if status == "running":
-                        interrupted += 1
+                        if actual == "running":
+                            running += 1
+                        else:
+                            interrupted += 1
                         continue
                 pending += 1
                 if next_stage is None:
                     next_stage = stage_id
-        except WorkflowCommandError as exc:
+        except (WorkflowCommandError, ValueError) as exc:
             code, _, _ = str(exc).partition(": ")
             return {"enabled": True, "blockedCodes": [code]}
     return {
@@ -936,6 +1053,7 @@ def status_result(root: Path) -> dict[str, object]:
         "pending": pending,
         "failed": failed,
         "interrupted": interrupted,
+        **({"running": running} if running else {}),
         "nextStage": next_stage,
     }
 
@@ -994,6 +1112,22 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--stage", required=True)
     run.add_argument("--plan-hash", required=True)
     run.add_argument("--json", action="store_true")
+    run.add_argument("--request-id")
+    retry = commands.add_parser("retry")
+    retry.add_argument("--root", type=Path, default=Path.cwd())
+    for flag in ("run", "stage", "plan-hash", "request-id", "previous-request-id", "reason"):
+        retry.add_argument("--" + flag, required=True)
+    retry.add_argument("--json", action="store_true")
+    for name in ("result", "reconcile"):
+        operation = commands.add_parser(name)
+        operation.add_argument("--root", type=Path, default=Path.cwd())
+        operation.add_argument("--run", required=True)
+        operation.add_argument("--request-id", required=True)
+        operation.add_argument("--json", action="store_true")
+        if name == "reconcile":
+            operation.add_argument("--status", choices=("succeeded", "failed", "skipped"), required=True)
+            operation.add_argument("--summary", required=True)
+            operation.add_argument("--evidence", required=True)
     finish_parser = commands.add_parser("finish")
     finish_parser.add_argument("--root", type=Path, default=Path.cwd())
     finish_parser.add_argument("--run", required=True)
@@ -1042,8 +1176,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         elif args.command == "plan":
             _print(plan_result(args.root, args.run, before=args.before, after=args.after), args.json)
-        elif args.command == "run":
-            _print(run_action(args.root, args.run, args.stage, args.plan_hash), args.json)
+        elif args.command in {"run", "retry"}:
+            _print(run_action(args.root, args.run, args.stage, args.plan_hash,
+                              request_id=args.request_id,
+                              previous_request_id=getattr(args, "previous_request_id", None),
+                              reason=getattr(args, "reason", None)), args.json)
+        elif args.command == "result":
+            _print(action_result(args.root, args.run, args.request_id), args.json)
+        elif args.command == "reconcile":
+            _print(reconcile_action(args.root, args.run, args.request_id, status=args.status,
+                                    summary=args.summary, evidence=args.evidence), args.json)
         elif args.command == "finish":
             _print(
                 finish(
@@ -1066,7 +1208,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.json,
             )
         return 0
-    except (OSError, RuntimeError, UnicodeError, WorkspaceError, ExtensionError, WorkflowError) as exc:
+    except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError, ExtensionError, WorkflowError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 1
 

@@ -524,9 +524,10 @@ class FeatureContextTest(unittest.TestCase):
             )
 
             self.assertEqual(root.resolve() / ".workspace/docs/features/payment-feature", feature)
-            self.assertTrue((feature / "requirements/requirements.md").is_file())
+            self.assertTrue((feature / "requirements.md").is_file())
             work_item = json.loads((feature / ".work-item.json").read_text(encoding="utf-8"))
             self.assertEqual("b01", work_item["currentBatchId"])
+            self.assertEqual("flat-v1", work_item["documentLayout"])
             self.assertEqual("develop", work_item["batches"][0]["workKind"])
             self.assertEqual("normal", work_item["batches"][0]["riskTier"])
             for directory in ("design", "plans", "testing", "artifacts"):
@@ -537,7 +538,7 @@ class FeatureContextTest(unittest.TestCase):
             self.assertIn("- 需求审阅：待审阅", readme)
             self.assertIn("- 设计审阅：未生成", readme)
             self.assertIn("- 计划审阅：未生成", readme)
-            requirements = (feature / "requirements/requirements.md").read_text(
+            requirements = (feature / "requirements.md").read_text(
                 encoding="utf-8"
             )
             self.assertIn("# Payment Feature 需求", requirements)
