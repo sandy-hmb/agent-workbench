@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from test_happy_path import (  # noqa: E402
+from tests.support.public_clone import (  # noqa: E402
     create_public_clone,
     git_status,
     initialize_workspace,
@@ -48,11 +48,12 @@ class UpdateIsolationTest(unittest.TestCase):
             source, _, user = create_public_clone(parent)
             initialize_workspace(user, include_repository=False)
             state = user / ".workspace"
+            (state / "docs").mkdir(exist_ok=True)
             (state / "docs" / "local-note.md").write_text("local only\n", encoding="utf-8")
             (state / "extensions" / ".state" / "cache" / "local-note.txt").write_text("local cache\n", encoding="utf-8")
             (state / "workflow.json").write_text(
                 json.dumps(
-                    {"schemaVersion": {"major": 1, "minor": 0}, "workflow": "feature-development", "stages": []}
+                    {"schemaVersion": {"major": 1, "minor": 0}, "workflow": "item-development", "stages": []}
                 )
                 + "\n",
                 encoding="utf-8",
@@ -61,13 +62,14 @@ class UpdateIsolationTest(unittest.TestCase):
             (state / "runs/update-run.json").write_text(
                 json.dumps(
                     {
-                        "schemaVersion": 1,
+                        "schemaVersion": 3,
                         "id": "update-run",
-                        "workflow": "feature-development",
-                        "featureSlug": None,
+                        "workflow": "item-development",
+                        "itemSlug": None,
+                        "iteration": None,
+                        "bindingRevision": None,
                         "repository": "service",
                         "branch": "smoke/feature/update-run",
-                        "stages": {},
                     }
                 )
                 + "\n",

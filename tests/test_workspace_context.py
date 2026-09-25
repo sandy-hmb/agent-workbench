@@ -10,11 +10,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import workspace_context  # noqa: E402
-from provider_workspace import make_provider_workspace  # noqa: E402
+import workbench.workspace.context as workspace_context  # noqa: E402
+from tests.support.providers import make_provider_workspace  # noqa: E402
 
 
 TERM_ROUTER = {

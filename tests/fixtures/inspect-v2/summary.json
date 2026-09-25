@@ -1,0 +1,143 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "projection",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "view": "summary",
+    "slug": "demo",
+    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "summary": {
+      "slug": "demo",
+      "title": "Demo",
+      "description": "",
+      "path": "docs/development/items/demo",
+      "status": "active",
+      "riskTier": "normal",
+      "activity": "develop",
+      "iteration": "i01",
+      "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+      "updatedAt": "2026-09-25T00:48:49.091160+00:00",
+      "repositoryBindings": [
+        {
+          "baseBranch": "main",
+          "repository": "kit",
+          "workBranch": "main"
+        }
+      ],
+      "progress": {
+        "completed": 1,
+        "total": 1
+      },
+      "reviews": {
+        "change": "approved",
+        "plan": "approved"
+      },
+      "verification": {
+        "recordedResult": "passed",
+        "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+        "applicability": "not_checked",
+        "verificationScope": "",
+        "pendingExternalChecks": [],
+        "repositoryStates": []
+      },
+      "documents": [
+        {
+          "role": "change",
+          "path": "change.md",
+          "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
+          "bytes": 63,
+          "lineCount": 9
+        },
+        {
+          "role": "plan",
+          "path": "plan.md",
+          "documentRevision": "sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130",
+          "bytes": 191,
+          "lineCount": 18
+        },
+        {
+          "role": "readme",
+          "path": "README.md",
+          "documentRevision": "sha256:3d00106e28c2f05ecae04e06b29ef62cc868670a766ad26bb3422809620e8a1d",
+          "bytes": 375,
+          "lineCount": 20
+        },
+        {
+          "role": "verification",
+          "path": "verification.md",
+          "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
+          "bytes": 357,
+          "lineCount": 17
+        }
+      ],
+      "delivery": {},
+      "executionBlockers": [],
+      "cancellation": null,
+      "currentStage": "item.complete",
+      "executionDecision": "COMPLETE",
+      "blockers": [],
+      "readyTasks": [],
+      "nextActions": [
+        {
+          "stage": "item.complete",
+          "runbook": ".agents/skills/workspace-verify/SKILL.md"
+        }
+      ],
+      "canComplete": false,
+      "completionAction": {
+        "available": true,
+        "reason": null
+      }
+    },
+    "progression": {
+      "currentStage": "item.complete",
+      "executionDecision": "COMPLETE",
+      "blockers": [],
+      "readyTasks": [],
+      "nextActions": [
+        {
+          "stage": "item.complete",
+          "runbook": ".agents/skills/workspace-verify/SKILL.md"
+        }
+      ],
+      "canComplete": false
+    },
+    "documents": [
+      {
+        "role": "change",
+        "path": "change.md",
+        "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
+        "bytes": 63,
+        "lineCount": 9
+      },
+      {
+        "role": "plan",
+        "path": "plan.md",
+        "documentRevision": "sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130",
+        "bytes": 191,
+        "lineCount": 18
+      },
+      {
+        "role": "readme",
+        "path": "README.md",
+        "documentRevision": "sha256:3d00106e28c2f05ecae04e06b29ef62cc868670a766ad26bb3422809620e8a1d",
+        "bytes": 375,
+        "lineCount": 20
+      },
+      {
+        "role": "verification",
+        "path": "verification.md",
+        "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
+        "bytes": 357,
+        "lineCount": 17
+      }
+    ]
+  },
+  "responseRevision": "sha256:481f71d8c628d59cf9f51e4ff9e8b9424ec47cd5169191c8da8bfec4d261eb85"
+}

@@ -1,0 +1,54 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "handoff",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "slug": "demo",
+    "content": "# demo 接手\n\n- iteration：\"i01\"\n- activity：\"develop\"\n- lifecycle：\"active\"\n- currentStage：\"item.complete\"\n- currentTask：null\n- blockers：[]\n- nextActions：[{\"stage\": \"item.complete\", \"runbook\": \".agents/skills/workspace-verify/SKILL.md\"}]\n\n文档：\n- [change](change.md)\n- [plan](plan.md)\n- [readme](README.md)\n- [verification](verification.md)",
+    "estimatedTokens": 93,
+    "sources": [
+      {
+        "kind": "change",
+        "path": "change.md",
+        "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
+        "startLine": 1
+      },
+      {
+        "kind": "plan",
+        "path": "plan.md",
+        "documentRevision": "sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130",
+        "startLine": 1
+      },
+      {
+        "kind": "readme",
+        "path": "README.md",
+        "documentRevision": "sha256:3d00106e28c2f05ecae04e06b29ef62cc868670a766ad26bb3422809620e8a1d",
+        "startLine": 1
+      },
+      {
+        "kind": "verification",
+        "path": "verification.md",
+        "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
+        "startLine": 1
+      }
+    ],
+    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "progression": {
+      "currentStage": "item.complete",
+      "nextActions": [
+        {
+          "stage": "item.complete",
+          "runbook": ".agents/skills/workspace-verify/SKILL.md"
+        }
+      ],
+      "blockers": []
+    }
+  },
+  "responseRevision": "sha256:5b16f06b4c2d3d1645d4a6383863d29215aa1ea34e75d5178b0090b230e507d0"
+}

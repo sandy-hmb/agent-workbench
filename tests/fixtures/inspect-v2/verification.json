@@ -1,0 +1,70 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "verification",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "recordedResult": "passed",
+    "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+    "applicability": "not_checked",
+    "verificationScope": "",
+    "pendingExternalChecks": [],
+    "repositoryStates": [],
+    "slug": "demo",
+    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "record": {
+      "basisRevision": "sha256:78b6d7138dc2a0d31dcd2fb3c410671dc82c78fee1cd1a4b2a008b7e622a268e",
+      "checks": [
+        {
+          "command": "fixture-check",
+          "executed": 1,
+          "exitStatus": 0,
+          "result": "passed",
+          "skipped": 0,
+          "target": "behavior",
+          "type": "测试",
+          "workingDirectory": "kit"
+        }
+      ],
+      "codeState": {
+        "kit": "sha256:06d050ba11ba8f40c34e3470e8454d3e6db36ab33989886f62b6e041e0e6e254"
+      },
+      "itemSlug": "demo",
+      "iteration": "i01",
+      "receipt": "sha256:e46aaca8d6d5ca6ce05efbb3ece0cfaddbcd72be6adaac64efa9206cb62a1816",
+      "recordedAt": "2026-09-25T10:00:00+08:00",
+      "result": "passed",
+      "reviewResult": "passed",
+      "schemaVersion": 1,
+      "scope": "item",
+      "taskId": null,
+      "id": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1"
+    },
+    "tasks": [
+      {
+        "id": "T01",
+        "status": "completed",
+        "evidenceId": "sha256:563843cd617b6766436c14a43339ab8c15ee7b8ef99703e6bd04c2c3c4879a2b"
+      }
+    ],
+    "progression": {
+      "currentStage": "item.complete",
+      "executionDecision": "COMPLETE",
+      "blockers": [],
+      "readyTasks": [],
+      "nextActions": [
+        {
+          "stage": "item.complete",
+          "runbook": ".agents/skills/workspace-verify/SKILL.md"
+        }
+      ],
+      "canComplete": false
+    }
+  },
+  "responseRevision": "sha256:8bdbbb1ffb6386c87911b8291608179bf694217029199c03c893203123cbdf35"
+}

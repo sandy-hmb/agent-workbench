@@ -1,0 +1,4 @@
+interface:
+  display_name: "WorkItem Workflow"
+  short_description: "Run custom actions at work item workflow stages"
+  default_prompt: "Use $workspace-item-workflow to inspect the current work item stage and run approved local actions."

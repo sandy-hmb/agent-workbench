@@ -1,0 +1,52 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "workspace",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "mode": "maintenance",
+    "identity": {
+      "name": "kit"
+    },
+    "repositories": [
+      {
+        "id": "kit",
+        "role": "kit",
+        "absolutePath": "/synthetic/kit",
+        "aliases": [],
+        "category": "kit",
+        "description": "工作流 Kit",
+        "availability": "present",
+        "effectiveBranchPolicy": null
+      }
+    ],
+    "localContext": {},
+    "configuration": {},
+    "protocol": {
+      "apiVersion": {
+        "major": 2,
+        "minor": 0
+      },
+      "operations": [
+        "workspace",
+        "items",
+        "projection",
+        "document",
+        "verification",
+        "evidence",
+        "handoff",
+        "search",
+        "workflow",
+        "runs",
+        "run"
+      ],
+      "kitVersion": "2.0.0"
+    }
+  },
+  "responseRevision": "sha256:b6a2df18503f1ddb4f9cf31a1000e0535f15341be346242d8e564dce628ece6d"
+}

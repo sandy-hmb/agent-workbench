@@ -28,7 +28,7 @@ description: Safely update the public agent-workbench files while preserving ign
 3. 说明更新计划会访问网络，取得用户明确确认后才执行：
 
 ```bash
-python3 scripts/workspace_update.py plan --root . --json
+python3 scripts/kit.py update plan --root . --json
 ```
 
 4. 展示 plan 返回的当前/目标提交、提交摘要、Extension 升级项和阻塞项；返回值含 `manualSteps` 时，把每条 `summary` 和 `runbook` 一并转告使用者——这些是跨过目标版本必须手动完成的一次性步骤。存在阻塞时不要拉取公共 Kit；先让使用者升级其 Extension 源码，再按返回的来源路径执行 Extension 的 validate、install preview/apply 和 activation preview/apply，随后重新运行 update plan。
@@ -42,18 +42,12 @@ python3 scripts/workspace_update.py plan --root . --json
 用户确认无阻塞的计划后，只执行 plan 返回的 `applyCommand`，等价形式为：
 
 ```bash
-python3 scripts/workspace_update.py apply --root . --plan-hash <planHash> --json
+python3 scripts/kit.py update apply --root . --plan-hash <planHash> --json
 ```
 
 apply 会重新检查目标提交和 plan hash，内部仅执行 `git pull --ff-only` 与 doctor；无法快进时停止并保留现场。不得执行 `git merge`、`git rebase`、`git stash`、`git reset` 或 `git push`，也不得自动解决冲突。返回值若含 `manualSteps`，原样转告使用者——这是 plan 阶段已经展示过的同一批步骤。
 
-doctor 报告需要迁移时，只展示以下只读命令和预览结果；迁移 apply 必须取得另一轮明确确认：
-
-```bash
-python3 scripts/workspace_migrate.py preview --root . --json
-```
-
-doctor findings 若带 `remediation` 字段，直接把 `detail` 转告使用者作为可执行的下一步命令；没有 `remediation` 的 finding 仍按原有方式人工判断。
+新版只支持新格式。旧工作区保持原状，在新目录初始化，不执行迁移或清理。
 
 ## 边界
 

@@ -10,18 +10,18 @@ from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import workspace_extension  # noqa: E402
-import workspace_update  # noqa: E402
-from test_extension_happy_path import (  # noqa: E402
+import workbench.extensions.management as workspace_extension  # noqa: E402
+import workbench.workspace.update as workspace_update  # noqa: E402
+from tests.support.extensions import (  # noqa: E402
     BRANCH_PROVIDER,
     EXTENSION_FIXTURE,
 )
-from test_extension_happy_path import apply as apply_extension  # noqa: E402
-from test_extension_happy_path import extension_input, preview  # noqa: E402
-from test_happy_path import create_public_clone, initialize_workspace, run_command  # noqa: E402
+from tests.support.extensions import apply as apply_extension  # noqa: E402
+from tests.support.extensions import extension_input, preview  # noqa: E402
+from tests.support.public_clone import create_public_clone, initialize_workspace, run_command  # noqa: E402
 
 
 ACTION_FIXTURE = ROOT / "tests/fixtures/action-extension"
@@ -118,7 +118,7 @@ class WorkspaceUpdateTest(unittest.TestCase):
         calls = []
 
         def observe(command, *args, **kwargs):
-            if command[0] == sys.executable and command[1] == "-B" and command[2].endswith("workspace_doctor.py"):
+            if command[0] == sys.executable and command[1] == "-B" and command[2].endswith("kit.py"):
                 calls.append(command)
             return original(command, *args, **kwargs)
 
@@ -274,7 +274,7 @@ class WorkspaceUpdateTest(unittest.TestCase):
 
         drift = next(item for item in result["doctor"] if item["code"] == "EXTENSION_DRIFT")
         self.assertIsNotNone(drift["remediation"])
-        self.assertIn("workspace_extension.py preview", drift["remediation"]["detail"])
+        self.assertIn("kit.py extension preview", drift["remediation"]["detail"])
 
 
 if __name__ == "__main__":

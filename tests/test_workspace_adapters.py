@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-from extension_model import load_manifest  # noqa: E402
-from workspace_adapters import (  # noqa: E402
+from workbench.extensions.model import load_manifest  # noqa: E402
+from workbench.extensions.adapters import (  # noqa: E402
     AdapterError,
     adapter_plan,
     apply_adapter_plan,
@@ -106,7 +106,7 @@ class WorkspaceAdaptersTest(unittest.TestCase):
             self.root, active_manifests=(self.manifest,), locked_adapters=()
         )
 
-        with patch("workspace_adapters.os.symlink", side_effect=OSError("injected link failure")):
+        with patch("workbench.extensions.adapters.os.symlink", side_effect=OSError("injected link failure")):
             with self.assertRaisesRegex(OSError, "injected"):
                 apply_adapter_plan(self.root, plan, lambda: None)
         self.assertFalse((self.root / plan.create[0].relative_path).exists())

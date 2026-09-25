@@ -1,0 +1,24 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "runs",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "items": [],
+    "counts": {
+      "total": 0
+    },
+    "page": {
+      "offset": 0,
+      "limit": 20,
+      "total": 0,
+      "hasMore": false
+    }
+  },
+  "responseRevision": "sha256:7eb8bb205a75ee6a9082f5f4680c835a25b0c568071fe69cb1961c018dce2aa8"
+}

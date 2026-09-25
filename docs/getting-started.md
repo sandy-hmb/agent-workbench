@@ -13,7 +13,7 @@ graph TD
             Schemas["schemas/ & 模板规范"]
             subgraph DotWorkspace [".workspace/ (本地私有状态 - Git 忽略)"]
                 WSConfig["workspace.json & local.json"]
-                WSFeatures["docs/features/ (需求/设计/计划/证据)"]
+                WSWorkItems["items/ (需求/设计/计划/证据)"]
                 WSExt["extensions/ & overlays"]
             end
         end
@@ -75,12 +75,12 @@ python3 scripts/kit.py doctor --root .
 
 ## 接下来
 
-- [第一个需求](guides/first-feature.md)：从轻量改动或标准需求开始，到验证和新会话续接。
-- [活动与文档模型](guides/first-feature.md#活动入口与文档选择)：接手、修复、调查和需求扩大都可以从现有事实开始，不必补造历史设计。
+- [第一个需求](guides/first-item.md)：从轻量改动或标准需求开始，到验证和新会话续接。
+- [活动与文档模型](guides/first-item.md#活动入口与文档选择)：接手、修复、调查和需求扩大都可以从现有事实开始，不必补造历史设计。
 - [常用速查表 (Cheat Sheet)](guides/cheat-sheet.md)：一页纸日常高频命令与状态机决策速查。
 - [Agent 指令实战 (Prompt Cookbook)](guides/prompt-cookbook.md)：复制即用的 Agent 发号施令与纠偏模板。
 - [疑难排查 (Troubleshooting FAQ)](guides/troubleshooting-faq.md)：常见阻塞原因与一键恢复方案。
-- **IDE 可视化**：使用 JetBrains IDE 时，可搭配安装 [agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij) 插件，直接在编辑器侧边栏管理 Feature 生命周期、审查改动与验证记录。
+- **IDE 可视化**：使用 JetBrains IDE 时，可搭配安装 [agent-workbench-intellij](https://github.com/sandy-hmb/agent-workbench-intellij) 插件，直接在编辑器侧边栏管理 WorkItem 生命周期、审查改动与验证记录。
 
 没有本地 Extension 时无需配置 Extension；没有 `testTarget` 的仓也可以完成实现与离线验证，提测步骤会明确停止。
 
@@ -91,9 +91,9 @@ python3 scripts/kit.py doctor --root .
 不经过 `kit.py` 时，可使用：
 
 ```bash
-python3 scripts/workspace_status.py --root . --json
-python3 scripts/workspace_setup.py init plan --config ./workspace-input.json --json
-python3 scripts/workspace_setup.py init clone --config ./workspace-input.json
-python3 scripts/workspace_setup.py init preview --config ./workspace-input.json --json
-python3 scripts/workspace_setup.py init apply --config ./workspace-input.json --preview-hash <previewHash>
+python3 scripts/kit.py status --root . --json
+python3 scripts/kit.py setup init plan --config ./workspace-input.json --json
+python3 scripts/kit.py setup init clone --config ./workspace-input.json
+python3 scripts/kit.py setup init preview --config ./workspace-input.json --json
+python3 scripts/kit.py setup init apply --config ./workspace-input.json --preview-hash <previewHash>
 ```

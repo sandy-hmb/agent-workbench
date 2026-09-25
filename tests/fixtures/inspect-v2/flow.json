@@ -1,0 +1,37 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "projection",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "view": "flow",
+    "slug": "demo",
+    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "status": "active",
+    "delivery": {
+      "repositories": {},
+      "externalChecks": []
+    },
+    "verification": {
+      "recordedResult": "passed",
+      "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+      "applicability": "not_checked",
+      "verificationScope": "",
+      "pendingExternalChecks": [],
+      "repositoryStates": []
+    },
+    "workflow": {
+      "enabled": false,
+      "configState": "disabled",
+      "extensions": []
+    },
+    "executionBlockers": [],
+    "cancellation": null
+  },
+  "responseRevision": "sha256:2ccab5832f2e42070fdbda19dfc119922967eab499160b7b22bfbd00956a2604"
+}

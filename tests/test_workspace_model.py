@@ -13,9 +13,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-from workspace_model import (  # noqa: E402
+from workbench.workspace.model import (  # noqa: E402
     JSON_MAX_NESTING,
     VERSION_VALUE,
     atomic_write_many,
@@ -112,7 +112,7 @@ class WorkspaceModelTest(unittest.TestCase):
             )
             for identity in invalid:
                 payload = {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 3, "minor": 0},
                     "workspace": identity,
                     "context": {},
                     "branchPolicy": {},
@@ -239,7 +239,7 @@ class WorkspaceModelTest(unittest.TestCase):
                     raise OSError("injected replace failure")
                 return original_replace(source, target)
 
-            with mock.patch("workspace_model.os.replace", side_effect=fail_second):
+            with mock.patch("workbench.workspace.model.os.replace", side_effect=fail_second):
                 with self.assertRaises(OSError):
                     atomic_write_many(((first, "new first\n"), (second, "new second\n")))
 
@@ -261,7 +261,7 @@ class WorkspaceModelTest(unittest.TestCase):
             path.chmod(0o640)
 
             with mock.patch(
-                "workspace_model.shutil.copy2",
+                "workbench.workspace.model.shutil.copy2",
                 side_effect=OSError("injected copy failure"),
             ):
                 with self.assertRaises(OSError):
@@ -294,7 +294,7 @@ class WorkspaceModelTest(unittest.TestCase):
                     raise OSError("injected second copy failure")
                 return original_copy2(source, target)
 
-            with mock.patch("workspace_model.shutil.copy2", side_effect=fail_second):
+            with mock.patch("workbench.workspace.model.shutil.copy2", side_effect=fail_second):
                 with self.assertRaises(OSError):
                     atomic_write_many(((first, "new first\n"), (second, "new second\n")))
 
@@ -328,7 +328,7 @@ class WorkspaceModelTest(unittest.TestCase):
                 check=True,
             )
             with self.assertRaises(WorkspaceError) as raised:
-                from workspace_model import validate_repository_state
+                from workbench.workspace.model import validate_repository_state
 
                 validate_repository_state(model, model.repositories[0])
             self.assertNotIn("super-secret", str(raised.exception))

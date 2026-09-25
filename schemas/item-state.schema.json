@@ -1,0 +1,156 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "slug",
+    "title",
+    "summary",
+    "lifecycle",
+    "activity",
+    "risk",
+    "documentKind",
+    "iteration",
+    "bindings",
+    "reviews",
+    "tasks",
+    "currentTasks",
+    "maxTaskNumber",
+    "verification",
+    "evidence",
+    "delivery",
+    "externalChecks",
+    "history",
+    "updatedAt",
+    "stateRevision",
+    "blockers",
+    "cancellation",
+    "changes"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "lifecycle": {
+      "enum": [
+        "active",
+        "paused",
+        "done",
+        "cancelled"
+      ]
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "repository",
+          "workBranch",
+          "baseBranch"
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workBranch": {
+            "type": "string",
+            "minLength": 1
+          },
+          "baseBranch": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "reviews": {
+      "type": "object"
+    },
+    "tasks": {
+      "type": "object"
+    },
+    "currentTasks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "maxTaskNumber": {
+      "type": "integer"
+    },
+    "verification": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    },
+    "delivery": {
+      "type": "object"
+    },
+    "externalChecks": {
+      "type": "array"
+    },
+    "history": {
+      "type": "array"
+    },
+    "stateRevision": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "blockers": {
+      "type": "array"
+    },
+    "cancellation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "changes": {
+      "type": "array"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "activity": {
+      "type": "string"
+    },
+    "iteration": {
+      "type": "string",
+      "pattern": "^i[0-9]{2,}$"
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "risk": {
+      "enum": [
+        "light",
+        "normal",
+        "major"
+      ]
+    },
+    "documentKind": {
+      "enum": [
+        "change",
+        "requirements"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

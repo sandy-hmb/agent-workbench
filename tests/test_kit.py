@@ -6,16 +6,17 @@ import json
 import subprocess
 import sys
 import unittest
+import tempfile
 from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
-sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(ROOT))
 
-import kit  # noqa: E402
-import workspace_status  # noqa: E402
-import workspace_doctor  # noqa: E402
+import workbench.cli.main as kit  # noqa: E402
+import workbench.cli.status as workspace_status  # noqa: E402
+import workbench.workspace.doctor as workspace_doctor  # noqa: E402
 
 
 def _run(func, argv):
@@ -52,9 +53,9 @@ class KitForwardingTest(unittest.TestCase):
         self.assertEqual(forwarded_err, direct_err)
 
     def test_nonzero_exit_code_is_forwarded(self):
-        argv = ["--root", str(ROOT), "resolve", "--repo", "nope", "--branch", "nope"]
-        forwarded_code, forwarded_out, _ = _run(kit.main, ["feature", *argv])
-        direct_code, direct_out, _ = _run(__import__("feature_context").main, argv)
+        argv = ["complete", "missing-item", "--root", str(ROOT), "--state-revision", "sha256:missing"]
+        forwarded_code, forwarded_out, _ = _run(kit.main, ["item", *argv])
+        direct_code, direct_out, _ = _run(__import__("workbench.cli.items", fromlist=["main"]).main, argv)
         self.assertEqual(forwarded_code, direct_code)
         self.assertEqual(forwarded_out, direct_out)
         self.assertNotEqual(forwarded_code, 0)
@@ -72,7 +73,7 @@ class KitForwardingTest(unittest.TestCase):
             self.assertIn(name, out)
 
     def test_unknown_subcommand_returns_nonzero_and_does_not_import_modules(self):
-        with mock.patch("kit.importlib.import_module") as mocked_import:
+        with mock.patch("workbench.cli.main.importlib.import_module") as mocked_import:
             code, out, err = _run(kit.main, ["not-a-real-subcommand"])
         self.assertNotEqual(code, 0)
         self.assertEqual(out, "")
@@ -92,12 +93,13 @@ class KitForwardingTest(unittest.TestCase):
         # 转发路径下 kit.py 自身不额外打印任何内容：两侧输出应完全相同。
         self.assertEqual(forwarded_out, direct_out)
 
-    def test_legacy_entrypoint_still_works_standalone(self):
+    def test_public_entrypoint_works_from_another_directory(self):
         result = subprocess.run(
-            [sys.executable, str(SCRIPTS / "workspace_status.py"), "--root", str(ROOT), "--json"],
+            [sys.executable, str(SCRIPTS / "kit.py"), "status", "--root", str(ROOT), "--json"],
             capture_output=True,
             text=True,
             check=False,
+            cwd=tempfile.gettempdir(),
         )
         self.assertEqual(result.returncode, 0)
         json.loads(result.stdout)

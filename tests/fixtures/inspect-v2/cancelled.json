@@ -1,0 +1,178 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "projection",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "view": "task",
+    "slug": "demo",
+    "stateRevision": "sha256:99f887c3cae8242943f8972daa2d96afd7c9cba9d5daf8e98fc26763e1d36098",
+    "summary": {
+      "slug": "demo",
+      "title": "Demo",
+      "description": "",
+      "path": "docs/development/items/demo",
+      "status": "cancelled",
+      "riskTier": "normal",
+      "activity": "develop",
+      "iteration": "i01",
+      "stateRevision": "sha256:99f887c3cae8242943f8972daa2d96afd7c9cba9d5daf8e98fc26763e1d36098",
+      "updatedAt": "2026-09-25T00:48:49.983670+00:00",
+      "repositoryBindings": [
+        {
+          "baseBranch": "main",
+          "repository": "kit",
+          "workBranch": "main"
+        }
+      ],
+      "progress": {
+        "completed": 1,
+        "total": 1
+      },
+      "reviews": {
+        "change": "approved",
+        "plan": "approved"
+      },
+      "verification": {
+        "recordedResult": "passed",
+        "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+        "applicability": "not_checked",
+        "verificationScope": "",
+        "pendingExternalChecks": [],
+        "repositoryStates": []
+      },
+      "documents": [
+        {
+          "role": "change",
+          "path": "change.md",
+          "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
+          "bytes": 63,
+          "lineCount": 9
+        },
+        {
+          "role": "plan",
+          "path": "plan.md",
+          "documentRevision": "sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130",
+          "bytes": 191,
+          "lineCount": 18
+        },
+        {
+          "role": "readme",
+          "path": "README.md",
+          "documentRevision": "sha256:3008bc3936e65b34b97a257b2230c8c67e9da7e4889bd90d09696106415adea7",
+          "bytes": 508,
+          "lineCount": 28
+        },
+        {
+          "role": "verification",
+          "path": "verification.md",
+          "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
+          "bytes": 357,
+          "lineCount": 17
+        }
+      ],
+      "delivery": {},
+      "executionBlockers": [
+        {
+          "condition": "环境恢复",
+          "id": "B01",
+          "owner": "测试负责人",
+          "reason": "等待验收环境",
+          "recordedAt": "2026-09-25T00:48:49.856990+00:00",
+          "resolution": null,
+          "status": "open",
+          "taskIds": []
+        }
+      ],
+      "cancellation": {
+        "reason": "目标已被替代",
+        "recordedAt": "2026-09-25T00:48:49.983658+00:00"
+      },
+      "currentStage": null,
+      "executionDecision": "BLOCKED",
+      "blockers": [
+        "ITEM_CANCELLED"
+      ],
+      "readyTasks": [],
+      "nextActions": [],
+      "canComplete": false,
+      "completionAction": {
+        "available": false,
+        "reason": "仍有未完成事项；以 Kit 再次校验为准"
+      }
+    },
+    "progression": {
+      "currentStage": null,
+      "executionDecision": "BLOCKED",
+      "blockers": [
+        "ITEM_CANCELLED"
+      ],
+      "readyTasks": [],
+      "nextActions": [],
+      "canComplete": false
+    },
+    "documents": [
+      {
+        "role": "change",
+        "path": "change.md",
+        "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
+        "bytes": 63,
+        "lineCount": 9
+      },
+      {
+        "role": "plan",
+        "path": "plan.md",
+        "documentRevision": "sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130",
+        "bytes": 191,
+        "lineCount": 18
+      },
+      {
+        "role": "readme",
+        "path": "README.md",
+        "documentRevision": "sha256:3008bc3936e65b34b97a257b2230c8c67e9da7e4889bd90d09696106415adea7",
+        "bytes": 508,
+        "lineCount": 28
+      },
+      {
+        "role": "verification",
+        "path": "verification.md",
+        "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
+        "bytes": 357,
+        "lineCount": 17
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T01",
+        "title": "Behavior",
+        "path": "plan.md",
+        "startLine": 3,
+        "endLine": 18,
+        "documentRevision": "sha256:e3009475ecae35fff058fc1a424340357b1de4376c463676a9b931610b4804ea",
+        "repository": "kit",
+        "validationKind": "行为",
+        "dependencies": [],
+        "references": [],
+        "basis": "R1",
+        "deliverables": [
+          {
+            "kind": "Modify",
+            "path": "AGENTS.md",
+            "repository": "kit"
+          }
+        ],
+        "status": "completed",
+        "evidenceId": "sha256:563843cd617b6766436c14a43339ab8c15ee7b8ef99703e6bd04c2c3c4879a2b",
+        "completed": true,
+        "waitingFor": [],
+        "executionBlocked": true
+      }
+    ]
+  },
+  "responseRevision": "sha256:2ec6a119a17f205581ef11c5ae8b63e1b9c5d0f54a0b0fd55b115be789447635"
+}

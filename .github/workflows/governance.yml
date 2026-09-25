@@ -26,10 +26,10 @@ jobs:
         run: |
           for schema in schemas/*.json; do python -m json.tool "$schema" >/dev/null; done
           python -m json.tool upgrades/manifest.json
-          python -m json.tool workflows/feature-development.json
+          python -m json.tool workflows/item-development.json
       - name: py_compile
-        run: python -m py_compile scripts/*.py migrations/*.py
+        run: python -m compileall -q workbench scripts
       - name: unittest
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: doctor and link checks
-        run: python scripts/workspace_doctor.py --root .
+        run: python scripts/kit.py doctor --root .

@@ -1,4 +1,4 @@
 interface:
   display_name: "Workspace Writing Plan"
-  short_description: "Draft and approve an executable feature plan"
-  default_prompt: "Use $workspace-writing-plan to turn the approved feature design into a reviewable implementation plan."
+  short_description: "Draft and approve an executable work item plan"
+  default_prompt: "Use $workspace-writing-plan to turn the approved work item design into a reviewable implementation plan."

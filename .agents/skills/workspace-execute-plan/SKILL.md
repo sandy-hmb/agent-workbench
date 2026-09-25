@@ -1,60 +1,32 @@
 ---
 name: workspace-execute-plan
-description: Execute an approved implementation plan task by task with risk-based TDD, root-cause debugging, diff review, and recorded progress.
+description: Execute approved work continuously with targeted validation and authoritative evidence.
 ---
 
-# Workspace Execute Plan
+# 实施执行
 
-用于已获批准的 `development` 需求。新会话先运行 status，并在多需求时显式指定 feature slug；再用 `brief <slug> --task <id> --execution --check --json --projection execution` 取得任务正文、直接依赖、设计引用、`instructionContext` 和执行决策。不得依赖历史对话，默认不加载历史迭代或完整验证记录。轻量改动不使用本 Skill。
+已知 WorkItem 使用 `kit.py brief <slug> --json` 接手。检查审批、当前实际分支和范围。普通活动没有独立计划时直接执行已批准 change.md；有任务时使用 `brief <slug> --task T01 --json`。
 
-计划和执行条件已批准且用户明确开始或继续后，只要目标仓、环境、操作类型、验收和实际影响不变，该授权持续覆盖计划内实施、验证和修复重试。阶段、Skill、任务切换和技术哈希刷新不是新的确认点；新增环境、部署、数据范围或其他实际影响时再确认。`confirmationRequired=false` 只表示当前 Core Stage 无文档确认要求，不代表所有外部操作均已授权。
+## 执行循环
 
-## 普通活动与续接
+1. 读取当前任务、直接依赖与 R/D 引用，按 instructionContext 加载适用规则；同会话复用未变内容。
+2. 行为变化先写最小失败测试，确认失败源于目标行为缺失；编译失败、环境异常和未执行不能作为有效 RED。实现最小修改并定向验证。声明式变化使用最小有效检查，持久化变化覆盖真实结构或写入。
+3. 核对检查执行数、跳过数、退出码、实际 diff 和交付路径。失败先复现、定位一个根因并验证最小修复，不弱化断言规避失败。
+4. 取得 `verify snapshot <slug> --task T01 --json`，按实际结果调用 `verify record`。格式见 workspace-verify 的证据参考。脚本更新完成状态和摘要，不手工勾选计划。
+5. 再读 brief。有依赖满足且已授权任务时继续，完成后做整体复核与整体验证。
 
-新会话可用 `python3 scripts/kit.py brief <slug> --projection resume --json` 取得聚焦接手包，执行前用 `--check-code` 核对当前版本。`taskExecution.applicable=false` 表示没有独立计划，按已批准 change.md 工作项实施与记录，不将它当作阻塞。工作项完成后验证当前结果，再处理适用交付或结束。`executionDecision=COMPLETE` 仅表示计划任务完成，不证明验证有效、已部署或已验收。
+普通活动默认只记录收尾的一批整体验证。需要独立解锁的任务才逐项记录。记录 RED→GREEN 过程有价值时，在实际通过检查的 result 中简述或引用日志，不新增红绿状态。
 
-## 执行
+## 阻塞与交接
 
-先预检计划声明的来源、实际代码、分支和范围是否一致。普通代码漂移，例如文件移动、类位于另一现有模块或等价测试入口变化，在不改变范围和方案时修正计划事实并继续；任务边界、验证强度、公共契约、关键方案或目标仓改变时，将相应文档退回待审阅。
+当前任务普通代码或测试失败先解决。真正等待外部条件或业务决策时，记录事实、影响和恢复条件，再推进其他独立且已授权的 readyTasks。调整顺序不等于并行。
 
-一次一个可验证任务不是会话边界。计划获批后循环执行：
+一次一个任务不是会话边界。结束前重读 brief；仍有已授权可执行工作就继续，全部完成或真实阻塞才停止。只汇报已证实结果、未完成项和必要决策。
 
-1. `currentTask` 是默认候选；用 `brief <slug> --task <currentTask.id> --execution --check --json --projection execution` 展开并校验规范入口。退出码非 0 时报告具体诊断，不开始编辑。
-2. 新会话按 `instructionContext.rules` 的规则读取清单顺序读取；该顺序即 kit → workspace → repository → scoped 的单调收窄顺序。CONTEXT 与仓 profile 属于事实轴，按阶段需要用 `status --context-sources` 定位；再依据规则入口中的明确索引与当前改动类型读取专项规范。首次编辑目标仓前完成；扩展到新仓、新路径或新职责时补读，同一会话可复用内容和作用域均未变化的已读规范，不保存“已读”状态。
-3. 行为变化先写最小失败测试，再实现至通过；声明式变化执行计划中的最小有效检查；持久化变化执行计划声明的结构、迁移或集成检查。
-4. 运行任务验证，核对目标执行数、跳过数、退出状态、交付路径和实际 diff。部分实现、编译成功、零测试或跳过测试都不算完成。
-5. 运行 `verify snapshot` 取得执行时代码状态；v2 计划按下方格式整理真实检查结果，运行 `python3 scripts/kit.py verify record <slug> --input <json-file> --json`（也可用 `--input -` 从标准输入读取）写入 `testing/evidence/`；v1 计划才向旧 Markdown 追加精简任务证据。随后勾选任务；v2 再运行 `python3 scripts/kit.py verify render <slug> --apply --json` 更新人类摘要，最后重新运行 `brief <slug> --execution --check --json --projection execution`。
-6. 新计划只有在 `trustedProgress` 包含当前任务且 `executionDecision=RUN` 时继续；有下一项依赖满足的未完成任务时直接继续。`readyTasks` 是依赖满足的候选集合，仍需核对实际环境和授权；`COMPLETE` 时进入整体复核，`BLOCKED` 时核对证据诊断和确认要求。旧计划保持原完成语义。
+按需子 Agent 只用于有明确收益的独立任务或审查；获授权后读取 references/subagent-execution.md。未经授权不引入 worktree、并行、远端 Git、部署或外部环境。
 
-失败时先稳定复现，沿调用关系定位根因，验证一个最小假设，只实施一个根因修复并重新验证。编译失败、测试失败、缺少上下文和普通代码漂移均先在当前任务解决，不能借调整顺序逃避修复。
+## 开发阻塞
 
-单个任务受阻时，记录当前任务、阻塞类别、实际证据、影响范围和恢复条件。若阻塞仅等待用户决策、外部条件或超出授权范围，使用 `brief --task` 展开其他 `readyTasks` 中独立且已授权的任务并顺序推进；调整执行顺序不等于并行。依赖当前阻塞结果的任务仍不得开始。
+未执行检查但在等待环境、权限或决策时，使用 `item block <slug> --reason <原因> --owner <负责方> --condition <解除条件> --state-revision <stateRevision>`；只影响某项任务时加 `--task T01`。依赖等待由脚本推导，不重复登记。解除条件满足后使用 `item unblock --blocker B01 --reason <实际依据>`，不会生成测试通过或任务完成。
 
-所有任务可信完成后，复核需求、计划、实际 diff 和代码质量。重要问题必须修复或以证据裁定；无未处理重要问题后转交 `workspace-verify`，核对必要交接文档和待外部验证事项。生成文档后登记 README，不能只在会话中提供入口。
-
-## 任务证据格式
-
-实际证据只在检查执行后写入；此格式留在工作流，不复制到每个 Feature 的计划。`artifactRefs` 按需填写实际交付文件的相对路径、SHA-256、字节数及类型。
-
-```json
-{
-  "kind": "taskEvidence", "taskId": "T01", "recordedAt": "YYYY-MM-DDTHH:MM:SS+08:00",
-  "repository": "service", "codeState": {"service": "sha256:<digest>"},
-  "checks": [{"type": "测试", "workingDirectory": "<path>", "command": "<command>",
-              "target": "<test target>", "executed": 1, "skipped": 0, "exitStatus": 0,
-              "result": "<actual result>"}],
-  "artifactRefs": [], "validationKind": "行为", "deliveryCheck": "passed", "result": "passed"
-}
-```
-
-## 停止条件
-
-发送最终答复前必须重新运行 brief。`executionDecision=RUN` 表示仍有已授权任务，不能结束或请求继续；`executionDecision=BLOCKED` 只有在 `confirmationRequired=true` 或存在可复核的阻塞证据时才允许停止。只有全部任务完成或所有剩余任务真实阻塞时，才能正常结束执行。用户要求暂停、缺少必要确认、需求/设计/计划需要重新批准、当前顺序任务需要未授权外部动作，或失败经根因诊断后仍无法在已授权范围内修复，属于真实阻塞。未完成时的结束回复必须包含当前任务、阻塞类别、实际证据、已完成的安全步骤和最小用户决策；不得只报告进度或提示“继续开发”。
-
-执行方式随计划一起批准：默认“单 Agent”顺序实现、验证和自审；“按需子 Agent”只为独立任务或有明确收益的关键审查分派；“每任务子 Agent”由独立实现者完成并检查需求符合性和代码质量。选择后两种方式时读取[子 Agent 执行](references/subagent-execution.md)，默认单 Agent 不读取。均不自动并行、创建 worktree、commit 或 push。宿主缺少子 Agent 时，按需模式可由主 Agent 完成并说明，完整独立审查模式不得静默降级。
-
-## 边界
-
-只在已确认范围内修改目标仓。未明确要求 worktree 时，默认在目标仓当前工作目录开发；分支批准不包含 worktree 操作。创建、删除、切换到或把代码迁移至其他 worktree 前，必须展示目标仓、分支或基线、目录和用途并取得明确确认。
-
-不得自动 commit、push、合并、提测、部署、访问真实接口或执行未获授权的外部命令。计划任务和验证记录只在对应证据存在时更新。
+仅执行 readyTasks。工作项级阻塞暂停全部实施，任务级阻塞排除该任务和依赖方；其他独立任务继续。实际检查失败仍记录 failed，不再用验证结果 blocked 表达环境等待。

@@ -1,0 +1,17 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "workflow",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "enabled": false,
+    "configState": "disabled",
+    "extensions": []
+  },
+  "responseRevision": "sha256:226007b39413f81bd8c74f0cd0f5273c91de2533796d5bca0260e1cd487f6efd"
+}

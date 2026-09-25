@@ -11,13 +11,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import schema_validation  # noqa: E402
-import workspace_extension  # noqa: E402
-from provider_protocol import run_provider  # noqa: E402
-from test_happy_path import create_public_clone, initialize_workspace  # noqa: E402
+import workbench.schema_validation as schema_validation  # noqa: E402
+import workbench.extensions.management as workspace_extension  # noqa: E402
+from workbench.extensions.protocol import run_provider  # noqa: E402
+from tests.support.public_clone import create_public_clone, initialize_workspace  # noqa: E402
 
 
 EXAMPLES_ROOT = ROOT / "examples/extensions"
@@ -90,10 +90,10 @@ class BranchNamingExampleTest(unittest.TestCase):
 
 class WebhookNotifyExampleTest(unittest.TestCase):
     REQUEST = {
-        "workflow": "feature-development",
+        "workflow": "item-development",
         "run": "demo-feature",
-        "stage": "feature.implement",
-        "featureSlug": "demo-feature",
+        "stage": "item.implement",
+        "itemSlug": "demo-feature",
         "repository": "service",
         "branch": "owner/feature/demo",
         "with": {},
@@ -138,10 +138,10 @@ class WebhookNotifyExampleTest(unittest.TestCase):
         self.assertEqual("application/json", received["contentType"])
         self.assertEqual(
             {
-                "workflow": "feature-development",
+                "workflow": "item-development",
                 "run": "demo-feature",
-                "stage": "feature.implement",
-                "featureSlug": "demo-feature",
+                "stage": "item.implement",
+                "itemSlug": "demo-feature",
                 "repository": "service",
                 "branch": "owner/feature/demo",
             },

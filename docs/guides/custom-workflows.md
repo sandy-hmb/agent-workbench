@@ -3,18 +3,18 @@
 公共 Kit 提供稳定的功能开发 Stage：
 
 ```text
-feature.context
-feature.classify
-feature.analyze
-feature.design
-feature.prepare-branch
-feature.implement
-feature.verify
-feature.submit-test
-feature.complete
+item.context
+item.classify
+item.analyze
+item.design
+item.prepare-branch
+item.implement
+item.verify
+item.submit-test
+item.complete
 ```
 
-`feature.analyze` 和 `feature.submit-test` 可以按需求或仓配置跳过，但它们的 before/after 边界仍可承载自定义 Stage。
+`item.analyze` 和 `item.submit-test` 可以按需求或仓配置跳过，但它们的 before/after 边界仍可承载自定义 Stage。
 
 ## 添加 Stage
 
@@ -22,12 +22,12 @@ feature.complete
 
 ```json
 {
-  "schemaVersion": 1,
-  "workflow": "feature-development",
+  "schemaVersion": {"major": 1, "minor": 0},
+  "workflow": "item-development",
   "stages": [
     {
       "id": "team-delivery.integration-test",
-      "after": "feature.implement",
+      "after": "item.implement",
       "uses": "team-delivery/integration-test",
       "trigger": "auto",
       "with": {"repository": "service"}
@@ -54,7 +54,7 @@ feature.complete
 同一锚点的声明顺序就是稳定执行顺序。引用未知 Stage、Action 或形成循环时，preview 会停止。
 
 ```bash
-python3 scripts/workspace_workflow.py preview \
+python3 scripts/kit.py workflow preview \
   --root . --config .workspace/workflow-input.json --json
 ```
 
@@ -65,43 +65,43 @@ python3 scripts/workspace_workflow.py preview \
 未启用 Overlay 的工作区保持原有流程。新会话只需：
 
 ```bash
-python3 scripts/workspace_status.py --root . --json
+python3 scripts/kit.py status --root . --json
 ```
 
 当 `workflow.enabled` 为 `true` 时，创建 Run：
 
 ```bash
-python3 scripts/workspace_workflow.py start \
-  --root . --feature <feature-slug> --json
+python3 scripts/kit.py workflow start \
+  --root . --item <item-slug> --json
 ```
 
 轻量改动不创建需求目录，改为显式提供稳定 Run ID、仓库和分支：
 
 ```bash
-python3 scripts/workspace_workflow.py start \
+python3 scripts/kit.py workflow start \
   --root . --run-id <run-id> --repo <repository> --branch <branch> --json
 ```
 
 到达某个 Core Stage 时只查询该边界：
 
 ```bash
-python3 scripts/workspace_workflow.py plan \
-  --root . --run <run-id> --after feature.implement --json
+python3 scripts/kit.py workflow plan \
+  --root . --run <run-id> --after item.implement --json
 ```
 
-`manual` Action 需要用户明确选择执行或跳过。Action API v1 的确认提示必须展示 plan 中的 `confirmation.title`、`confirmation.summary`、非敏感 `with` 参数和 effects；`planHash` 只用于脚本校验，不能作为要求用户确认的唯一信息。`auto` 只会自动发现 Action；已授权且内容未变化的 Action 可连续执行，带新增网络、Git、文件或进程 effects 时仍须先取得授权。
+`manual` Action 核对已授权范围；实际影响未变时直接继续，否则展示具体内容等待选择。Action API v1 的确认提示必须展示 plan 中的 `confirmation.title`、`confirmation.summary`、非敏感 `with` 参数和 effects；`planHash` 只用于脚本校验，不能作为要求用户确认的唯一信息。`auto` 只会自动发现 Action；已授权且内容未变化的 Action 可连续执行，带新增网络、Git、文件或进程 effects 时仍须先取得授权。
 
 有 command 的 Action：
 
 ```bash
-python3 scripts/workspace_workflow.py run \
+python3 scripts/kit.py workflow run \
   --root . --run <run-id> --stage <stage-id> --plan-hash <plan-hash> --request-id <request-id> --json
 ```
 
 Skill-only Action 由 Agent 读取 plan 返回的唯一 `skillPath` 后执行，再记录结果：
 
 ```bash
-python3 scripts/workspace_workflow.py finish \
+python3 scripts/kit.py workflow finish \
   --root . --run <run-id> --stage <stage-id> \
   --plan-hash <plan-hash> --status succeeded --summary "completed" --json
 ```
@@ -109,12 +109,12 @@ python3 scripts/workspace_workflow.py finish \
 用户决定不执行时必须记录原因：
 
 ```bash
-python3 scripts/workspace_workflow.py skip \
+python3 scripts/kit.py workflow skip \
   --root . --run <run-id> --stage <stage-id> \
   --plan-hash <plan-hash> --reason "deferred by user" --json
 ```
 
-标准需求默认以需求短名作为 Run ID，重复执行 `start --feature <feature-slug>` 会返回同一 Run。每次执行都要求当前 plan hash。Extension、Action、参数或 Stage 位置改变后，旧 hash 失效；成功或明确跳过的相同 fingerprint 默认不重复执行。运行状态需结合执行者锁与尝试记录判断；遗留 `running` 无法证明进程存活，也不能证明外部操作失败。
+标准需求默认以需求短名与当前迭代作为 Run ID，重复执行 `start --item <item-slug>` 会返回同一 Run。每次执行都要求当前 plan hash。Extension、Action、参数或 Stage 位置改变后，旧 hash 失效；成功或明确跳过的相同 fingerprint 默认不重复执行。运行状态需结合执行者锁与尝试记录判断；遗留 `running` 无法证明进程存活，也不能证明外部操作失败。
 
 Run 位于 `.workspace/runs/`，命令执行尝试保存在 `attempts/<run-id>.json`。查询 `workflow result --run <run-id> --request-id <id> --json` 可在断线后取回结果；同一请求重复 run 不重复执行。明确失败后使用 `workflow retry`，带当前 plan hash、新 request id、previous-request-id 和 reason；结果未知必须先核对，并通过 `workflow reconcile` 附 summary 与 evidence 记录实际结论。说明书型 Action 保留 finish 语义。
 
@@ -130,33 +130,3 @@ python3 scripts/kit.py workflow retry --run <run-id> --stage <stage-id> \
 ```
 
 重新执行仍需已有授权覆盖目标与实际影响。去重只保证 Kit 对同一请求不重复调度，不证明任意外部系统恰好执行一次。
-
-## 跳过建议
-
-`feature.analyze`、`feature.submit-test` 这两个 Core Stage 声明为 `optional`（见 `workflows/feature-development.json`）。团队可以在同一份 `.workspace/workflow-input.json` 里追加 `skipHints`，为可选 Stage 声明数据驱动的跳过建议：
-
-```json
-{
-  "schemaVersion": 1,
-  "workflow": "feature-development",
-  "stages": [],
-  "skipHints": [
-    {
-      "stage": "feature.analyze",
-      "when": {"repositoryCount": {"max": 1}},
-      "reason": "单仓、无外部契约变化的需求通常不需要跨仓分析"
-    }
-  ]
-}
-```
-
-`stage` 必须是 Core Workflow 中声明为 `optional: true` 的 Stage，否则 `preview`/`apply` 会以 `WORKFLOW_SKIP_HINT_INVALID` 拒绝。`when` 目前只支持 `repositoryCount.max`：当调用方提供的仓库数量小于等于该值时命中建议。
-
-查询当前建议（只读，不修改任何状态，不自动执行跳过）：
-
-```bash
-python3 scripts/workspace_workflow.py skip-suggestions \
-  --root . --repositories 1 --json
-```
-
-命中时返回 `stage`、`reason`、`rule` 三个字段，说明"为什么可以跳过"；没有激活 Overlay 或没有声明 `skipHints` 时返回空建议列表。是否真正跳过仍由使用者按当前需求的实际情况判断——这只是建议，不是自动决策，也不会调用 `skip`/`finish` 或改变任何 Run 状态。

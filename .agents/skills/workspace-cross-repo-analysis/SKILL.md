@@ -12,7 +12,7 @@ description: Analyze a change that spans registered repositories and report owne
 按需读取 `.workspace/workspace.json`、`.workspace/CONTEXT.md` 和相关 `.workspace/docs/repositories/<path>.md`；仓名或别名先用：
 
 ```bash
-python3 scripts/workspace_registry.py resolve <name> --json
+python3 scripts/kit.py registry resolve <name> --json
 ```
 
 只读取本次需求涉及的仓内规范、接口和实现。未登记的目录不能当作已纳管仓；需要纳入工作区先转交 `workspace-init`。

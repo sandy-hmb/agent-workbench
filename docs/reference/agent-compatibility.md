@@ -17,4 +17,4 @@
 
 ## 不依赖宿主的续接
 
-任意 Agent 可调用 `python3 scripts/kit.py brief <slug> --root <kit-root> --projection resume --json`，按 sources 读取必要规则并从 nextActions 继续。执行前增加 --check-code 核对当前版本；没有原生 Skill 或子 Agent 能力仍可完成默认路径。宿主自行保留项目、Feature、任务标识，每次显式传入；Kit 不保存聊天会话、模型或宿主标识。
+任意 Agent 可调用 `python3 scripts/kit.py brief <slug> --root <kit-root> --json`，按 sources 读取必要规则并从 nextActions 继续。执行前增加 --check-code 核对当前版本；没有原生 Skill 或子 Agent 能力仍可完成默认路径。宿主自行保留项目、WorkItem、任务标识，每次显式传入；Kit 不保存聊天会话、模型或宿主标识。

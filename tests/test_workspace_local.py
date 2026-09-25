@@ -8,10 +8,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-from workspace_local import load_local_settings  # noqa: E402
-from workspace_model import WorkspaceError  # noqa: E402
+from workbench.workspace.local import load_local_settings  # noqa: E402
+from workbench.workspace.model import WorkspaceError  # noqa: E402
 
 
 class WorkspaceLocalTest(unittest.TestCase):
@@ -98,49 +98,12 @@ class WorkspaceLocalTest(unittest.TestCase):
             with self.assertRaisesRegex(WorkspaceError, "缺少"):
                 load_local_settings(root)
             self.assertEqual(
-                (None, None, {}, None, {}),
+                (None, None, {}, {}),
                 tuple(load_local_settings(root, required=False).__dict__.values()),
             )
 
-    def test_legacy_settings_without_active_feature_key_default_to_none(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            self.write(
-                root,
-                {"branchOwner": "alice", "primaryRole": None, "extensions": {}},
-            )
-            settings = load_local_settings(root)
-            self.assertIsNone(settings.active_feature)
 
-    def test_loads_active_feature_when_present(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            self.write(
-                root,
-                {
-                    "branchOwner": "alice",
-                    "primaryRole": None,
-                    "extensions": {},
-                    "activeFeature": "payment-feature",
-                },
-            )
-            settings = load_local_settings(root)
-            self.assertEqual("payment-feature", settings.active_feature)
 
-    def test_rejects_invalid_active_feature(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            self.write(
-                root,
-                {
-                    "branchOwner": "alice",
-                    "primaryRole": None,
-                    "extensions": {},
-                    "activeFeature": "Not Safe!",
-                },
-            )
-            with self.assertRaisesRegex(WorkspaceError, "activeFeature"):
-                load_local_settings(root)
 
     def test_rejects_unknown_field(self):
         with tempfile.TemporaryDirectory() as directory:

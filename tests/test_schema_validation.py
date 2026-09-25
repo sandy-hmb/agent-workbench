@@ -5,9 +5,9 @@ import unittest
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from schema_validation import SchemaValidationError, validate
-from workspace_input import load_workspace_input
-from workspace_model import (
+from workbench.schema_validation import SchemaValidationError, validate
+from workbench.workspace.input import load_workspace_input
+from workbench.workspace.model import (
     BRANCH_NAME_PATTERN,
     REMOTE_PATTERN,
     WorkspaceError,
@@ -97,7 +97,7 @@ class SchemaValidationTest(unittest.TestCase):
     def test_checked_in_workspace_input_schema_is_self_contained(self):
         schema = json.loads((Path(__file__).resolve().parents[1] / "schemas/workspace-input.schema.json").read_text())
         schema.pop("$schema", None); schema.pop("$id", None)
-        validate({"version": {"major": 1, "minor": 0}, "workspace": {"name": "Demo"}, "context": {}, "branchPolicy": {}, "extensions": {"providers": {}, "config": {}}, "repositories": []}, schema)
+        validate({"version": {"major": 3, "minor": 0}, "workspace": {"name": "Demo"}, "context": {}, "branchPolicy": {}, "extensions": {"providers": {}, "config": {}}, "repositories": []}, schema)
         validate(
             {
                 "workspace": {"name": "Minimal"},
@@ -111,7 +111,7 @@ class SchemaValidationTest(unittest.TestCase):
         with self.assertRaises(SchemaValidationError):
             validate(
                 {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 2, "minor": 0},
                     "workspace": {"name": "Legacy"},
                     "context": {},
                     "branchPolicy": {},
@@ -124,7 +124,7 @@ class SchemaValidationTest(unittest.TestCase):
     def test_term_router_schema_is_strict_without_restricting_other_context_fields(self):
         root = Path(__file__).resolve().parents[1]
         workspace = {
-            "version": {"major": 2, "minor": 0},
+            "version": {"major": 3, "minor": 0},
             "workspace": {"name": "Demo"},
             "context": {
                 "description": "neutral context remains allowed",
@@ -155,7 +155,7 @@ class SchemaValidationTest(unittest.TestCase):
     def test_workspace_schema_matches_remote_and_branch_policy_runtime_boundaries(self):
         kit_root = Path(__file__).resolve().parents[1]
         base = {
-            "version": {"major": 2, "minor": 0},
+            "version": {"major": 3, "minor": 0},
             "workspace": {"name": "Demo"},
             "context": {},
             "branchPolicy": {
@@ -295,11 +295,11 @@ class SchemaValidationTest(unittest.TestCase):
         workflow_schema = json.loads((root / "schemas/workspace-workflow.schema.json").read_text())
         workflow = {
             "schemaVersion": {"major": 1, "minor": 0},
-            "workflow": "feature-development",
+            "workflow": "item-development",
             "stages": [
                 {
                     "id": "team-check.integration-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "team-check/integration-test",
                 }
             ],

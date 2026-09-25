@@ -1,0 +1,56 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "search",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "query": "Demo",
+    "items": [
+      {
+        "slug": "demo",
+        "title": "Demo",
+        "status": "active",
+        "lastUpdated": "2026-09-25T00:48:49.091160+00:00",
+        "path": "change.md",
+        "line": 1,
+        "heading": null,
+        "snippet": "# Demo"
+      },
+      {
+        "slug": "demo",
+        "title": "Demo",
+        "status": "active",
+        "lastUpdated": "2026-09-25T00:48:49.091160+00:00",
+        "path": "README.md",
+        "line": 1,
+        "heading": null,
+        "snippet": "# Demo"
+      },
+      {
+        "slug": "demo",
+        "title": "Demo",
+        "status": "active",
+        "lastUpdated": "2026-09-25T00:48:49.091160+00:00",
+        "path": "verification.md",
+        "line": 17,
+        "heading": null,
+        "snippet": "详细结果：`kit.py verify evidence demo`；历史记录：`kit.py verify history demo`。"
+      }
+    ],
+    "counts": {
+      "total": 3
+    },
+    "page": {
+      "offset": 0,
+      "limit": 20,
+      "total": 3,
+      "hasMore": false
+    }
+  },
+  "responseRevision": "sha256:06bb2059d4ad0cfe226dfb3a5dfa5fe9817e4debf2308917f67e4d33eaf719bc"
+}

@@ -8,20 +8,19 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-from workspace_paths import (  # noqa: E402
+from workbench.workspace.paths import (  # noqa: E402
     adapters_root,
     cache_root,
     context_file,
     extension_input_file,
     extension_state_root,
     extensions_root,
-    features_root,
+    items_root,
     kit_root,
     local_file,
     lock_file,
-    migration_marker_file,
     profiles_root,
     state_root,
     workflow_file,
@@ -32,22 +31,15 @@ from workspace_paths import (  # noqa: E402
 
 
 class WorkspacePathsTest(unittest.TestCase):
-    def test_document_roles_preserve_existing_layout_and_detect_conflicts(self):
-        import workspace_paths as paths
-
+    def test_document_roles_use_one_current_layout(self):
+        import workbench.workspace.paths as paths
         with tempfile.TemporaryDirectory() as temp:
-            feature = Path(temp)
-            (feature / '.work-item.json').write_text(json.dumps({'documentLayout': 'flat-v1'}))
+            item = Path(temp).resolve()
             for role in ('requirements', 'design', 'plan', 'verification'):
-                self.assertEqual(feature / (role + '.md'), paths.feature_document_file(feature, role))
-            (feature / '.work-item.json').unlink()
-            (feature / 'design').mkdir()
-            old = feature / 'design/design.md'
-            old.write_text('# existing')
-            self.assertEqual(old, paths.feature_document_file(feature, 'design'))
-            (feature / 'design.md').write_text('# competing')
-            with self.assertRaisesRegex(ValueError, 'DOCUMENT_ROLE_CONFLICT'):
-                paths.feature_document_file(feature, 'design')
+                self.assertEqual(item / (role + '.md'), paths.item_document_file(item, role))
+            (item / 'design').mkdir()
+            (item / 'design/design.md').write_text('# ignored old record')
+            self.assertEqual(item / 'design.md', paths.item_document_file(item, 'design'))
 
     def test_state_and_governance_paths(self):
         root = Path("relative-root")
@@ -59,7 +51,7 @@ class WorkspacePathsTest(unittest.TestCase):
             resolved / ".workspace/workspace.local.json", local_file(root)
         )
         self.assertEqual(resolved / ".workspace/CONTEXT.md", context_file(root))
-        self.assertEqual(resolved / ".workspace/docs/features", features_root(root))
+        self.assertEqual(resolved / ".workspace/items", items_root(root))
         self.assertEqual(resolved / ".workspace/docs/repositories", profiles_root(root))
         self.assertEqual(resolved / ".workspace/extensions", extensions_root(root))
         self.assertEqual(resolved / ".workspace/extensions/.state", extension_state_root(root))
@@ -71,10 +63,6 @@ class WorkspacePathsTest(unittest.TestCase):
         self.assertEqual(resolved / ".workspace/runs", workflow_runs_root(root))
         self.assertEqual(
             resolved / ".workspace/runs/demo.json", workflow_run_file(root, "demo")
-        )
-        self.assertEqual(
-            resolved / ".workspace/.migration-marker.json",
-            migration_marker_file(root),
         )
         self.assertEqual(resolved / ".workspace/extensions/.state/cache", cache_root(root))
 

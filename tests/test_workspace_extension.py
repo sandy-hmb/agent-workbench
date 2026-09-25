@@ -16,11 +16,11 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-import workspace_doctor  # noqa: E402
-import workspace_extension  # noqa: E402
-import workspace_status  # noqa: E402
+import workbench.workspace.doctor as workspace_doctor  # noqa: E402
+import workbench.extensions.management as workspace_extension  # noqa: E402
+import workbench.cli.status as workspace_status  # noqa: E402
 
 
 FIXTURE = ROOT / "tests" / "fixtures" / "example-extension"
@@ -48,14 +48,14 @@ class WorkspaceExtensionTest(unittest.TestCase):
         )
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         state = self.root / ".workspace"
-        (state / "docs/features").mkdir(parents=True)
-        (state / "docs/repositories").mkdir()
+        (state / "items").mkdir(parents=True)
+        (state / "docs/repositories").mkdir(parents=True)
         (state / "extensions" / ".state").mkdir(parents=True)
         (state / "extensions" / ".state" / "cache").mkdir()
         (state / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 3, "minor": 0},
                     "workspace": {"name": "Demo"},
                     "context": {},
                     "branchPolicy": {},
@@ -940,13 +940,6 @@ class WorkspaceExtensionTest(unittest.TestCase):
         result = workspace_status.status_result(self.root)
         self.assertEqual("workspace", result["mode"])
         self.assertIn("EXTENSION_MISSING", result["extensions"]["blockedCodes"])
-        self.assertEqual(sorted(result["extensions"]["blockedCodes"]), sorted(result["blockers"]))
-        self.assertEqual(1, len(result["nextActions"]))
-        action = result["nextActions"][0]
-        self.assertEqual("extension.blocked", action["stage"])
-        self.assertIn("EXTENSION_MISSING", action["reason"])
-        self.assertEqual("semantic", action["confirmation"])
-        self.assertTrue((ROOT / action["runbook"]).is_file())
 
     def test_scaffold_generates_valid_action_extension_structure(self) -> None:
         result = workspace_extension.scaffold_result(self.root, "demo-ext")

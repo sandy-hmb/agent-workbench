@@ -1,0 +1,21 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "document",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "slug": "demo",
+    "path": "change.md",
+    "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
+    "content": "# Demo\n\n## 目标\n\n\n\n## 范围与验收\n\n## 方案与工作项\n",
+    "bytes": 63,
+    "lineCount": 9,
+    "mediaType": "text/markdown"
+  },
+  "responseRevision": "sha256:5df64188d8621fa77d7caac3831bbc262e3b8026bc268c9bed8bd1fc028ca6b4"
+}

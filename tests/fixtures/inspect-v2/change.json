@@ -1,0 +1,29 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "projection",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "view": "change",
+    "slug": "demo",
+    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "repositories": [
+      {
+        "baseBranch": "main",
+        "repository": "kit",
+        "workBranch": "main",
+        "absolutePath": "/synthetic/kit"
+      }
+    ],
+    "comparison": {
+      "kind": "merge-base",
+      "source": "item-bindings"
+    }
+  },
+  "responseRevision": "sha256:05e7b7d93cc9b0a755e3075eaea9b2ee3717f8ae4928cfae250fa457b04e7a52"
+}

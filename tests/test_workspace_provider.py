@@ -13,15 +13,15 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import workspace_provider  # noqa: E402
-import workspace_registry  # noqa: E402
-from extension_model import load_manifest  # noqa: E402
-from provider_workspace import make_provider_workspace  # noqa: E402
-from schema_validation import validate  # noqa: E402
-from workspace_model import Repository  # noqa: E402
+import workbench.extensions.providers as workspace_provider  # noqa: E402
+import workbench.workspace.registry as workspace_registry  # noqa: E402
+from workbench.extensions.model import load_manifest  # noqa: E402
+from tests.support.providers import make_provider_workspace  # noqa: E402
+from workbench.schema_validation import validate  # noqa: E402
+from workbench.workspace.model import Repository  # noqa: E402
 
 
 class WorkspaceProviderTest(unittest.TestCase):
@@ -271,7 +271,7 @@ class WorkspaceProviderTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        import workspace_extension
+        import workbench.extensions.management as workspace_extension
 
         config = root / ".workspace/extensions/.state/input.json"
         preview = workspace_extension.preview_result(root, config)
@@ -413,7 +413,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         ]
         manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
         config = self.root / ".workspace/extensions/.state/input.json"
-        import workspace_extension
+        import workbench.extensions.management as workspace_extension
 
         preview = workspace_extension.preview_result(self.root, config)
         workspace_extension.apply(self.root, config, str(preview["previewHash"]))
@@ -511,7 +511,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         manifest["provides"][0]["command"] = ["curl", "provider/missing.py"]
         manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
         config = self.root / ".workspace/extensions/.state/input.json"
-        import workspace_extension
+        import workbench.extensions.management as workspace_extension
 
         preview = workspace_extension.preview_result(self.root, config)
         workspace_extension.apply(self.root, config, str(preview["previewHash"]))
@@ -559,7 +559,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         desired["config"] = {"example-extension": {}}
         config.write_text(json.dumps(desired) + "\n", encoding="utf-8")
         # Re-apply records the changed manifest snapshot and keeps the test's bindings.
-        import workspace_extension
+        import workbench.extensions.management as workspace_extension
 
         preview = workspace_extension.preview_result(self.root, config)
         workspace_extension.apply(self.root, config, str(preview["previewHash"]))

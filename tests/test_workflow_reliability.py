@@ -4,21 +4,68 @@ import json
 import os
 import unittest
 from unittest import mock
-import test_workspace_workflow as fixtures
-import workspace_workflow as workflow
+import tests.support.workflows as fixtures
+import workbench.extensions.runner as workflow
 
 
 class ActionReliabilityTest(unittest.TestCase):
+    def create_linked_item(self):
+        import subprocess
+        from pathlib import Path
+        from workbench.work_items import commands
+        from workbench.work_items.store import item_path, load_state
+        repository = self.root.parent / 'service'
+        repository.mkdir()
+        subprocess.run(['git', 'init', '-q', '--initial-branch=main', str(repository)], check=True)
+        (repository/'file.txt').write_text('fixture')
+        subprocess.run(['git', '-C', str(repository), 'add', '.'], check=True)
+        subprocess.run(['git', '-C', str(repository), '-c', 'user.name=Fixture', '-c', 'user.email=test@example.test', 'commit', '-qm', 'fixture'], check=True)
+        config = self.root / '.workspace/workspace.json'
+        data = json.loads(config.read_text())
+        data['repositories'] = [{'path':'service','aliases':[],'remote':None,'category':'service','description':'fixture','instruction':'docs/repositories/service.md'}]
+        config.write_text(json.dumps(data))
+        self.root = self.root.resolve()
+        commands.create(self.root, 'linked', title='Linked', repositories=['service'])
+        workflow.start_run(self.root, run_id='linked-run', item_slug='linked', repository='service', branch='main')
+        item = workflow.plan_result(self.root, 'linked-run', after='item.implement')['pending'][0]
+        return commands, item_path(self.root, 'linked'), item
+
+    def test_paused_cancelled_or_blocked_items_do_not_dispatch(self):
+        from workbench.work_items.store import load_state
+        commands, directory, item = self.create_linked_item()
+        def dispatch():
+            return workflow.run_action(self.root, 'linked-run', self.stage, item['planHash'], request_id='not-started')
+        with mock.patch.object(workflow, 'run_provider', side_effect=AssertionError('unexpected external action')):
+            commands.lifecycle(self.root, 'linked', 'paused', expected_revision=load_state(directory)['stateRevision'])
+            with self.assertRaisesRegex(ValueError, 'WORKFLOW_ITEM_INACTIVE'): dispatch()
+            commands.lifecycle(self.root, 'linked', 'active', expected_revision=load_state(directory)['stateRevision'])
+            blocked = commands.block(self.root, 'linked', reason='等待', owner='测试', condition='环境可用', expected_revision=load_state(directory)['stateRevision'])
+            with self.assertRaisesRegex(ValueError, 'WORKFLOW_ITEM_BLOCKED'): dispatch()
+            commands.unblock(self.root, 'linked', blocked['blockerId'], reason='可用', expected_revision=load_state(directory)['stateRevision'])
+            commands.cancel(self.root, 'linked', reason='取消', expected_revision=load_state(directory)['stateRevision'])
+            with self.assertRaisesRegex(ValueError, 'WORKFLOW_ITEM_INACTIVE'): dispatch()
+
+    def test_binding_change_blocks_dispatch_but_keeps_result_readable(self):
+        from workbench.work_items.store import load_state
+        commands, directory, item = self.create_linked_item()
+        with mock.patch.object(workflow, 'run_provider', return_value={'status':'ok','diagnostics':[]}):
+            workflow.run_action(self.root, 'linked-run', self.stage, item['planHash'], request_id='completed')
+        bindings = load_state(directory)['bindings']; bindings[0]['workBranch']='feature/next'
+        commands.update(self.root, 'linked', {'bindings':bindings}, reason='新分支', expected_revision=load_state(directory)['stateRevision'])
+        self.assertEqual('succeeded', workflow.action_result(self.root, 'linked-run', 'completed')['status'])
+        with self.assertRaisesRegex(ValueError, 'WORKFLOW_BINDING_CHANGED'):
+            workflow.run_action(self.root, 'linked-run', self.stage, item['planHash'], request_id='new-request', previous_request_id='completed', reason='retry')
+
     def setUp(self):
-        self.fixture = fixtures.WorkspaceWorkflowTest()
-        self.fixture.setUp()
-        self.addCleanup(self.fixture.tearDown)
+        self.fixture = fixtures.WorkflowFixture()
+        self.fixture.open()
+        self.addCleanup(self.fixture.close)
         self.root = self.fixture.root
         self.stage = 'team-delivery.deploy-test'
-        self.fixture.write_overlay([{'id': self.stage, 'after': 'feature.implement', 'uses': 'action-extension/deploy-test'}])
+        self.fixture.write_overlay([{'id': self.stage, 'after': 'item.implement', 'uses': 'action-extension/deploy-test'}])
         self.fixture.activate_overlay()
         workflow.start_run(self.root, run_id='reliable')
-        self.item = workflow.plan_result(self.root, 'reliable', after='feature.implement')['pending'][0]
+        self.item = workflow.plan_result(self.root, 'reliable', after='item.implement')['pending'][0]
 
     def execute(self, **kwargs):
         return workflow.run_action(self.root, 'reliable', self.stage, self.item['planHash'], **kwargs)
@@ -52,6 +99,14 @@ class ActionReliabilityTest(unittest.TestCase):
             self.assertEqual('succeeded', self.execute(request_id='retry-one', previous_request_id='timed-out', reason='checked remote')['status'])
         self.assertEqual('failed', workflow.action_result(self.root, 'reliable', 'timed-out')['status'])
 
+    def test_unknown_result_blocks_plan_and_cannot_be_hidden_by_skip(self):
+        with mock.patch.object(workflow, 'run_provider', return_value={'status': 'failed', 'diagnostics': [{'code': 'PROVIDER_TIMEOUT'}]}):
+            self.execute(request_id='unknown-result')
+        plan = workflow.plan_result(self.root, 'reliable', after='item.implement')
+        self.assertTrue(plan['blocked'])
+        with self.assertRaisesRegex(ValueError, 'ACTION_RECONCILIATION_REQUIRED'):
+            workflow.skip(self.root, 'reliable', self.stage, self.item['planHash'], reason='skip')
+
     def test_new_request_cannot_bypass_current_attempt_and_input_conflict_is_rejected(self):
         self.execute(request_id='first')  # Missing credential: known pre-launch failure.
         with self.assertRaisesRegex(ValueError, 'ACTION_RETRY_REQUIRED'):
@@ -71,7 +126,7 @@ class ActionReliabilityTest(unittest.TestCase):
         self.assertEqual('succeeded', first['status'])
         with mock.patch.object(workflow, 'run_provider', side_effect=AssertionError('duplicate execution')):
             self.assertEqual('succeeded', self.execute(request_id='persisted')['status'])
-        self.assertEqual([], workflow.plan_result(self.root, 'reliable', after='feature.implement')['pending'])
+        self.assertEqual([], workflow.plan_result(self.root, 'reliable', after='item.implement')['pending'])
 
     def test_concurrent_duplicate_observes_running_without_second_dispatch(self):
         import concurrent.futures
@@ -105,7 +160,7 @@ class ActionReliabilityTest(unittest.TestCase):
         marker = self.root / 'entered'
         code = '''import sys,time
 from pathlib import Path
-import workspace_workflow as w
+import workbench.extensions.runner as w
 root=Path(sys.argv[1])
 def provider(*a,**k):
     (root/'entered').write_text('started')
@@ -114,7 +169,7 @@ w.run_provider=provider
 w.run_action(root,'reliable',sys.argv[2],sys.argv[3],request_id='killed')
 '''
         process = subprocess.Popen([sys.executable, '-B', '-c', code, str(self.root), self.stage, self.item['planHash']],
-                                   env={**os.environ, 'PYTHONPATH': str(workflow.SCRIPT_DIR)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                   env={**os.environ, 'PYTHONPATH': str(workflow.KIT_ROOT)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             deadline = time.monotonic() + 5
             while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
@@ -130,35 +185,21 @@ w.run_action(root,'reliable',sys.argv[2],sys.argv[3],request_id='killed')
                 process.kill()
             process.communicate(timeout=5)
 
-    def test_old_running_requires_explicit_reconciliation_without_running_code(self):
-        path = self.root / '.workspace/runs/reliable.json'
-        run = json.loads(path.read_text())
-        run['stages'][self.stage] = {'fingerprint': self.item['fingerprint'], 'status': 'running',
-                                    'updatedAt': '2026-09-24T00:00:00Z', 'summary': 'legacy'}
-        path.write_text(json.dumps(run))
-        with mock.patch.object(workflow, 'run_provider', side_effect=AssertionError('must not execute')):
-            with self.assertRaisesRegex(ValueError, 'ACTION_RECONCILIATION_REQUIRED'):
-                self.execute()
-
-        fixed = workflow.reconcile_action(self.root, 'reliable', self.item['requestId'], status='succeeded', summary='Deployment confirmed', evidence='fixture:deployment-id')
-        self.assertEqual('reconciled', fixed['origin'])
-        self.assertTrue(fixed['legacy'])
-        self.assertEqual([], workflow.plan_result(self.root, 'reliable', after='feature.implement')['pending'])
 
     def test_changed_predecessor_does_not_unlock_command(self):
         self.fixture.write_overlay([
-            {'id': 'quality.check', 'after': 'feature.implement', 'uses': 'action-extension/integration-test'},
+            {'id': 'quality.check', 'after': 'item.implement', 'uses': 'action-extension/integration-test'},
             {'id': self.stage, 'after': 'quality.check', 'uses': 'action-extension/deploy-test'},
         ])
         self.fixture.activate_overlay()
-        plan = workflow.plan_result(self.root, 'reliable', after='feature.implement')
+        plan = workflow.plan_result(self.root, 'reliable', after='item.implement')
         workflow.finish(self.root, 'reliable', 'quality.check', plan['pending'][0]['planHash'], status='succeeded', summary='checked')
         self.fixture.write_overlay([
-            {'id': 'quality.check', 'after': 'feature.implement', 'uses': 'action-extension/integration-test', 'with': {'suite': 'changed'}},
+            {'id': 'quality.check', 'after': 'item.implement', 'uses': 'action-extension/integration-test', 'with': {'suite': 'changed'}},
             {'id': self.stage, 'after': 'quality.check', 'uses': 'action-extension/deploy-test'},
         ])
         self.fixture.activate_overlay()
-        plan = workflow.plan_result(self.root, 'reliable', after='feature.implement')
+        plan = workflow.plan_result(self.root, 'reliable', after='item.implement')
         item = next(row for row in plan['pending'] if row['stage'] == self.stage)
         with mock.patch.object(workflow, 'run_provider', return_value={'status': 'ok', 'diagnostics': []}) as dispatch:
             with self.assertRaisesRegex(ValueError, 'ACTION_BLOCKED'):

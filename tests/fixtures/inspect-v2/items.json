@@ -1,0 +1,55 @@
+{
+  "apiVersion": {
+    "major": 2,
+    "minor": 0
+  },
+  "operation": "items",
+  "observedAt": "2026-09-25T00:00:00Z",
+  "root": "/synthetic/kit",
+  "diagnostics": [],
+  "status": "ok",
+  "data": {
+    "items": [
+      {
+        "slug": "demo",
+        "title": "Demo",
+        "status": "active",
+        "iteration": "i01",
+        "riskTier": "normal",
+        "activity": "develop",
+        "path": "docs/development/items/demo",
+        "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+        "updatedAt": "2026-09-25T00:48:49.091160+00:00",
+        "repositoryBindings": [
+          {
+            "baseBranch": "main",
+            "repository": "kit",
+            "workBranch": "main"
+          }
+        ],
+        "progress": {
+          "completed": 1,
+          "total": 1,
+          "basis": "recorded"
+        },
+        "cancellation": null,
+        "openBlockerCount": 0,
+        "verification": {
+          "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+          "recordedResult": "passed",
+          "applicability": "not_checked"
+        }
+      }
+    ],
+    "counts": {
+      "total": 1
+    },
+    "page": {
+      "offset": 0,
+      "limit": 20,
+      "total": 1,
+      "hasMore": false
+    }
+  },
+  "responseRevision": "sha256:acdc7a6c88122706dddc7cd4aa0bda79179355df1e1a19ccedbe483332570070"
+}

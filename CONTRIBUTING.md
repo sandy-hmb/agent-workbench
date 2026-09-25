@@ -7,10 +7,10 @@
 使用 Python 3.10+、Git 2.23+ 和项目自带的标准库实现。新任务先运行：
 
 ```bash
-python3 scripts/workspace_status.py --root . --json
+python3 scripts/kit.py status --root . --json
 ```
 
-公共工作流行为变化在 `docs/development/features/<feature-slug>/` 记录。按实际风险选择普通需求一次审阅方案包或重大需求分阶段审阅；已有审批不因开始实施而重复。新复杂需求使用根目录文档，旧记录沿原路径继续；新计划使用 `task-evidence-v2`，验证记录在实际执行后创建。局部、可定向验证的维护可以走轻量流程。
+公共工作流行为变化在 `docs/development/items/<item-slug>/` 记录。按实际风险选择普通需求一次审阅方案包或重大需求分阶段审阅；已有审批不因开始实施而重复。新复杂需求使用根目录文档，旧本地记录保持原状且不加载；新计划使用唯一新版状态与证据格式，验证记录在实际执行后创建。局部、可定向验证的维护可以走轻量流程。
 
 默认采用 TDD，但以可观察行为和关键不变量为单位。行为变化先写最小失败测试；声明式元数据、配置、文档、生成物、已有测试完整保护的纯重构或已有 Schema、Migration、契约检查完整覆盖的结构变化，可以采用最小有效验证并记录理由。不要为了字段、类或代码行数机械增加测试文件。
 
@@ -22,11 +22,11 @@ python3 scripts/workspace_status.py --root . --json
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py'
-python3 -m py_compile scripts/*.py migrations/*.py
+python3 -m compileall -q workbench scripts
 for schema in schemas/*.json; do python3 -m json.tool "$schema" >/dev/null; done
 python3 -m json.tool upgrades/manifest.json
-python3 -m json.tool workflows/feature-development.json
-python3 scripts/workspace_doctor.py --root .
+python3 -m json.tool workflows/item-development.json
+python3 scripts/kit.py doctor --root .
 git diff --check
 ```
 
@@ -56,5 +56,5 @@ git config core.hooksPath scripts/hooks
 
 CHANGELOG 条目规范：
 
-- 面向使用者的行为变化措辞——说清"发生了什么、使用者要不要做什么"，不出现内部错误码常量（如 `MULTIPLE_ACTIVE_FEATURES`）、脚本或函数名（如 `feature_context.py`）、`docs/development/` 内部路径。
+- 面向使用者的行为变化措辞——说清"发生了什么、使用者要不要做什么"，不出现内部错误码常量（如 `MULTIPLE_ACTIVE_ITEMS`）、脚本或函数名（如 `item_context.py`）、`docs/development/` 内部路径。
 - 破坏性变更或需要使用者手动执行的升级动作单列"破坏性变更与升级动作"小节；其余条目保持扁平列表。

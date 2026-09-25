@@ -19,7 +19,7 @@ def build_payload(request: dict) -> dict:
         "workflow": request.get("workflow"),
         "run": request.get("run"),
         "stage": request.get("stage"),
-        "featureSlug": request.get("featureSlug"),
+        "itemSlug": request.get("itemSlug"),
         "repository": request.get("repository"),
         "branch": request.get("branch"),
     }

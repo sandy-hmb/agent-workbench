@@ -29,13 +29,13 @@ Extension 有两种声明：
 写第一个 Extension 时，不需要手工照抄 manifest 例子：`scaffold` 直接在 `.workspace/extensions/<id>/` 生成一个能立刻通过校验的最小骨架（一个不含 `command`、`effects` 为空的占位 Action）。目标已存在时拒绝覆盖；`.workspace/` 尚未初始化时会报错，不会代替初始化。
 
 ```bash
-python3 scripts/workspace_extension.py scaffold --root . --id demo-ext --json
+python3 scripts/kit.py extension scaffold --root . --id demo-ext --json
 ```
 
 预期输出要点：`id` 为 `demo-ext`，`path` 为 `.workspace/extensions/demo-ext`，`action` 为 `example-action`。生成物立刻可校验：
 
 ```bash
-python3 scripts/workspace_extension.py validate-extension \
+python3 scripts/kit.py extension validate-extension \
   .workspace/extensions/demo-ext --json
 ```
 
@@ -50,14 +50,14 @@ python3 scripts/workspace_extension.py validate-extension \
 预览并检查 `previewHash` 和 `applyCommand`：
 
 ```bash
-python3 scripts/workspace_extension.py preview \
+python3 scripts/kit.py extension preview \
   --root . --config .workspace/extensions/.state/input.json --json
 ```
 
 确认后执行 preview 返回的 `applyCommand`；因为是 Action（不是 Provider），apply 不会生成任何 `local-*` Skill Adapter。用 doctor 确认无 drift：
 
 ```bash
-python3 scripts/workspace_extension.py doctor --root . --json
+python3 scripts/kit.py extension doctor --root . --json
 ```
 
 预期输出：`SUMMARY ERROR=0`。接下来把占位的 `skills/example-action/SKILL.md` 和 `workspace-extension.json` 里的 `confirmation`/`effects` 换成团队真实操作，再重新 preview/apply 一遍（内容变化会体现为 digest 变化，drift 检测机制不变）。Action 的插入、计划和执行见[自定义工作流](custom-workflows.md)。
@@ -67,7 +67,7 @@ python3 scripts/workspace_extension.py doctor --root . --json
 从显式本地目录安装时先预览：
 
 ```bash
-python3 scripts/workspace_extension.py install preview \
+python3 scripts/kit.py extension install preview \
   --root . --source <local-extension-directory> --json
 ```
 
@@ -140,7 +140,7 @@ python3 scripts/workspace_extension.py install preview \
 先检查目录：
 
 ```bash
-python3 scripts/workspace_extension.py validate-extension \
+python3 scripts/kit.py extension validate-extension \
   .workspace/extensions/team-delivery --json
 ```
 
@@ -161,7 +161,7 @@ python3 scripts/workspace_extension.py validate-extension \
 每个 capability 只能有一个默认 Provider；仓级覆盖同样只能有一个实现。Action 不进入 Provider 绑定，多个 Action 应通过多个 Workflow Stage 排序。
 
 ```bash
-python3 scripts/workspace_extension.py preview \
+python3 scripts/kit.py extension preview \
   --root . --config .workspace/extensions/.state/input.json --json
 ```
 
@@ -170,14 +170,14 @@ python3 scripts/workspace_extension.py preview \
 Provider 可显式调用：
 
 ```bash
-python3 scripts/workspace_provider.py run <capability> \
+python3 scripts/kit.py provider run <capability> \
   --root . --operation <operation> --input .workspace/provider-input.json --json
 ```
 
 `context.term-router` capability 可以直接测试路由结果，不需要先声明 Provider：
 
 ```bash
-python3 scripts/workspace_context.py route --text "<要路由的文本>" --root . --json
+python3 scripts/kit.py context route --text "<要路由的文本>" --root . --json
 ```
 
 这是只读命令，用来验证一段文本会被路由到哪个 term；激活对应 Provider 后可以据此确认它是否按预期接管路由。
@@ -186,16 +186,16 @@ Action 的插入、计划和执行见[自定义工作流](custom-workflows.md)�
 
 ## 维护和停用
 
-### Feature 相关输出
+### WorkItem 相关输出
 
-公共 Kit 更新不会修改本地 Extension。若 Extension 会写入需求、设计、计划、验证或交付物，先审阅其 `SKILL.md`：它必须说明具体输出位置、文件归属，以及重复运行时追加还是覆盖。不要为了统一格式创建额外目录；只有交接需要时，在 feature README 中保留产物入口链接。
+公共 Kit 更新不会修改本地 Extension。若 Extension 会写入需求、设计、计划、验证或交付物，先审阅其 `SKILL.md`：它必须说明具体输出位置、文件归属，以及重复运行时追加还是覆盖。不要为了统一格式创建额外目录；只有交接需要时，在 work item README 中保留产物入口链接。
 
 Extension 不得改写需求、设计或实施计划正文，除非用户已经确认当前阶段的内容变更。升级后重新 preview/apply，使 lock 的 digest 与已审阅内容一致。
 
 修改已激活 Extension 会造成 digest 漂移。先检查，再重新 preview/apply：
 
 ```bash
-python3 scripts/workspace_extension.py doctor --root . --json
+python3 scripts/kit.py extension doctor --root . --json
 ```
 
 停用前，先从 `.workspace/workspace.local.json` 移除对应本地配置；再从 `extensions/.state/input.json` 移除 Extension 并执行 preview、确认、apply。系统不会自动删除本地配置，也不会覆盖手工改动的受管 Adapter。
@@ -215,7 +215,7 @@ python3 scripts/workspace_extension.py doctor --root . --json
 
 ```bash
 cp -r examples/extensions/example-branch-naming .workspace/extensions/example-branch-naming
-python3 scripts/workspace_extension.py validate-extension \
+python3 scripts/kit.py extension validate-extension \
   .workspace/extensions/example-branch-naming --json
 ```
 

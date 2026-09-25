@@ -14,9 +14,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 import sys
 
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-import workspace_submit  # noqa: E402
+import workbench.workspace.submit as workspace_submit  # noqa: E402
 
 
 def run_git(*arguments: str, cwd: Path) -> str:
@@ -76,13 +76,13 @@ class WorkspaceSubmitTest(unittest.TestCase):
 
         state = self.root / ".workspace"
         (state / "docs/repositories").mkdir(parents=True)
-        (state / "docs/features/demo-feature/testing").mkdir(parents=True)
-        (state / "docs/features/demo-feature/plans").mkdir(parents=True)
-        (state / "docs/features/demo-feature/artifacts/sql").mkdir(parents=True)
+        (state / "items/demo-feature/testing").mkdir(parents=True)
+        (state / "items/demo-feature/plans").mkdir(parents=True)
+        (state / "items/demo-feature/artifacts/sql").mkdir(parents=True)
         (state / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 3, "minor": 0},
                     "workspace": {"name": "Demo"},
                     "context": {},
                     "branchPolicy": {
@@ -110,23 +110,12 @@ class WorkspaceSubmitTest(unittest.TestCase):
             json.dumps({"branchOwner": "owner", "primaryRole": None, "extensions": {}}),
             encoding="utf-8",
         )
-        (state / "docs/features/demo-feature/README.md").write_text(
-            "# Demo\n\n"
-            "- 状态：development\n"
-            "- 需求短名：`demo-feature`\n"
-            "- 涉及仓库：`service`\n"
-            "- 工作分支：`service` -> `owner/feature/demo`\n"
-            "- 基线分支：`service` -> `main`\n"
-            "- 最后更新：2026-09-04\n",
-            encoding="utf-8",
-        )
-        (state / "docs/features/demo-feature/plans/implementation.md").write_text(
-            "- [x] implement\n", encoding="utf-8"
-        )
-        (state / "docs/features/demo-feature/testing/verification.md").write_text(
-            "# Verification\n", encoding="utf-8"
-        )
-        (state / "docs/features/demo-feature/artifacts/sql/001-create.sql").write_text(
+        import shutil
+        import workbench.work_items.commands as item_actions
+        shutil.rmtree(state / 'items/demo-feature')
+        item_actions.create(self.root, 'demo-feature', title='Demo', repositories=['service'])
+        (state / 'items/demo-feature/artifacts/sql').mkdir(parents=True)
+        (state / "items/demo-feature/artifacts/sql/001-create.sql").write_text(
             "create table demo;\n", encoding="utf-8"
         )
 
@@ -152,7 +141,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "service",
             "--branch",
             "owner/feature/demo",
-            "--feature",
+            "--item",
             "demo-feature",
             "--path",
             "README.md",
@@ -164,7 +153,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertEqual(0, code, error)
         assert plan is not None
         self.assertEqual(["README.md"], plan["changedFiles"])
-        self.assertEqual(["artifacts/sql/001-create.sql"], plan["featureArtifacts"])
+        self.assertEqual(["artifacts/sql/001-create.sql"], plan["itemArtifacts"])
         self.assertNotIn("artifacts/sql/001-create.sql", plan["paths"])
 
         code, result, error = self.run_command(
@@ -177,9 +166,9 @@ class WorkspaceSubmitTest(unittest.TestCase):
             ]
         )
         self.assertEqual(0, code, error)
-        self.assertEqual("testing", result["status"])
+        self.assertEqual("submitted", result["status"])
         self.assertEqual("owner/feature/demo", run_git("branch", "--show-current", cwd=self.service))
-        self.assertEqual("testing", (self.root / ".workspace/docs/features/demo-feature/README.md").read_text(encoding="utf-8").split("状态：", 1)[1].splitlines()[0])
+        self.assertEqual("active", (self.root / ".workspace/items/demo-feature/README.md").read_text(encoding="utf-8").split("状态：", 1)[1].splitlines()[0])
         self.assertEqual(0, run_git("--git-dir", str(self.remote), "show-ref", "--verify", "--quiet", "refs/heads/test", cwd=self.parent).__len__())
         self.assertEqual("updated", run_git("show", "test:README.md", cwd=self.service))
 
@@ -193,10 +182,10 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--feature",
+                "--item",
                 "demo-feature",
                 "--path",
-                "../kit/.workspace/docs/features/demo-feature/artifacts/sql/001-create.sql",
+                "../kit/.workspace/items/demo-feature/artifacts/sql/001-create.sql",
                 "--json",
             ]
         )
@@ -217,7 +206,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--feature",
+                "--item",
                 "demo-feature",
                 "--path",
                 "README.md",
@@ -229,8 +218,8 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertIn("SUBMIT_MESSAGE_REQUIRED", error)
 
     def test_patch_mode_requires_testing_feature(self):
-        readme = self.root / ".workspace/docs/features/demo-feature/README.md"
-        readme.write_text(readme.read_text(encoding="utf-8").replace("状态：development", "状态：planning"), encoding="utf-8")
+        readme = self.root / ".workspace/items/demo-feature/README.md"
+        readme.write_text(readme.read_text(encoding="utf-8").replace("状态：active", "状态：planning"), encoding="utf-8")
         code, result, error = self.run_command(
             [
                 "plan",
@@ -240,7 +229,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--feature",
+                "--item",
                 "demo-feature",
                 "--mode",
                 "patch",
@@ -265,7 +254,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--feature",
+                "--item",
                 "demo-feature",
                 "--json",
             ]
@@ -301,7 +290,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
         code, plan, error = self.run_command(
             [
                 "plan", "--root", str(self.root), "--repo", "service",
-                "--branch", "owner/feature/demo", "--feature", "demo-feature", "--json",
+                "--branch", "owner/feature/demo", "--item", "demo-feature", "--json",
             ]
         )
 
@@ -324,7 +313,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "service",
             "--branch",
             "owner/feature/demo",
-            "--feature",
+            "--item",
             "demo-feature",
             "--path",
             "README.md",
@@ -346,8 +335,8 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "owner/feature/demo", json.loads(error)["error"]["currentBranch"]
         )
         self.assertIn(
-            "状态：development",
-            (self.root / ".workspace/docs/features/demo-feature/README.md").read_text(encoding="utf-8"),
+            "状态：active",
+            (self.root / ".workspace/items/demo-feature/README.md").read_text(encoding="utf-8"),
         )
 
     def test_apply_keeps_merge_conflict_on_test_branch(self):
@@ -370,7 +359,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "service",
             "--branch",
             "owner/feature/demo",
-            "--feature",
+            "--item",
             "demo-feature",
             "--path",
             "README.md",
@@ -391,8 +380,8 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertEqual("test", json.loads(error)["error"]["currentBranch"])
         self.assertTrue((self.service / ".git/MERGE_HEAD").is_file())
         self.assertIn(
-            "状态：development",
-            (self.root / ".workspace/docs/features/demo-feature/README.md").read_text(encoding="utf-8"),
+            "状态：active",
+            (self.root / ".workspace/items/demo-feature/README.md").read_text(encoding="utf-8"),
         )
 
 

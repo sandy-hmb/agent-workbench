@@ -1,6 +1,6 @@
 ---
 name: workspace-sync-base
-description: Synchronize an explicitly selected repository branch with its recorded feature base or effective workBase using fetch and merge only.
+description: Synchronize an explicitly selected repository branch with its recorded work item base or effective workBase using fetch and merge only.
 ---
 
 # Workspace Sync Base
@@ -9,9 +9,9 @@ description: Synchronize an explicitly selected repository branch with its recor
 
 ## 前置
 
-1. 用 `python3 scripts/workspace_registry.py resolve <name> --json` 解析唯一仓路径和 `effectiveBranchPolicy`。
+1. 用 `python3 scripts/kit.py registry resolve <name> --json` 解析唯一仓路径和 `effectiveBranchPolicy`。
 2. 在目标仓读取当前分支和状态；不要在治理根执行 Git。
-3. 优先用 `python3 scripts/feature_context.py resolve --repo <name> --branch <current-branch> --json` 从 `.workspace/docs/features/` 得到需求记录的 `baseBranch`。没有唯一匹配时，才使用该仓有效策略的 `workBase`，并把选择记录给用户。
+3. 优先用 `python3 scripts/kit.py item resolve --repo <name> --branch <current-branch> --json` 从 `.workspace/items/` 得到需求记录的 `baseBranch`。没有唯一匹配时，才使用该仓有效策略的 `workBase`，并把选择记录给用户。
 4. 确认远程和目标 ref 存在，工作区没有未完成的 merge/rebase/cherry-pick/revert。
 
 ## 执行

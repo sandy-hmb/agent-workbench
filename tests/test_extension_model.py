@@ -3,8 +3,8 @@ import json, tempfile, unittest
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from core_capabilities import CORE_CAPABILITIES
-from extension_model import AdapterSpec, ExtensionError, extension_digest, load_manifest, normalize_extensions_lock
+from workbench.extensions.capabilities import CORE_CAPABILITIES
+from workbench.extensions.model import AdapterSpec, ExtensionError, extension_digest, load_manifest, normalize_extensions_lock
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures/example-extension"
 ACTION_FIXTURE = Path(__file__).resolve().parent / "fixtures/action-extension"

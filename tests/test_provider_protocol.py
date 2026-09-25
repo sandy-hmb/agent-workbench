@@ -12,9 +12,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-from provider_protocol import MAX_OUTPUT_BYTES, run_provider  # noqa: E402
+from workbench.extensions.protocol import MAX_OUTPUT_BYTES, run_provider  # noqa: E402
 
 
 FIXTURE = ROOT / "tests" / "fixtures" / "provider"

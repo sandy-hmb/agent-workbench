@@ -9,13 +9,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import kit  # noqa: E402
-import kit_describe  # noqa: E402
-import workspace_extension  # noqa: E402
-from test_happy_path import create_public_clone, initialize_workspace  # noqa: E402
+import workbench.cli.main as kit  # noqa: E402
+import workbench.cli.describe as kit_describe  # noqa: E402
+import workbench.extensions.management as workspace_extension  # noqa: E402
+from tests.support.public_clone import create_public_clone, initialize_workspace  # noqa: E402
 
 
 ACTION_FIXTURE = ROOT / "tests/fixtures/action-extension"
@@ -45,7 +45,7 @@ class KitDescribeTest(unittest.TestCase):
         self.assertIn("--json", status["parameters"]["options"])
         brief = by_name["brief"]
         self.assertIn("--task", brief["parameters"]["options"])
-        self.assertIn("--check", brief["parameters"]["options"])
+        self.assertIn("--check-code", brief["parameters"]["options"])
         verify = by_name["verify"]
         self.assertIn("snapshot", verify["parameters"]["subcommands"])
 

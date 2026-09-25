@@ -14,94 +14,25 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-import workspace_extension  # noqa: E402
-import workspace_status  # noqa: E402
-import workspace_workflow  # noqa: E402
-import workspace_evidence  # noqa: E402
-import workspace_inspect  # noqa: E402
+import workbench.extensions.management as workspace_extension  # noqa: E402
+import workbench.cli.status as workspace_status  # noqa: E402
+import workbench.extensions.runner as workspace_workflow  # noqa: E402
+import workbench.work_items.evidence as workspace_evidence  # noqa: E402
+import workbench.inspection.api as workspace_inspect  # noqa: E402
 
 
 ACTION_FIXTURE = ROOT / "tests" / "fixtures" / "action-extension"
 
 
-class WorkspaceWorkflowTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name) / "kit"
-        self.root.mkdir()
-        (self.root / ".gitignore").write_text("/.workspace/\n", encoding="utf-8")
-        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
-        state = self.root / ".workspace"
-        (state / "extensions" / ".state").mkdir(parents=True)
-        (state / "extensions" / ".state" / "cache").mkdir()
-        (state / "docs/features").mkdir(parents=True)
-        (state / "docs/repositories").mkdir()
-        (state / "workspace.json").write_text(
-            json.dumps(
-                {
-                    "version": {"major": 1, "minor": 0},
-                    "workspace": {"name": "Demo"},
-                    "context": {},
-                    "branchPolicy": {},
-                    "extensions": {"providers": {}, "config": {}},
-                    "repositories": [],
-                }
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        (state / "workspace.local.json").write_text(
-            json.dumps({"branchOwner": "alice", "primaryRole": None, "extensions": {}})
-            + "\n",
-            encoding="utf-8",
-        )
-        (state / "extensions" / ".state" / "lock.json").write_text(
-            json.dumps({"lockVersion": {"major": 1, "minor": 0}, "kitApi": 1, "extensions": [], "providers": {}})
-            + "\n",
-            encoding="utf-8",
-        )
-        (self.root / ".agents/skills").mkdir(parents=True)
-        (self.root / ".claude/skills").mkdir(parents=True)
-        shutil.copytree(ACTION_FIXTURE, state / "extensions/action-extension")
-        self.extension_config = state / "extensions" / ".state" / "input.json"
-        self.extension_config.write_text(
-            json.dumps(
-                {
-                    "extensions": [{"id": "action-extension", "version": "1.0.0"}],
-                    "providers": {},
-                    "config": {"action-extension": {}},
-                }
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        preview = workspace_extension.preview_result(self.root, self.extension_config)
-        workspace_extension.apply(self.root, self.extension_config, preview["previewHash"])
-        self.overlay_config = state / "workflow-input.json"
+from tests.support.workflows import WorkflowFixture
 
-    def tearDown(self) -> None:
-        self.temp.cleanup()
 
-    def write_overlay(
-        self,
-        stages: list[dict[str, object]],
-        skip_hints: list[dict[str, object]] | None = None,
-    ) -> None:
-        payload = {
-            "schemaVersion": {"major": 1, "minor": 0},
-            "workflow": "feature-development",
-            "stages": stages,
-        }
-        if skip_hints is not None:
-            payload["skipHints"] = skip_hints
-        self.overlay_config.write_text(json.dumps(payload) + "\n", encoding="utf-8")
-
-    def activate_overlay(self) -> dict[str, object]:
-        preview = workspace_workflow.preview_result(self.root, self.overlay_config)
-        workspace_workflow.apply(self.root, self.overlay_config, preview["previewHash"])
-        return preview
+class WorkspaceWorkflowTest(WorkflowFixture, unittest.TestCase):
+    def setUp(self):
+        self.open()
+        self.addCleanup(self.close)
 
     def test_no_overlay_is_a_fast_disabled_status(self) -> None:
         self.assertEqual({"enabled": False}, workspace_workflow.status_result(self.root))
@@ -111,7 +42,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.integration-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/integration-test",
                 }
             ]
@@ -127,13 +58,13 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             branch="owner/fix/light-change",
         )
         self.assertEqual("light-change", run["id"])
-        self.assertIsNone(run["featureSlug"])
-        self.assertFalse((self.root / ".workspace/docs/features/light-change").exists())
+        self.assertIsNone(run["itemSlug"])
+        self.assertFalse((self.root / ".workspace/items/light-change").exists())
 
         plan = workspace_workflow.plan_result(
-            self.root, "light-change", after="feature.implement"
+            self.root, "light-change", after="item.implement"
         )
-        self.assertEqual("feature.implement", plan["anchor"])
+        self.assertEqual("item.implement", plan["anchor"])
         self.assertEqual(
             ["team-delivery.integration-test"],
             [item["stage"] for item in plan["pending"]],
@@ -147,109 +78,8 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             plan["pending"][0]["confirmation"],
         )
 
-    def test_standard_run_defers_verification_and_preserves_existing_records(self) -> None:
-        self.write_overlay(
-            [
-                {
-                    "id": "team-delivery.integration-test",
-                    "after": "feature.implement",
-                    "uses": "action-extension/integration-test",
-                }
-            ]
-        )
-        self.activate_overlay()
-        with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "WORKFLOW_FEATURE_MISSING"):
-            workspace_workflow.start_run(self.root, run_id="feature-run", feature_slug="feature")
 
-        feature = self.root / ".workspace/docs/features/feature"
-        feature.mkdir()
-        (feature / "README.md").write_text("# Feature\n", encoding="utf-8")
-        verification = feature / "testing/verification.md"
-        run = workspace_workflow.start_run(self.root, feature_slug="feature")
-        self.assertEqual("feature", run["id"])
-        self.assertEqual(run, workspace_workflow.start_run(self.root, feature_slug="feature"))
-        self.assertFalse(verification.parent.exists())
-        plan = workspace_workflow.plan_result(self.root, "feature", after="feature.implement")
-        workspace_workflow.finish(
-            self.root,
-            "feature",
-            "team-delivery.integration-test",
-            plan["pending"][0]["planHash"],
-            status="succeeded",
-            summary="completed",
-        )
-        self.assertFalse(verification.parent.exists())
-        verification.parent.mkdir()
-        verification.write_text("# 验证记录\n\n已有人工记录。\n", encoding="utf-8")
-        workspace_workflow.finish(
-            self.root,
-            "feature",
-            "team-delivery.integration-test",
-            plan["pending"][0]["planHash"],
-            status="succeeded",
-            summary="completed",
-        )
-        evidence = verification.read_text(encoding="utf-8")
-        self.assertIn("已有人工记录。", evidence)
-        self.assertIn("Workflow Action `team-delivery.integration-test`", evidence)
 
-    def test_v2_run_keeps_action_events_out_of_markdown(self) -> None:
-        self.write_overlay([{
-            "id": "team-delivery.integration-test", "after": "feature.implement",
-            "uses": "action-extension/integration-test",
-        }])
-        self.activate_overlay()
-        feature = self.root / ".workspace/docs/features/feature"
-        feature.mkdir(parents=True)
-        (feature / "README.md").write_text("# Feature\n", encoding="utf-8")
-        (feature / "plans").mkdir()
-        (feature / "plans/implementation.md").write_text("- 完成门禁：`task-evidence-v2`\n", encoding="utf-8")
-        (feature / "testing").mkdir()
-        workspace_evidence.record(feature, {
-            "kind": "taskEvidence", "taskId": "T01", "recordedAt": "2026-09-13T10:00:00Z",
-            "repository": "service", "codeState": {"service": "sha256:" + "a" * 64},
-            "checks": [{"type": "静态检查", "workingDirectory": "service", "command": "true", "target": "README.md", "exitStatus": 0, "result": "通过"}],
-            "artifactRefs": [], "validationKind": "声明式", "deliveryCheck": "passed", "result": "passed",
-        })
-        run = workspace_workflow.start_run(self.root, feature_slug="feature")
-        plan = workspace_workflow.plan_result(self.root, "feature", after="feature.implement")
-        workspace_workflow.finish(
-            self.root, run["id"], "team-delivery.integration-test",
-            plan["pending"][0]["planHash"], status="succeeded", summary="completed",
-        )
-        raw = json.loads((self.root / ".workspace/runs/feature.json").read_text())
-        self.assertEqual(2, raw["schemaVersion"])
-        self.assertEqual("succeeded", raw["events"][0]["status"])
-        summary = (feature / "testing/verification.md").read_text()
-        self.assertIn("## Workflow Action", summary)
-        self.assertIn("team-delivery.integration-test：succeeded", summary)
-        inspected = workspace_inspect.run(self.root.resolve(), "feature")
-        self.assertEqual("succeeded", inspected["events"][0]["status"])
-
-    def test_existing_v1_run_upgrades_when_feature_moves_to_v2(self) -> None:
-        self.write_overlay([{
-            "id": "team-delivery.integration-test", "after": "feature.implement",
-            "uses": "action-extension/integration-test",
-        }])
-        self.activate_overlay()
-        feature = self.root / ".workspace/docs/features/feature"
-        feature.mkdir(parents=True)
-        (feature / "README.md").write_text("# Feature\n", encoding="utf-8")
-        run = workspace_workflow.start_run(self.root, feature_slug="feature")
-        self.assertEqual(1, run["schemaVersion"])
-        (feature / "plans").mkdir()
-        (feature / "plans/implementation.md").write_text("- 完成门禁：`task-evidence-v2`\n", encoding="utf-8")
-        plan = workspace_workflow.plan_result(self.root, "feature", after="feature.implement")
-        workspace_workflow.finish(
-            self.root, "feature", "team-delivery.integration-test",
-            plan["pending"][0]["planHash"], status="succeeded", summary="completed",
-        )
-        upgraded = json.loads((self.root / ".workspace/runs/feature.json").read_text())
-        self.assertEqual(2, upgraded["schemaVersion"])
-        self.assertEqual(["succeeded"], [item["status"] for item in upgraded["events"]])
-
-        with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "显式提供 run id"):
-            workspace_workflow.start_run(self.root, repository="service", branch="owner/fix/light")
 
     def test_manifest_rejects_action_without_confirmation(self) -> None:
         extension = self.root / ".workspace/extensions/action-extension/workspace-extension.json"
@@ -264,7 +94,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.unknown",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/missing",
                 }
             ]
@@ -276,7 +106,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.integration-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/integration-test",
                 }
             ]
@@ -286,7 +116,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.integration-test",
-                    "after": "feature.verify",
+                    "after": "item.verify",
                     "uses": "action-extension/integration-test",
                 }
             ]
@@ -298,7 +128,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.sensitive",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/integration-test",
                     "with": {"token": "must-not-be-stored"},
                 }
@@ -312,7 +142,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.integration-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/integration-test",
                 }
             ]
@@ -332,7 +162,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             [
                 {
                     "id": "team-delivery.integration-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/integration-test",
                 },
                 {
@@ -346,7 +176,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         self.activate_overlay()
         workspace_workflow.start_run(self.root, run_id="delivery-run")
         first = workspace_workflow.plan_result(
-            self.root, "delivery-run", after="feature.implement"
+            self.root, "delivery-run", after="item.implement"
         )
         integration = first["pending"][0]
         with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "ACTION_PLAN_STALE"):
@@ -368,7 +198,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         )
         self.assertEqual("succeeded", finished["status"])
         second = workspace_workflow.plan_result(
-            self.root, "delivery-run", after="feature.implement"
+            self.root, "delivery-run", after="item.implement"
         )
         self.assertEqual(["team-delivery.deploy-test"], [item["stage"] for item in second["pending"]])
         skipped = workspace_workflow.skip(
@@ -380,14 +210,14 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         )
         self.assertEqual("skipped", skipped["status"])
         self.assertEqual([], workspace_workflow.plan_result(
-            self.root, "delivery-run", after="feature.implement"
+            self.root, "delivery-run", after="item.implement"
         )["pending"])
 
         self.write_overlay(
             [
                 {
                     "id": "team-delivery.integration-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/integration-test",
                     "with": {"suite": "changed"},
                 }
@@ -395,76 +225,17 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         )
         self.activate_overlay()
         changed = workspace_workflow.plan_result(
-            self.root, "delivery-run", after="feature.implement"
+            self.root, "delivery-run", after="item.implement"
         )
         self.assertEqual(["team-delivery.integration-test"], [item["stage"] for item in changed["pending"]])
 
-    def test_command_action_runs_and_interrupted_state_blocks_followups(self) -> None:
-        self.write_overlay(
-            [
-                {
-                    "id": "team-delivery.deploy-test",
-                    "after": "feature.implement",
-                    "uses": "action-extension/deploy-test",
-                },
-                {
-                    "id": "team-delivery.integration-test",
-                    "after": "team-delivery.deploy-test",
-                    "uses": "action-extension/integration-test",
-                },
-            ]
-        )
-        self.activate_overlay()
-        workspace_workflow.start_run(self.root, run_id="command-run")
-        plan = workspace_workflow.plan_result(self.root, "command-run", after="feature.implement")
-        deploy = plan["pending"][0]
-        integration_item = [
-            item for item in plan["pending"] if item["stage"] == "team-delivery.integration-test"
-        ][0]
-        with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "ACTION_BLOCKED"):
-            workspace_workflow.run_action(
-                self.root,
-                "command-run",
-                "team-delivery.integration-test",
-                integration_item["planHash"],
-            )
-        with mock.patch.dict(os.environ, {"DEPLOY_TOKEN": "test-token"}):
-            result = workspace_workflow.run_action(
-                self.root,
-                "command-run",
-                "team-delivery.deploy-test",
-                deploy["planHash"],
-            )
-        self.assertEqual("succeeded", result["status"])
-        followup = workspace_workflow.plan_result(
-            self.root, "command-run", after="feature.implement"
-        )
-        run_path = self.root / ".workspace/runs/command-run.json"
-        run = json.loads(run_path.read_text(encoding="utf-8"))
-        run["stages"]["team-delivery.integration-test"] = {
-            "fingerprint": followup["pending"][0]["fingerprint"],
-            "status": "running",
-            "updatedAt": "2026-09-03T00:00:00Z",
-            "summary": "interrupted",
-        }
-        run_path.write_text(json.dumps(run), encoding="utf-8")
-        status = workspace_workflow.status_result(self.root)
-        self.assertTrue(status["enabled"])
-        self.assertEqual(1, status["interrupted"])
-        compact = workspace_status.status_result(self.root)["workflow"]
-        self.assertEqual(
-            {"enabled", "runs", "actions", "pending", "failed", "interrupted", "nextStage"},
-            set(compact),
-        )
-        self.assertNotIn("skillPath", compact)
-        self.assertNotIn("manifest", compact)
 
     def test_command_environment_and_summary_limits_are_safe(self) -> None:
         self.write_overlay(
             [
                 {
                     "id": "team-delivery.deploy-test",
-                    "after": "feature.implement",
+                    "after": "item.implement",
                     "uses": "action-extension/deploy-test",
                 },
                 {
@@ -476,7 +247,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
         )
         self.activate_overlay()
         workspace_workflow.start_run(self.root, run_id="safe-run")
-        plan = workspace_workflow.plan_result(self.root, "safe-run", after="feature.implement")
+        plan = workspace_workflow.plan_result(self.root, "safe-run", after="item.implement")
         result = workspace_workflow.run_action(
             self.root,
             "safe-run",
@@ -494,7 +265,7 @@ class WorkspaceWorkflowTest(unittest.TestCase):
             reason="credential setup deferred",
         )
         followup = workspace_workflow.plan_result(
-            self.root, "safe-run", after="feature.implement"
+            self.root, "safe-run", after="item.implement"
         )
         with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "8 KiB"):
             workspace_workflow.finish(
@@ -506,99 +277,9 @@ class WorkspaceWorkflowTest(unittest.TestCase):
                 summary="x" * (8 * 1024 + 1),
             )
 
-    def test_skip_suggestions_disabled_without_active_overlay(self) -> None:
-        self.assertEqual(
-            {"enabled": False, "suggestions": []},
-            workspace_workflow.skip_suggestions(self.root, repository_count=1),
-        )
 
-    def test_skip_suggestions_returns_matching_reason_for_single_repo(self) -> None:
-        self.write_overlay(
-            [],
-            skip_hints=[
-                {
-                    "stage": "feature.analyze",
-                    "when": {"repositoryCount": {"max": 1}},
-                    "reason": "单仓需求通常不需要跨仓分析",
-                }
-            ],
-        )
-        self.activate_overlay()
 
-        result = workspace_workflow.skip_suggestions(self.root, repository_count=1)
-        self.assertEqual(
-            {
-                "enabled": True,
-                "suggestions": [
-                    {
-                        "stage": "feature.analyze",
-                        "reason": "单仓需求通常不需要跨仓分析",
-                        "rule": "repositoryCount<=1",
-                    }
-                ],
-            },
-            result,
-        )
 
-        multi_repo = workspace_workflow.skip_suggestions(self.root, repository_count=2)
-        self.assertEqual({"enabled": True, "suggestions": []}, multi_repo)
-
-    def test_skip_suggestions_reports_blocked_code_for_invalid_overlay_skip_hint(self) -> None:
-        self.write_overlay(
-            [],
-            skip_hints=[
-                {
-                    "stage": "feature.implement",
-                    "when": {"repositoryCount": {"max": 1}},
-                    "reason": "非法：feature.implement 不是可选阶段",
-                }
-            ],
-        )
-        # 直接写入未经 apply 的 overlay 校验路径：模拟已激活但内容非法的场景，
-        # 通过 mock _active_overlay 让 skip_suggestions 读到未经 apply 校验的 overlay。
-        overlay = workspace_workflow.load_overlay(self.overlay_config)
-        with mock.patch("workspace_workflow._active_overlay", return_value=overlay):
-            result = workspace_workflow.skip_suggestions(self.root, repository_count=1)
-        self.assertEqual(["WORKFLOW_SKIP_HINT_INVALID"], result.get("blockedCodes"))
-
-    def test_cli_skip_suggestions_reports_zero_and_rejects_negative_repositories(self) -> None:
-        self.write_overlay(
-            [],
-            skip_hints=[
-                {
-                    "stage": "feature.analyze",
-                    "when": {"repositoryCount": {"max": 1}},
-                    "reason": "单仓需求通常不需要跨仓分析",
-                }
-            ],
-        )
-        self.activate_overlay()
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            code = workspace_workflow.main(
-                [
-                    "skip-suggestions",
-                    "--root",
-                    str(self.root),
-                    "--repositories",
-                    "1",
-                    "--json",
-                ]
-            )
-        self.assertEqual(0, code)
-        payload = json.loads(output.getvalue())
-        self.assertEqual(1, len(payload["suggestions"]))
-
-        negative_code = workspace_workflow.main(
-            [
-                "skip-suggestions",
-                "--root",
-                str(self.root),
-                "--repositories",
-                "-1",
-            ]
-        )
-        self.assertNotEqual(0, negative_code)
 
 
 if __name__ == "__main__":

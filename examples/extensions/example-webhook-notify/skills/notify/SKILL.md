@@ -4,7 +4,7 @@ name: notify
 
 # Example Webhook Notify
 
-`example-webhook-notify` 把当前 Workflow Stage 的上下文（workflow/run/stage/featureSlug/repository/branch）POST 到一个由 `WEBHOOK_URL` 环境变量指定的地址，纯标准库实现，不依赖任何具体通知渠道。
+`example-webhook-notify` 把当前 Workflow Stage 的上下文（workflow/run/stage/itemSlug/repository/branch）POST 到一个由 `WEBHOOK_URL` 环境变量指定的地址，纯标准库实现，不依赖任何具体通知渠道。
 
 ## 接入具体渠道
 
@@ -17,14 +17,14 @@ name: notify
 ```json
 {
   "id": "notify.on-implement",
-  "after": "feature.implement",
+  "after": "item.implement",
   "uses": "example-webhook-notify/notify",
   "trigger": "auto",
   "with": {}
 }
 ```
 
-同一个 Action 可以在多个锚点重复挂载（例如同时在 `feature.implement` 之后和 `feature.submit-test` 之后各挂一次），`trigger` 各自独立选择 `auto` 或 `manual`。
+同一个 Action 可以在多个锚点重复挂载（例如同时在 `item.implement` 之后和 `item.submit-test` 之后各挂一次），`trigger` 各自独立选择 `auto` 或 `manual`。
 
 ## 边界
 

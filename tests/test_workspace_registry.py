@@ -11,9 +11,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-import workspace_registry  # noqa: E402
+import workbench.workspace.registry as workspace_registry  # noqa: E402
 
 
 class WorkspaceRegistryTest(unittest.TestCase):
@@ -27,7 +27,7 @@ class WorkspaceRegistryTest(unittest.TestCase):
         (state / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 3, "minor": 0},
                     "workspace": {"name": "Demo Workspace"},
                     "context": {},
                     "branchPolicy": {"workBase": "trunk", "testTarget": "qa"},

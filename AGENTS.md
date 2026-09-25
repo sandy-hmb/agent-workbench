@@ -1,54 +1,29 @@
-# agent-workbench
+# agent-workbench 2
 
-本仓是可 clone、可快进更新的公共工作流模板，不是业务代码 monorepo；用户运行时状态只存在于被 Git 忽略的 `.workspace/`。
+本仓是公共工作流 Kit；业务仓保持独立。用户状态放在被忽略的 `.workspace/`；维护记录放在被忽略的 `docs/development/items/`。只支持新版配置和 WorkItem，不转换或覆盖旧数据。
 
-## 用户可见沟通
+## 协作与授权
 
-- 面向用户的进度、提问和总结跟随用户当前语言，默认使用中文；代码、命令、路径、API 标识、Provider 名称和错误原文保持原样，必要说明使用中文。
-- 用户可见消息只说明结果、下一步和必要决策，不复述内部规则。
+使用用户当前语言，默认中文。只讨论会改变范围、验收、关键方案或外部影响的未决项，提供建议。先完成实际草案和自审，再请用户审阅；格式、措辞、文件组织由 Agent 处理。
 
-## 先确认模式
+已批准范围持续覆盖实施、定向验证与修复，不因切换任务、Skill 或刷新哈希重复确认。外部环境、部署、远端 Git 或其他新增实际影响需核对授权。默认当前目录、单 Agent；worktree、并行、提交和推送必须在授权范围内。只修改本次明确目标仓，不丢弃用户改动。
 
-- 新任务先运行 `python3 scripts/workspace_status.py --root . --json`。
-- 不存在 `.workspace/workspace.json` 时，先按 status 的 `nextActions` 初始化工作区；私有维护记录存在时才位于被忽略的 `docs/development/features/<feature-slug>/`。
-- 存在 `.workspace/workspace.json` 时，先读取 `.workspace/AGENTS.md`、相关 `.workspace/docs/repositories/<repo>.md`、仓内规范和当前需求；标准需求位于 `.workspace/docs/features/<feature-slug>/`。
-- 根目录不保存工作区运行时状态；只使用 `.workspace/`。
-- 新会话先按 status 读取当前需求；展开任务后按 `instructionContext.rules` 的 kit → workspace → repository → scoped 顺序读取规则，越接近改动路径优先级越高且只能单调收窄。CONTEXT 与仓 profile 是事实轴，按需用 `status --context-sources` 定位；再读取规则入口明确索引的专项规范，首次编辑前完成。同会话可复用未变化内容，切换仓、路径或职责时补读。未知命令或参数才查 `--help`；调用面变化时运行 `python3 scripts/kit.py describe --json`。
-- 日常使用不读脚本源码或维护者记录；用户明确批准的公共 Kit 维护任务可定向读取当前 feature、相关实现及调用方。文档按 runbook 指针按需读取。
+## 入口
 
-## 工作边界
+已知需求直接 `python3 scripts/kit.py brief <slug> --json`；任务执行加 `--task T01`。未知目标才用 `kit.py status --json` 查看候选，不维护全局活动指针。执行前核对实际分支，不能自动切换。未知参数用 `--help`，能力变化用 `kit.py describe --json`。
 
-- Kit 与同一父目录下的业务仓都是独立 Git 仓。默认只读；只有本轮明确指定的仓可以写。
-- 未明确要求 worktree 时，默认在目标仓当前工作目录开发；分支批准不包含 worktree 操作。创建、删除、切换到或把代码迁移至其他 worktree 前，必须展示目标仓、分支或基线、目录和用途并取得明确确认。
-- 不自动 clone、提交、推送、合并、解决冲突或执行业务仓文档中的命令；确定性本地分支创建需工作树干净且目标唯一。
-- 用户明确请求范围内的代码、需求记录、`.workspace` 和离线验证不重复确认；clone、远端 Git、Provider、外部环境和未知命令仍需按副作用确认。
-- 同一计划内已授权的仓、环境、操作和重试范围持续有效，切换 Skill、阶段或任务不重复确认；新增环境、部署、数据范围、Extension 内容或其他实际影响时再核对。
-- `.workspace/`、`.agents/skills/local-*` 和 `.claude/skills/local-*` 都是本地状态；不加入 Git，不因公共更新而覆盖，删除前先备份。
+小改直接实施与定向验证；普通需求一次审阅 `change.md`，默认整体验证；重大需求分阶段审阅 Requirements、Design、Plan。跨仓本身不提高风险。调查、接手和修复从已有事实开始，不补造开发文档。
 
-## 需求门禁
+## 内容与状态
 
-先按活动与实际风险选流程：小改直接实施和定向验证，可不建需求目录；普通需求在 `change.md` 一次审阅目标、必要方案、工作项和验收后连续推进；重大需求分阶段审阅范围、关键方案和实施边界。资金或权限语义、破坏性契约、难回滚迁移等决定风险，跨仓、新接口或新依赖不单独升级。调查、评审和接手按实际目标推进，不补造原开发文档。
+Markdown 只保存内容；`state.json` 是生命周期、审批、任务和交付的唯一可变事实源。使用 Kit 写状态和证据，不手工改状态、README 或 Verification。任务使用 `### T01 标题`，同 WorkItem 内编号持续递增，不使用复选框。R/D 定义只维护一处，计划引用它们。
 
-新复杂需求按需使用根目录 `requirements.md`、`design.md`、`plan.md`，验证后生成 `verification.md`，机器证据仍在 `testing/evidence/`。旧 Feature 沿已有路径和原审批规则继续，不自动迁移。状态输出提供真实文档位置；同一角色的多份有效文档须先消除冲突。行为使用稳定 R 编号，关键设计使用 D 编号，正式计划任务使用 `- [ ] T01`，引用权威定义而不复制正文。
+`verify record` 校验并记录实际结果，自动更新完成事实和摘要。零执行、跳过目标检查或没有有效证据不能完成。记录通过、当前代码有效、部署和业务验收分别说明。没有部署事实就写未确认。状态已提交但摘要失败时重建摘要，不重复执行检查或外部动作。
 
-只讨论会实质改变结果的未决项，草案写完并自审后请用户审阅实际内容。批准范围不变时跨任务和阶段继续；实质变更只重审受影响内容，历史缺少审阅记录不推断批准。
-
-已知需求先用 `status --feature <slug>` 或 `brief <slug> --projection resume` 定向续接；宿主自行保留 slug，不依赖全局指针。执行前核对分支与现场，不自动切换。规划按 `currentStage`、`nextActions` 和 `confirmation.required` 推进；`executionDecision` 只用于实施任务，不阻止生成下一阶段草案。
-
-Requirements 维护当前完整规格与可验收行为；Design 保留完整方案和 D 决策，独立附件只展开细节。同一 Feature 后续变更保持原 slug，当前文档维护最新规格，已结束迭代按需归档。
-
-文件按需产生，不预建空文件。复杂契约按需写入 `references/api-contract.md`；有前端影响时按需交付 `artifacts/frontend-integration.md`，设计稿与实现核对版维护同一文件。纯交接说明、示例和环境更新不触发设计重审，契约变化仍回写 R/D。README 登记已生成文档及交付版本、提测、部署和外部验收状态；未知写“未确认”，不能从本地通过或 `testing` 推断已经部署。验证摘要由证据生成，保留实际验证范围和待外部验证清单；历史命名和证据不自动迁移。
-
-新计划使用 `task-evidence-v2` 且不依赖历史对话；旧 `task-evidence-v1` Feature 继续只读兼容。每项承接具体验收点，声明唯一目标仓、验证性质、文件或稳定符号、真实依赖、失败场景和通过条件。能独立实现、验证和接受的行为分任务，跨仓交付拆分并以契约连接；不按文件数、Case 数或固定分钟数机械拆分。只有可信完成才解锁依赖。
-
-默认按风险采用 TDD：行为变化先写最小失败测试，声明式变化使用最小有效检查，持久化变化覆盖真实结构或写入路径。目标测试缺失、零执行或跳过时不得完成。外部待验证项不阻塞无关本地任务，只有消费者必须使用其真实结果时才建立依赖。
-
-分支与基线以 `workspace_registry.py resolve <name> --json` 的 `effectiveBranchPolicy` 为准。创建分支前展示工作类型、实际基线和完整候选分支名，等待确认；不要猜测 owner、年份或分支层级。
+根、工作区、仓、目录规则按范围读取；同会话可复用未变内容。CONTEXT/profile 是事实来源。详细历史、日志与附件按需读取。
 
 ## Skill 路由
 
-`workspace-init` 初始化或接入仓；`workspace-repo-onboarding` 业务仓规范；`workspace-cross-repo-analysis` 跨仓分析；`workspace-feature-design` 需求与书面设计；`workspace-writing-plan` 实施计划；`workspace-execute-plan` 计划执行；`workspace-api-contract` 接口契约；`workspace-feature-workflow` 功能阶段扩展；`workspace-verify` 验证；`workspace-sync-base` 同步基线；`workspace-submit-test` 测试交付；`workspace-instruction` 分层规则；`workspace-extension` 本地 Extension；`workspace-update` 公共更新。
+初始化与接入：`workspace-init`、`workspace-repo-onboarding`；澄清设计：`workspace-item-design`；独立任务：`workspace-writing-plan`；实施：`workspace-execute-plan`；验证：`workspace-verify`；跨仓与接口：`workspace-cross-repo-analysis`、`workspace-api-contract`；提测和基线：`workspace-submit-test`、`workspace-sync-base`；扩展与更新：`workspace-extension`、`workspace-item-workflow`、`workspace-update`；规则维护：`workspace-instruction`。
 
-每个 Skill 只拥有其说明中列出的副作用。没有 Skill 发现能力时，把对应 `.agents/skills/<name>/SKILL.md` 当普通 runbook 读取；Provider 必须来自当前作用域唯一、已锁定的绑定。配置和 manifest 不得包含密码、令牌、私钥或带凭据地址。
-
-需求绑定的 SQL、DDL、DML、fixture 和其他交付物放在当前 feature 的 `artifacts/`（SQL 使用 `artifacts/sql/`），不要默认写入业务仓；正式数据库迁移和自动化测试必需 fixture 随对应业务仓版本化。扩展自行在其 SKILL.md 声明输出位置、文件归属与重跑方式，不预设扩展专用目录；未经本阶段确认不得改写需求、设计或计划正文。
+只读当前适用 Skill；无技能发现能力时直接读取 `.agents/skills/<name>/SKILL.md`。Extension 未启用不加载。账号、令牌、私钥不进入配置、证据或文档。需求交付物放 `artifacts/`；正式迁移和测试 fixture 随业务仓版本化。

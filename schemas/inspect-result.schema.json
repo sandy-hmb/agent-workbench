@@ -1,8 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Workbench Inspect v1",
-  "$comment": "先校验信封；非error时根据operation校验同名$defs。数据字段允许未来minor添加；rawRecord仅接受已声明记录字段。",
-  "$defs": {
+  "title": "Inspect 2 response",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "operation",
+    "status",
+    "observedAt",
+    "root",
+    "responseRevision",
+    "data",
+    "diagnostics"
+  ],
+  "properties": {
     "apiVersion": {
       "type": "object",
       "required": [
@@ -11,8 +21,7 @@
       ],
       "properties": {
         "major": {
-          "const": 1,
-          "type": "integer"
+          "const": 2
         },
         "minor": {
           "type": "integer"
@@ -20,2133 +29,8 @@
       },
       "additionalProperties": true
     },
-    "revision": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
-    },
-    "nullableRevision": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "pattern": "^sha256:[0-9a-f]{64}$"
-    },
-    "diagnostic": {
-      "type": "object",
-      "required": [
-        "code",
-        "severity",
-        "message",
-        "scope",
-        "subject",
-        "path",
-        "line",
-        "retryable"
-      ],
-      "properties": {
-        "code": {
-          "type": "string"
-        },
-        "severity": {
-          "enum": [
-            "info",
-            "warning",
-            "error"
-          ]
-        },
-        "message": {
-          "type": "string"
-        },
-        "scope": {
-          "type": "string"
-        },
-        "subject": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "path": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "line": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "retryable": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "documentDiagnostic": {
-      "type": "object",
-      "required": [
-        "code",
-        "severity",
-        "path",
-        "line",
-        "message"
-      ],
-      "properties": {
-        "code": {
-          "type": "string"
-        },
-        "severity": {
-          "type": "string"
-        },
-        "path": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "line": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "message": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "page": {
-      "type": "object",
-      "required": [
-        "offset",
-        "limit",
-        "total",
-        "hasMore"
-      ],
-      "properties": {
-        "offset": {
-          "type": "integer"
-        },
-        "limit": {
-          "type": "integer"
-        },
-        "total": {
-          "type": "integer"
-        },
-        "hasMore": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "counts": {
-      "type": "object",
-      "required": [
-        "parsed",
-        "diagnostics"
-      ],
-      "properties": {
-        "parsed": {
-          "type": "integer"
-        },
-        "diagnostics": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": {
-        "type": "integer"
-      }
-    },
-    "list": {
-      "type": "object",
-      "required": [
-        "items",
-        "counts",
-        "page"
-      ],
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
-        "counts": {
-          "$ref": "#/$defs/counts"
-        },
-        "page": {
-          "$ref": "#/$defs/page"
-        }
-      },
-      "additionalProperties": true
-    },
-    "policy": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "required": [
-        "workBase",
-        "testTarget",
-        "hotfixBase",
-        "namePattern"
-      ],
-      "properties": {
-        "workBase": {
-          "type": "string"
-        },
-        "testTarget": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "hotfixBase": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "namePattern": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "policySource": {
-      "type": "object",
-      "required": [
-        "source",
-        "path",
-        "pointer"
-      ],
-      "properties": {
-        "source": {
-          "enum": [
-            "kit-default",
-            "workspace",
-            "repository"
-          ]
-        },
-        "path": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pointer": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "repository": {
-      "type": "object",
-      "required": [
-        "id",
-        "role",
-        "absolutePath",
-        "aliases",
-        "category",
-        "description",
-        "availability",
-        "effectiveBranchPolicy",
-        "policySources"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "role": {
-          "enum": [
-            "kit",
-            "business"
-          ]
-        },
-        "absolutePath": {
-          "type": "string"
-        },
-        "aliases": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "category": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "availability": {
-          "enum": [
-            "present",
-            "missing",
-            "invalid"
-          ]
-        },
-        "effectiveBranchPolicy": {
-          "$ref": "#/$defs/policy"
-        },
-        "policySources": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/policySource"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "limits": {
-      "type": "object",
-      "required": [
-        "maxFileBytes",
-        "maxResponseBytes",
-        "maxPageSize",
-        "maxDirectoryEntries"
-      ],
-      "properties": {
-        "maxFileBytes": {
-          "type": "integer"
-        },
-        "maxResponseBytes": {
-          "type": "integer"
-        },
-        "maxPageSize": {
-          "type": "integer"
-        },
-        "maxDirectoryEntries": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "protocol": {
-      "type": "object",
-      "required": [
-        "apiVersion",
-        "kitVersion",
-        "operations",
-        "limits"
-      ],
-      "properties": {
-        "apiVersion": {
-          "$ref": "#/$defs/apiVersion"
-        },
-        "kitVersion": {
-          "type": "string"
-        },
-        "operations": {
-          "type": "array",
-          "items": {
-            "enum": [
-              "workspace",
-              "features",
-              "feature",
-              "projection",
-              "document",
-              "verification",
-              "handoff",
-              "search",
-              "workflow",
-              "runs",
-              "run"
-            ]
-          }
-        },
-        "limits": {
-          "$ref": "#/$defs/limits"
-        }
-      },
-      "additionalProperties": true
-    },
-    "localContext": {
-      "type": "object",
-      "required": [
-        "activeFeature",
-        "branchOwner",
-        "primaryRole",
-        "sources"
-      ],
-      "properties": {
-        "activeFeature": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "branchOwner": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "primaryRole": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sources": {
-          "type": "object",
-          "additionalProperties": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "configuration": {
-      "type": "object",
-      "required": [
-        "providers",
-        "repositoryOverrides",
-        "unknownExtensionConfig"
-      ],
-      "properties": {
-        "providers": {
-          "type": "object"
-        },
-        "repositoryOverrides": {
-          "type": "object"
-        },
-        "unknownExtensionConfig": {
-          "type": "object",
-          "required": [
-            "keys",
-            "valuesOmitted"
-          ],
-          "properties": {
-            "keys": {
-              "type": [
-                "array",
-                "object"
-              ]
-            },
-            "valuesOmitted": {
-              "const": true,
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": true
-    },
-    "workspace": {
-      "type": "object",
-      "required": [
-        "mode",
-        "identity",
-        "repositories",
-        "localContext",
-        "configuration",
-        "protocol"
-      ],
-      "properties": {
-        "mode": {
-          "enum": [
-            "maintenance",
-            "workspace"
-          ]
-        },
-        "identity": {
-          "type": "object",
-          "required": [
-            "name"
-          ],
-          "properties": {
-            "name": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": true
-        },
-        "repositories": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/repository"
-          }
-        },
-        "localContext": {
-          "$ref": "#/$defs/localContext"
-        },
-        "configuration": {
-          "$ref": "#/$defs/configuration"
-        },
-        "protocol": {
-          "$ref": "#/$defs/protocol"
-        }
-      },
-      "additionalProperties": true
-    },
-    "binding": {
-      "type": "object",
-      "required": [
-        "repository",
-        "workBranch",
-        "baseBranch",
-        "source"
-      ],
-      "properties": {
-        "repository": {
-          "type": "string"
-        },
-        "workBranch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "baseBranch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "source": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "planSummary": {
-      "type": "object",
-      "required": [
-        "exists",
-        "completed",
-        "total",
-        "diagnostics"
-      ],
-      "properties": {
-        "exists": {
-          "type": "boolean"
-        },
-        "completed": {
-          "type": "integer"
-        },
-        "total": {
-          "type": "integer"
-        },
-        "completionPolicy": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "trustedProgress": {
-          "$ref": "#/$defs/trustedProgress"
-        },
-        "diagnostics": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/documentDiagnostic"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "featureSummary": {
-      "type": "object",
-      "required": [
-        "slug",
-        "title",
-        "titleSource",
-        "status",
-        "path",
-        "lastUpdated",
-        "repositoryBindings",
-        "planSummary",
-        "documentReviews",
-        "verificationSummary"
-      ],
-      "properties": {
-        "slug": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "titleSource": {
-          "enum": [
-            "heading",
-            "slug"
-          ]
-        },
-        "status": {
-          "enum": [
-            "planning",
-            "development",
-            "testing",
-            "paused",
-            "done"
-          ]
-        },
-        "path": {
-          "type": "string"
-        },
-        "lastUpdated": {
-          "type": "string"
-        },
-        "repositoryBindings": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/binding"
-          }
-        },
-        "planSummary": {
-          "$ref": "#/$defs/planSummary"
-        },
-        "documentReviews": {
-          "type": "object",
-          "required": [
-            "requirements",
-            "design",
-            "plan"
-          ],
-          "properties": {
-            "requirements": {
-              "type": "string"
-            },
-            "design": {
-              "type": "string"
-            },
-            "plan": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": true
-        },
-        "verificationSummary": {
-          "type": "object",
-          "required": [
-            "exists",
-            "codeState"
-          ],
-          "properties": {
-            "exists": {
-              "type": "boolean"
-            },
-            "codeState": {
-              "enum": [
-                "not_checked"
-              ]
-            },
-            "recordedResult": {
-              "enum": [
-                "passed",
-                "failed",
-                "unknown"
-              ]
-            }
-          },
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": true
-    },
-    "features": {
-      "type": "object",
-      "required": [
-        "items",
-        "counts",
-        "page"
-      ],
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/featureSummary"
-          }
-        },
-        "counts": {
-          "$ref": "#/$defs/counts"
-        },
-        "page": {
-          "$ref": "#/$defs/page"
-        }
-      },
-      "additionalProperties": true
-    },
-    "location": {
-      "type": "object",
-      "required": [
-        "path",
-        "startLine",
-        "endLine"
-      ],
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "startLine": {
-          "type": "integer"
-        },
-        "endLine": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "trustedProgress": {
-      "type": "object",
-      "required": [
-        "applicable",
-        "completed",
-        "total"
-      ],
-      "properties": {
-        "applicable": {
-          "type": "boolean"
-        },
-        "completed": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "deliverable": {
-      "type": "object",
-      "required": [
-        "repository",
-        "kind",
-        "path",
-        "symbol",
-        "line"
-      ],
-      "properties": {
-        "repository": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "kind": {
-          "enum": [
-            "Create",
-            "Modify",
-            "Test",
-            "Delete",
-            "Verify"
-          ]
-        },
-        "path": {
-          "type": "string"
-        },
-        "symbol": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "line": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "taskEvidence": {
-      "type": "object",
-      "required": [
-        "taskId",
-        "trusted",
-        "source",
-        "diagnostics"
-      ],
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "trusted": {
-          "type": "boolean"
-        },
-        "source": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "properties": {
-            "path": {
-              "type": "string"
-            },
-            "startLine": {
-              "type": "integer"
-            },
-            "endLine": {
-              "type": "integer"
-            }
-          },
-          "additionalProperties": true
-        },
-        "diagnostics": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/documentDiagnostic"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "task": {
-      "type": "object",
-      "required": [
-        "id",
-        "title",
-        "completed",
-        "dependencies",
-        "references",
-        "startLine",
-        "endLine",
-        "path",
-        "revision"
-      ],
-      "properties": {
-        "id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "title": {
-          "type": "string"
-        },
-        "completed": {
-          "type": "boolean"
-        },
-        "repository": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "validationKind": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "enum": [
-            "行为",
-            "声明式",
-            "持久化",
-            null
-          ]
-        },
-        "deliverables": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/deliverable"
-          }
-        },
-        "trusted": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "evidenceSource": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "properties": {
-            "path": {
-              "type": "string"
-            },
-            "startLine": {
-              "type": "integer"
-            },
-            "endLine": {
-              "type": "integer"
-            }
-          },
-          "additionalProperties": true
-        },
-        "evidenceDiagnostics": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/documentDiagnostic"
-          }
-        },
-        "dependencies": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "references": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "startLine": {
-          "type": "integer"
-        },
-        "endLine": {
-          "type": "integer"
-        },
-        "path": {
-          "type": "string"
-        },
-        "revision": {
-          "$ref": "#/$defs/nullableRevision"
-        }
-      },
-      "additionalProperties": true
-    },
-    "file": {
-      "type": "object",
-      "required": [
-        "path",
-        "exists",
-        "type"
-      ],
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "exists": {
-          "type": "boolean"
-        },
-        "type": {
-          "type": "string"
-        },
-        "bytes": {
-          "type": "integer"
-        },
-        "revision": {
-          "$ref": "#/$defs/revision"
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "diagnostic": {
-          "$ref": "#/$defs/diagnostic"
-        }
-      },
-      "additionalProperties": true
-    },
-    "artifact": {
-      "type": "object",
-      "required": [
-        "path",
-        "type"
-      ],
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        },
-        "bytes": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "nextAction": {
-      "type": "object",
-      "required": [
-        "stage",
-        "runbook",
-        "reason",
-        "confirmation"
-      ],
-      "properties": {
-        "stage": {
-          "type": "string"
-        },
-        "runbook": {
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "confirmation": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "progression": {
-      "type": "object",
-      "required": [
-        "state",
-        "currentStage",
-        "nextActions",
-        "blockers"
-      ],
-      "properties": {
-        "state": {
-          "enum": [
-            "known",
-            "needs_code_check",
-            "historical"
-          ]
-        },
-        "currentStage": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "nextActions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/nextAction"
-          }
-        },
-        "blockers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "feature": {
-      "type": "object",
-      "required": [
-        "summary",
-        "tasks",
-        "files",
-        "artifacts",
-        "description",
-        "progression",
-        "featureRevision"
-      ],
-      "properties": {
-        "summary": {
-          "$ref": "#/$defs/featureSummary"
-        },
-        "tasks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/task"
-          }
-        },
-        "files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/file"
-          }
-        },
-        "artifacts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/artifact"
-          }
-        },
-        "description": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "required": [
-            "content",
-            "line",
-            "truncated"
-          ],
-          "properties": {
-            "content": {
-              "type": "string"
-            },
-            "line": {
-              "type": "integer"
-            },
-            "truncated": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": true
-        },
-        "progression": {
-          "$ref": "#/$defs/progression"
-        },
-        "featureRevision": {
-          "$ref": "#/$defs/revision"
-        }
-      },
-      "additionalProperties": true
-    },
-    "document": {
-      "type": "object",
-      "required": [
-        "slug",
-        "path",
-        "mediaType",
-        "revision",
-        "bytes",
-        "lineCount",
-        "content"
-      ],
-      "properties": {
-        "slug": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "mediaType": {
-          "type": "string"
-        },
-        "revision": {
-          "$ref": "#/$defs/revision"
-        },
-        "bytes": {
-          "type": "integer"
-        },
-        "lineCount": {
-          "type": "integer"
-        },
-        "content": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "batch": {
-      "type": "object",
-      "required": [
-        "id",
-        "recordedAt",
-        "source"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "recordedAt": {
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/location"
-        }
-      },
-      "additionalProperties": true
-    },
-    "check": {
-      "type": "object",
-      "required": [
-        "id",
-        "source",
-        "workingDirectory",
-        "command",
-        "exitStatus",
-        "result",
-        "duration",
-        "testCount"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/location"
-        },
-        "workingDirectory": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "command": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "exitStatus": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "result": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "duration": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "testCount": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "verificationIssue": {
-      "type": "object",
-      "required": [
-        "code",
-        "message",
-        "path",
-        "line"
-      ],
-      "properties": {
-        "code": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "line": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
-    "selectedBatch": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "required": [
-        "id",
-        "recordedAt",
-        "source",
-        "raw",
-        "recordedResult",
-        "recordedReview",
-        "completeness",
-        "issues",
-        "checks"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "recordedAt": {
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/location"
-        },
-        "raw": {
-          "type": "string"
-        },
-        "recordedResult": {
-          "enum": [
-            "passed",
-            "failed",
-            "unknown"
-          ]
-        },
-        "recordedReview": {
-          "enum": [
-            "passed",
-            "failed",
-            "unknown"
-          ]
-        },
-        "completeness": {
-          "enum": [
-            "complete",
-            "incomplete",
-            "legacy",
-            "missing"
-          ]
-        },
-        "issues": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/verificationIssue"
-          }
-        },
-        "checks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/check"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "repositoryState": {
-      "type": "object",
-      "required": [
-        "repository",
-        "state",
-        "reasonCodes",
-        "recordedFingerprint",
-        "currentFingerprint",
-        "currentHead",
-        "source"
-      ],
-      "properties": {
-        "repository": {
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "matched",
-            "changed",
-            "unknown",
-            "not_checked"
-          ]
-        },
-        "reasonCodes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "recordedFingerprint": {
-          "$ref": "#/$defs/nullableRevision"
-        },
-        "currentFingerprint": {
-          "$ref": "#/$defs/nullableRevision"
-        },
-        "currentHead": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "source": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "verification": {
-      "type": "object",
-      "required": [
-        "slug",
-        "featureRevision",
-        "documentRevision",
-        "batches",
-        "latestBatchId",
-        "selectedBatch",
-        "checkMode",
-        "repositoryStates",
-        "applicability",
-        "progression"
-      ],
-      "properties": {
-        "slug": {
-          "type": "string"
-        },
-        "featureRevision": {
-          "$ref": "#/$defs/revision"
-        },
-        "documentRevision": {
-          "$ref": "#/$defs/nullableRevision"
-        },
-        "batches": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/batch"
-          }
-        },
-        "latestBatchId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "selectedBatch": {
-          "$ref": "#/$defs/selectedBatch"
-        },
-        "taskEvidence": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/taskEvidence"
-          }
-        },
-        "checkMode": {
-          "enum": [
-            "records_only",
-            "code_checked"
-          ]
-        },
-        "repositoryStates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/repositoryState"
-          }
-        },
-        "applicability": {
-          "enum": [
-            "valid",
-            "invalid",
-            "unknown",
-            "not_checked",
-            "historical"
-          ]
-        },
-        "progression": {
-          "$ref": "#/$defs/progression"
-        }
-      },
-      "additionalProperties": true
-    },
-    "placement": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "required": [
-        "before",
-        "after"
-      ],
-      "properties": {
-        "before": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "after": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "stage": {
-      "type": "object",
-      "required": [
-        "id",
-        "core",
-        "optional",
-        "action",
-        "trigger",
-        "placement",
-        "title",
-        "source"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "core": {
-          "type": "boolean"
-        },
-        "optional": {
-          "type": "boolean"
-        },
-        "action": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "trigger": {
-          "type": "string"
-        },
-        "placement": {
-          "$ref": "#/$defs/placement"
-        },
-        "title": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "configuredStage": {
-      "type": "object",
-      "required": [
-        "id",
-        "action",
-        "trigger",
-        "placement"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "action": {
-          "type": "string"
-        },
-        "trigger": {
-          "type": "string"
-        },
-        "placement": {
-          "$ref": "#/$defs/placement"
-        }
-      },
-      "additionalProperties": true
-    },
-    "extensionAction": {
-      "type": "object",
-      "required": [
-        "id",
-        "title",
-        "effects"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "effects": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "extension": {
-      "type": "object",
-      "required": [
-        "id",
-        "declaredVersion",
-        "lockedVersion",
-        "activation",
-        "capabilities",
-        "actions",
-        "source",
-        "diagnostics"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "declaredVersion": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lockedVersion": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "activation": {
-          "enum": [
-            "inactive",
-            "matched",
-            "drifted",
-            "missing",
-            "unknown"
-          ]
-        },
-        "capabilities": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "actions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/extensionAction"
-          }
-        },
-        "source": {
-          "type": "string"
-        },
-        "diagnostics": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/diagnostic"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "workflow": {
-      "type": "object",
-      "required": [
-        "enabled",
-        "workflowId",
-        "configState",
-        "orderedStages",
-        "configuredStages",
-        "extensions",
-        "providerBindings"
-      ],
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "workflowId": {
-          "type": "string"
-        },
-        "configState": {
-          "enum": [
-            "missing",
-            "valid",
-            "invalid"
-          ]
-        },
-        "orderedStages": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "$ref": "#/$defs/stage"
-          }
-        },
-        "configuredStages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/configuredStage"
-          }
-        },
-        "extensions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/extension"
-          }
-        },
-        "providerBindings": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "runSummary": {
-      "type": "object",
-      "required": [
-        "id",
-        "workflow",
-        "featureSlug",
-        "repository",
-        "branch",
-        "updatedAt",
-        "source",
-        "recordCounts"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "workflow": {
-          "type": "string"
-        },
-        "featureSlug": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "repository": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "branch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "updatedAt": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "source": {
-          "type": "string"
-        },
-        "recordCounts": {
-          "type": "object",
-          "required": [
-            "total"
-          ],
-          "properties": {
-            "total": {
-              "type": "integer"
-            }
-          },
-          "additionalProperties": {
-            "type": "integer"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "runs": {
-      "type": "object",
-      "required": [
-        "items",
-        "counts",
-        "page"
-      ],
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/runSummary"
-          }
-        },
-        "counts": {
-          "$ref": "#/$defs/counts"
-        },
-        "page": {
-          "$ref": "#/$defs/page"
-        }
-      },
-      "additionalProperties": true
-    },
-    "rawStageRecord": {
-      "type": "object",
-      "required": [
-        "fingerprint",
-        "status",
-        "updatedAt",
-        "summary"
-      ],
-      "properties": {
-        "fingerprint": {
-          "$ref": "#/$defs/revision"
-        },
-        "status": {
-          "enum": [
-            "running",
-            "succeeded",
-            "failed",
-            "skipped"
-          ]
-        },
-        "updatedAt": {
-          "type": "string"
-        },
-        "summary": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "rawRun": {
-      "type": "object",
-      "required": [
-        "schemaVersion",
-        "id",
-        "workflow",
-        "featureSlug",
-        "repository",
-        "branch",
-        "stages"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": 1,
-          "type": "integer"
-        },
-        "id": {
-          "type": "string"
-        },
-        "workflow": {
-          "type": "string"
-        },
-        "featureSlug": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "repository": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "branch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "stages": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/rawStageRecord"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    "runRecord": {
-      "type": "object",
-      "required": [
-        "stage",
-        "fingerprint",
-        "status",
-        "updatedAt",
-        "summary",
-        "configurationMatch"
-      ],
-      "properties": {
-        "stage": {
-          "type": "string"
-        },
-        "fingerprint": {
-          "$ref": "#/$defs/revision"
-        },
-        "status": {
-          "enum": [
-            "running",
-            "succeeded",
-            "failed",
-            "skipped"
-          ]
-        },
-        "updatedAt": {
-          "type": "string"
-        },
-        "summary": {
-          "type": "string"
-        },
-        "configurationMatch": {
-          "type": "object",
-          "required": [
-            "state",
-            "reasonCodes"
-          ],
-          "properties": {
-            "state": {
-              "enum": [
-                "matched",
-                "changed",
-                "unknown",
-                "removed"
-              ]
-            },
-            "reasonCodes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": true
-    },
-    "handoffSource": {
-      "type": "object",
-      "required": ["kind", "path", "revision", "startLine", "endLine"],
-      "properties": {
-        "kind": {"enum": ["document", "rule", "verification"]},
-        "path": {"type": "string"},
-        "revision": {"$ref": "#/$defs/revision"},
-        "startLine": {"type": "integer"},
-        "endLine": {"type": "integer"},
-        "level": {"type": "integer"},
-        "scope": {"type": "string"},
-        "repository": {"type": "string"}
-      },
-      "additionalProperties": true
-    },
-    "handoffTask": {
-      "type": ["object", "null"],
-      "required": ["id", "title", "path", "startLine", "endLine", "dependencies", "references", "body", "referenceIds"],
-      "properties": {
-        "id": {"type": ["string", "null"]},
-        "title": {"type": "string"},
-        "path": {"type": "string"},
-        "startLine": {"type": "integer"},
-        "endLine": {"type": "integer"},
-        "dependencies": {"type": "array", "items": {"type": "string"}},
-        "references": {"type": "array", "items": {"type": "string"}},
-        "body": {"type": "string"},
-        "referenceIds": {"type": "array", "items": {"type": "string"}}
-      },
-      "additionalProperties": true
-    },
-    "handoff": {
-      "type": "object",
-      "required": ["slug", "title", "status", "documentReviews", "progression", "currentTask", "dependencies", "latestVerification", "sources", "content", "estimatedTokens", "featureRevision"],
-      "properties": {
-        "activity": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "taskExecution": {
-          "type": "object",
-          "required": [
-            "applicable",
-            "decision"
-          ],
-          "properties": {
-            "applicable": {
-              "type": "boolean"
-            },
-            "decision": {
-              "enum": [
-                "RUN",
-                "BLOCKED",
-                "COMPLETE",
-                null
-              ]
-            }
-          },
-          "additionalProperties": true
-        },
-        "verification": {
-          "type": "object",
-          "required": [
-            "recordedResult",
-            "applicability",
-            "checkMode",
-            "repositoryStates"
-          ],
-          "properties": {
-            "recordedResult": {
-              "enum": [
-                "passed",
-                "failed",
-                "blocked",
-                "unknown"
-              ]
-            },
-            "applicability": {
-              "type": "string"
-            },
-            "checkMode": {
-              "enum": [
-                "records_only",
-                "code_checked"
-              ]
-            },
-            "repositoryStates": {
-              "type": "array"
-            }
-          },
-          "additionalProperties": true
-        },
-        "repositoryContext": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
-        "slug": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "string"},
-        "documentReviews": {"type": "object"},
-        "progression": {"$ref": "#/$defs/progression"},
-        "currentTask": {"$ref": "#/$defs/handoffTask"},
-        "dependencies": {"type": "array", "items": {"type": "object"}},
-        "latestVerification": {"type": ["object", "null"]},
-        "sources": {"type": "array", "items": {"$ref": "#/$defs/handoffSource"}},
-        "content": {"type": "string"},
-        "estimatedTokens": {"type": "integer"},
-        "featureRevision": {"$ref": "#/$defs/revision"}
-      },
-      "additionalProperties": true
-    },
-    "searchItem": {
-      "type": "object",
-      "required": ["slug", "title", "status", "lastUpdated", "repositories", "path", "line", "heading", "snippet", "revision", "matchKind"],
-      "properties": {
-        "slug": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "string"},
-        "lastUpdated": {"type": "string"},
-        "repositories": {"type": "array", "items": {"type": "string"}},
-        "path": {"type": "string"},
-        "line": {"type": "integer"},
-        "heading": {"type": ["string", "null"]},
-        "snippet": {"type": "string"},
-        "revision": {"$ref": "#/$defs/revision"},
-        "matchKind": {"enum": ["title", "heading", "body"]}
-      },
-      "additionalProperties": true
-    },
-    "search": {
-      "type": "object",
-      "required": ["query", "items", "counts", "page"],
-      "properties": {
-        "query": {"type": "string"},
-        "items": {"type": "array", "items": {"$ref": "#/$defs/searchItem"}},
-        "counts": {"$ref": "#/$defs/counts"},
-        "page": {"$ref": "#/$defs/page"}
-      },
-      "additionalProperties": true
-    },
-    "actionAttempt": {
-      "type": "object",
-      "required": [
-        "requestId",
-        "run",
-        "stage",
-        "status",
-        "origin",
-        "updatedAt",
-        "summary"
-      ],
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "run": {
-          "type": "string"
-        },
-        "stage": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "running",
-            "succeeded",
-            "failed",
-            "unknown",
-            "skipped"
-          ]
-        },
-        "origin": {
-          "enum": [
-            "runner",
-            "reconciled"
-          ]
-        },
-        "updatedAt": {
-          "type": "string"
-        },
-        "summary": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "run": {
-      "type": "object",
-      "required": [
-        "id",
-        "workflow",
-        "featureSlug",
-        "repository",
-        "branch",
-        "records",
-        "source",
-        "sourceRevision",
-        "rawRecord"
-      ],
-      "properties": {
-        "attempts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/actionAttempt"
-          }
-        },
-        "id": {
-          "type": "string"
-        },
-        "workflow": {
-          "type": "string"
-        },
-        "featureSlug": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "repository": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "branch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/runRecord"
-          }
-        },
-        "source": {
-          "type": "string"
-        },
-        "sourceRevision": {
-          "$ref": "#/$defs/revision"
-        },
-        "rawRecord": {
-          "$ref": "#/$defs/rawRun"
-        }
-      },
-      "additionalProperties": true
-    }
-  },
-  "type": "object",
-  "required": [
-    "apiVersion",
-    "operation",
-    "status",
-    "observedAt",
-    "root",
-    "revision",
-    "data",
-    "diagnostics"
-  ],
-  "properties": {
-    "apiVersion": {
-      "$ref": "#/$defs/apiVersion"
-    },
     "operation": {
-      "enum": [
-        "workspace",
-        "features",
-        "feature",
-        "projection",
-        "document",
-        "verification",
-        "handoff",
-        "search",
-        "workflow",
-        "runs",
-        "run",
-        null
-      ]
+      "type": "string"
     },
     "status": {
       "enum": [
@@ -2164,9 +48,6 @@
         "null"
       ]
     },
-    "revision": {
-      "$ref": "#/$defs/nullableRevision"
-    },
     "data": {
       "type": [
         "object",
@@ -2174,11 +55,358 @@
       ]
     },
     "diagnostics": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/diagnostic"
-      }
+      "type": "array"
+    },
+    "responseRevision": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "$defs": {
+    "workspace": {
+      "type": "object",
+      "required": [
+        "mode",
+        "identity",
+        "repositories",
+        "protocol"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "items": {
+      "type": "object",
+      "required": [
+        "items",
+        "page"
+      ],
+      "properties": {
+        "items": {
+          "type": "array"
+        },
+        "page": {
+          "type": "object",
+          "required": [
+            "offset",
+            "limit",
+            "total",
+            "hasMore"
+          ],
+          "properties": {
+            "offset": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            },
+            "total": {
+              "type": "integer"
+            },
+            "hasMore": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "projection": {
+      "type": "object",
+      "required": [
+        "view",
+        "slug",
+        "stateRevision"
+      ],
+      "properties": {
+        "view": {
+          "enum": [
+            "summary",
+            "task",
+            "change",
+            "flow"
+          ]
+        },
+        "summary": {
+          "type": "object",
+          "required": [
+            "slug",
+            "status",
+            "stateRevision",
+            "progress",
+            "reviews",
+            "verification",
+            "documents"
+          ],
+          "properties": {
+            "slug": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "paused",
+                "done",
+                "cancelled"
+              ]
+            },
+            "progress": {
+              "type": "object",
+              "required": [
+                "completed",
+                "total"
+              ],
+              "properties": {
+                "completed": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": true
+            },
+            "documents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "role",
+                  "path",
+                  "documentRevision"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "documentRevision": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "tasks": {
+          "type": "array"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "role",
+              "path",
+              "documentRevision"
+            ],
+            "properties": {
+              "role": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "documentRevision": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "document": {
+      "type": "object",
+      "required": [
+        "slug",
+        "path",
+        "documentRevision",
+        "content",
+        "bytes",
+        "lineCount"
+      ],
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "lineCount": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "slug",
+        "stateRevision",
+        "recordedResult",
+        "applicability",
+        "repositoryStates",
+        "record"
+      ],
+      "properties": {
+        "recordedResult": {
+          "enum": [
+            "passed",
+            "failed",
+            "blocked",
+            "unknown"
+          ]
+        },
+        "applicability": {
+          "enum": [
+            "not_checked",
+            "missing",
+            "valid",
+            "invalid",
+            "unknown"
+          ]
+        },
+        "record": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "handoff": {
+      "type": "object",
+      "required": [
+        "slug",
+        "content",
+        "estimatedTokens",
+        "sources",
+        "stateRevision",
+        "progression"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "search": {
+      "type": "object",
+      "required": [
+        "query",
+        "items",
+        "page"
+      ],
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array"
+        },
+        "page": {
+          "type": "object",
+          "required": [
+            "offset",
+            "limit",
+            "total",
+            "hasMore"
+          ],
+          "properties": {
+            "offset": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            },
+            "total": {
+              "type": "integer"
+            },
+            "hasMore": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "configState",
+        "extensions"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "runs": {
+      "type": "object",
+      "required": [
+        "items",
+        "page"
+      ],
+      "properties": {
+        "items": {
+          "type": "array"
+        },
+        "page": {
+          "type": "object",
+          "required": [
+            "offset",
+            "limit",
+            "total",
+            "hasMore"
+          ],
+          "properties": {
+            "offset": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            },
+            "total": {
+              "type": "integer"
+            },
+            "hasMore": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "run": {
+      "type": "object",
+      "required": [
+        "id",
+        "records",
+        "attempts"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "id",
+        "schemaVersion",
+        "itemSlug",
+        "scope",
+        "result",
+        "checks"
+      ],
+      "properties": {},
+      "additionalProperties": true
+    }
+  }
 }

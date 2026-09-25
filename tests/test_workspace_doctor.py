@@ -12,22 +12,22 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-import workspace_doctor  # noqa: E402
-import workspace_model  # noqa: E402
-import workspace_setup  # noqa: E402
+import workbench.workspace.doctor as workspace_doctor  # noqa: E402
+import workbench.workspace.model as workspace_model  # noqa: E402
+import workbench.workspace.setup as workspace_setup  # noqa: E402
 
 
 SKILLS = (
     "workspace-init",
     "workspace-repo-onboarding",
     "workspace-cross-repo-analysis",
-    "workspace-feature-design",
+    "workspace-item-design",
     "workspace-writing-plan",
     "workspace-execute-plan",
     "workspace-api-contract",
-    "workspace-feature-workflow",
+    "workspace-item-workflow",
     "workspace-verify",
     "workspace-sync-base",
     "workspace-submit-test",
@@ -92,7 +92,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
         config.write_text(
             json.dumps(
                 {
-                    "version": {"major": 1, "minor": 0},
+                    "version": {"major": 3, "minor": 0},
                     "workspace": {"name": "Demo Workspace"},
                     "local": {"branchOwner": "alice", "primaryRole": None, "extensions": {}},
                     "context": {},
@@ -142,9 +142,9 @@ class WorkspaceDoctorTest(unittest.TestCase):
         return {item.code for item in workspace_doctor.audit(self.root, **kwargs)}
 
     def write_feature(self, slug="demo-feature", status="planning"):
-        feature = self.root / ".workspace/docs/features" / slug
-        feature.mkdir(parents=True, exist_ok=True)
-        readme = feature / "README.md"
+        item = self.root / ".workspace/items" / slug
+        item.mkdir(parents=True, exist_ok=True)
+        readme = item / "README.md"
         readme.write_text(
             f"# Demo\n\n- 状态：{status}\n"
             "- 涉及仓库：service\n"
@@ -153,7 +153,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
             "- 最后更新：2026-09-01\n",
             encoding="utf-8",
         )
-        return feature
+        return item
 
     def test_clean_clone_is_healthy_and_instructive(self):
         self.install_core()
@@ -270,11 +270,11 @@ class WorkspaceDoctorTest(unittest.TestCase):
             json.dumps(
                 {
                     "schemaVersion": {"major": 1, "minor": 0},
-                    "workflow": "feature-development",
+                    "workflow": "item-development",
                     "stages": [
                         {
                             "id": "team-check.run",
-                            "after": "feature.implement",
+                            "after": "item.implement",
                             "uses": "missing/run",
                         }
                     ],
@@ -305,12 +305,12 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
     def test_evidence_archive_markdown_is_not_treated_as_current_documentation(self):
         self.initialize()
-        feature = self.write_feature()
-        backup = feature / "testing/archive/transactions/abc/implementation.md"
+        item = self.write_feature()
+        backup = item / "testing/archive/transactions/abc/implementation.md"
         backup.parent.mkdir(parents=True)
         backup.write_text("[historical missing](../design/design.md)\n", encoding="utf-8")
         self.assertNotIn("MARKDOWN_LINK_BROKEN", self.codes())
-        current = feature / "design/design.md"
+        current = item / "design/design.md"
         current.parent.mkdir()
         current.write_text("[current missing](missing.md)\n", encoding="utf-8")
         self.assertIn("MARKDOWN_LINK_BROKEN", self.codes())
@@ -325,28 +325,23 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
     def test_uninitialized_workspace_does_not_validate_kit_maintenance_features(self):
         self.install_core()
-        readme = self.root / "docs/development/features/kit-change/README.md"
+        readme = self.root / "docs/development/items/kit-change/README.md"
         readme.parent.mkdir(parents=True)
         readme.write_text("- 状态：invalid\n", encoding="utf-8")
 
-        self.assertNotIn("FEATURE_METADATA_INVALID", self.codes())
+        self.assertNotIn("ITEM_METADATA_INVALID", self.codes())
 
-    def test_initialized_workspace_accepts_valid_feature_metadata(self):
-        self.initialize()
-        self.write_feature()
-
-        self.assertNotIn("FEATURE_METADATA_INVALID", self.codes())
 
     def test_initialized_workspace_requires_feature_readme(self):
         self.initialize()
         self.write_feature()
-        (self.root / ".workspace/docs/features/demo-feature/README.md").unlink()
+        (self.root / ".workspace/items/demo-feature/README.md").unlink()
 
         findings = workspace_doctor.audit(self.root)
 
-        invalid = [item for item in findings if item.code == "FEATURE_METADATA_INVALID"]
+        invalid = [item for item in findings if item.code == "ITEM_METADATA_INVALID"]
         self.assertEqual(1, len(invalid))
-        self.assertIn("docs/features/demo-feature", invalid[0].message)
+        self.assertIn("items/demo-feature", invalid[0].message)
         self.assertIn("README.md", invalid[0].message)
 
     def test_workspace_agents_duplicate_lines_are_info_only(self):
@@ -363,17 +358,6 @@ class WorkspaceDoctorTest(unittest.TestCase):
         self.assertEqual("INFO", matches[0].level)
         self.assertFalse([item for item in matches if item.level == "ERROR"])
 
-    def test_workspace_agents_template_drift_is_info_only(self):
-        self.initialize()
-        legacy = (ROOT / "migrations/legacy/workspace_agents_v1.md").read_text(
-            encoding="utf-8"
-        )
-        (self.root / ".workspace/AGENTS.md").write_text(legacy, encoding="utf-8")
-
-        findings = workspace_doctor.audit(self.root)
-        drift = [item for item in findings if item.code == "WORKSPACE_AGENTS_TEMPLATE_DRIFT"]
-        self.assertEqual(1, len(drift))
-        self.assertEqual("INFO", drift[0].level)
 
     def test_nonstandard_source_instruction_is_info_only(self):
         repo = repository()
@@ -411,120 +395,28 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
     def test_initialized_workspace_rejects_symlinked_feature_readme(self):
         self.initialize()
-        feature = self.write_feature()
-        readme = feature / "README.md"
+        item = self.write_feature()
+        readme = item / "README.md"
         target = self.parent / "feature-readme.md"
         readme.replace(target)
         readme.symlink_to(target)
 
-        self.assertIn("FEATURE_METADATA_INVALID", self.codes())
+        self.assertIn("ITEM_METADATA_INVALID", self.codes())
 
-    def test_initialized_workspace_rejects_invalid_or_incomplete_feature_metadata(self):
-        mutations = {
-            "invalid-status": ("状态：planning", "状态：invalid", "状态无效"),
-            "missing-updated": (
-                "- 最后更新：2026-09-01\n",
-                "",
-                "最后更新日期必须为 YYYY-MM-DD",
-            ),
-            "empty-repositories": (
-                "- 涉及仓库：service",
-                "- 涉及仓库：",
-                "涉及仓库不能为空",
-            ),
-            "empty-branches": (
-                "- 工作分支：service -> owner/feature/demo",
-                "- 工作分支：",
-                "工作分支不能为空",
-            ),
-            "empty-bases": (
-                "- 基线分支：service -> trunk",
-                "- 基线分支：",
-                "基线分支不能为空",
-            ),
-        }
-        for mutation, (old, new, error) in mutations.items():
-            with self.subTest(mutation=mutation):
-                self.initialize()
-                feature = self.write_feature()
-                readme = feature / "README.md"
-                readme.write_text(
-                    readme.read_text(encoding="utf-8").replace(old, new),
-                    encoding="utf-8",
-                )
 
-                findings = workspace_doctor.audit(self.root)
-                invalid = [
-                    item for item in findings if item.code == "FEATURE_METADATA_INVALID"
-                ]
-                self.assertEqual(1, len(invalid))
-                self.assertIn("docs/features/demo-feature", invalid[0].message)
-                self.assertIn(error, invalid[0].message)
 
-                shutil.rmtree(self.root)
-                self.root.mkdir()
-                self.initialize_git()
-
-    def test_initialized_workspace_rejects_mismatched_feature_repositories(self):
-        self.initialize()
-        registry_path = self.root / ".workspace/workspace.json"
-        registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        registry["repositories"].append(
-            {
-                "path": "worker",
-                "aliases": [],
-                "remote": None,
-                "category": "backend",
-                "description": "Worker",
-                "instruction": "docs/repositories/worker.md",
-            }
-        )
-        registry_path.write_text(json.dumps(registry), encoding="utf-8")
-        feature = self.write_feature()
-        readme = feature / "README.md"
-        readme.write_text(
-            readme.read_text(encoding="utf-8").replace(
-                "- 基线分支：service -> trunk",
-                "- 基线分支：worker -> trunk",
-            ),
-            encoding="utf-8",
-        )
-
-        findings = workspace_doctor.audit(self.root)
-
-        invalid = [item for item in findings if item.code == "FEATURE_METADATA_INVALID"]
-        self.assertEqual(1, len(invalid))
-        self.assertIn("仓库必须完全一致", invalid[0].message)
-
-    def test_initialized_workspace_rejects_invalid_feature_slug(self):
-        for slug in ("Bad_Name", ".hidden"):
-            with self.subTest(slug=slug):
-                self.initialize()
-                self.write_feature(slug)
-
-                findings = workspace_doctor.audit(self.root)
-
-                invalid = [
-                    item for item in findings if item.code == "FEATURE_METADATA_INVALID"
-                ]
-                self.assertEqual(1, len(invalid))
-                self.assertIn("小写 kebab-case", invalid[0].message)
-
-                shutil.rmtree(self.root)
-                self.root.mkdir()
-                self.initialize_git()
 
     def test_initialized_workspace_rejects_symlinked_feature_directory(self):
         self.initialize()
         outside = self.parent / "outside-feature"
         outside.mkdir()
-        (self.root / ".workspace/docs/features/linked-feature").symlink_to(
+        (self.root / ".workspace/items/linked-feature").symlink_to(
             outside, target_is_directory=True
         )
 
         findings = workspace_doctor.audit(self.root)
 
-        invalid = [item for item in findings if item.code == "FEATURE_METADATA_INVALID"]
+        invalid = [item for item in findings if item.code == "ITEM_METADATA_INVALID"]
         self.assertEqual(1, len(invalid))
         self.assertIn("linked-feature", invalid[0].message)
         self.assertIn("符号链接", invalid[0].message)

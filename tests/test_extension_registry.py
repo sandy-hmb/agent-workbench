@@ -3,7 +3,7 @@ import json, tempfile, unittest
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from extension_registry import ExtensionError, discover_extensions, normalize_workspace_extensions
+from workbench.extensions.registry import ExtensionError, discover_extensions, normalize_workspace_extensions
 
 class ExtensionRegistryTest(unittest.TestCase):
     def test_discovery_missing_and_duplicate(self):

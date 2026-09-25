@@ -15,10 +15,10 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-import workspace_setup  # noqa: E402
-import workspace_model  # noqa: E402
+import workbench.workspace.setup as workspace_setup  # noqa: E402
+import workbench.workspace.model as workspace_model  # noqa: E402
 
 
 def repository(path="service", remote="https://example.test/service.git", **overrides):
@@ -36,7 +36,7 @@ def repository(path="service", remote="https://example.test/service.git", **over
 
 def config(path: Path, repositories, **overrides):
     value = {
-        "version": {"major": 1, "minor": 0},
+        "version": {"major": 3, "minor": 0},
         "workspace": {"name": "Demo Workspace"},
         "local": {"branchOwner": "alice", "primaryRole": None, "extensions": {}},
         "context": {},
@@ -389,10 +389,10 @@ class WorkspaceSetupTest(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual("init", first["operation"])
         self.assertEqual(
-            [".workspace/extensions/.state/cache/", ".workspace/docs/features/", ".workspace/extensions/"],
+            [".workspace/extensions/.state/cache/", ".workspace/items/", ".workspace/extensions/"],
             first["directories"],
         )
-        self.assertEqual([".workspace/docs/features/"], first["preservedPaths"])
+        self.assertEqual([".workspace/items/"], first["preservedPaths"])
         self.assertEqual(
             [
                 ".workspace/AGENTS.md",
@@ -439,7 +439,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         expected_command = shlex.join(
             [
                 "python3",
-                "scripts/workspace_setup.py",
+                "scripts/kit.py", "setup",
                 "init",
                 "apply",
                 "--config",
@@ -535,7 +535,7 @@ class WorkspaceSetupTest(unittest.TestCase):
                 ),
             )
         self.assertTrue((self.root / ".workspace/workspace.json").is_file())
-        self.assertTrue((self.root / ".workspace/docs/features").is_dir())
+        self.assertTrue((self.root / ".workspace/items").is_dir())
 
     def test_json_error_uses_stderr_and_leaves_stdout_empty(self):
         source = self.root / "bad.json"
@@ -604,9 +604,9 @@ class WorkspaceSetupTest(unittest.TestCase):
         existing_profile = (self.root / ".workspace/docs/repositories/service.md").read_bytes()
         existing_agents = (self.root / ".workspace/AGENTS.md").read_bytes()
         existing_local = (self.root / ".workspace/workspace.local.json").read_bytes()
-        feature = self.root / ".workspace/docs/features/demo/README.md"
-        feature.parent.mkdir()
-        feature.write_text("feature\n", encoding="utf-8")
+        item = self.root / ".workspace/items/demo/README.md"
+        item.parent.mkdir()
+        item.write_text("feature\n", encoding="utf-8")
 
         addition = config(
             self.root / "add.json",
@@ -624,7 +624,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         self.assertEqual(existing_profile, (self.root / ".workspace/docs/repositories/service.md").read_bytes())
         self.assertEqual(existing_agents, (self.root / ".workspace/AGENTS.md").read_bytes())
         self.assertEqual(existing_local, (self.root / ".workspace/workspace.local.json").read_bytes())
-        self.assertEqual("feature\n", feature.read_text(encoding="utf-8"))
+        self.assertEqual("feature\n", item.read_text(encoding="utf-8"))
         self.assertIn("trunk", (self.root / ".workspace/docs/repositories/web.md").read_text(encoding="utf-8"))
 
     def test_add_repo_explicit_primary_role_values_must_match_without_writes(self):
@@ -844,7 +844,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         preview_hash = self.preview("init", source)["previewHash"]
         stderr = io.StringIO()
         with mock.patch(
-            "workspace_setup._git_status", side_effect=("", "?? unexpected\n")
+            "workbench.workspace.setup._git_status", side_effect=("", "?? unexpected\n")
         ), contextlib.redirect_stderr(stderr):
             self.assertEqual(
                 1,
@@ -867,7 +867,7 @@ class WorkspaceSetupTest(unittest.TestCase):
             "workspace.local.json",
             "extensions/.state/lock.json",
             "docs/repositories/service.md",
-            "docs/features",
+            "items",
             "extensions",
             "extensions/.state/cache",
         ):
@@ -965,7 +965,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         self.assertEqual("owned\n", profile.read_text(encoding="utf-8"))
         self.assertFalse((self.root / ".workspace/workspace.json").exists())
         self.assertFalse((self.root / ".workspace/CONTEXT.md").exists())
-        self.assertFalse((self.root / ".workspace/docs/features").exists())
+        self.assertFalse((self.root / ".workspace/items").exists())
 
     def test_preview_and_apply_preflight_parent_types_before_any_write(self):
         source = config(self.root / "init.json", [repository()])
@@ -989,7 +989,7 @@ class WorkspaceSetupTest(unittest.TestCase):
             self.assertEqual(before, snapshot(self.root))
         self.assertFalse((self.root / ".workspace/workspace.json").exists())
         self.assertFalse((self.root / ".workspace/CONTEXT.md").exists())
-        self.assertFalse((docs / "features").exists())
+        self.assertFalse((docs / "items").exists())
 
     def test_add_repo_plan_and_clone_are_offline_and_do_not_register(self):
         initial = config(self.root / "init.json", [repository()])
@@ -1029,7 +1029,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         source = config(self.root / "init.json", [repository()])
         preview_hash = self.preview("init", source)["previewHash"]
         with mock.patch(
-            "workspace_setup.atomic_write_many",
+            "workbench.workspace.setup.atomic_write_many",
             side_effect=OSError("injected atomic failure"),
         ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(
@@ -1052,7 +1052,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         docs = self.root / "docs"
         docs.mkdir()
         with mock.patch(
-            "workspace_setup.atomic_write_many",
+            "workbench.workspace.setup.atomic_write_many",
             side_effect=OSError("injected atomic failure"),
         ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(
@@ -1070,7 +1070,7 @@ class WorkspaceSetupTest(unittest.TestCase):
             )
         self.assertTrue(docs.is_dir())
         self.assertFalse((docs / "repositories").exists())
-        self.assertFalse((docs / "features").exists())
+        self.assertFalse((docs / "items").exists())
 
     def test_remote_null_stops_every_stateful_action_without_writes(self):
         source = config(self.root / "input.json", [repository(remote=None)])
