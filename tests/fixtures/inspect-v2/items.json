@@ -18,8 +18,8 @@
         "riskTier": "normal",
         "activity": "develop",
         "path": "docs/development/items/demo",
-        "stateRevision": "sha256:b9d7c0b09ec5566abbede74103a9b45236edc19028fe529ba44a13bdbce29815",
-        "updatedAt": "2026-09-25T07:10:58.743264+00:00",
+        "stateRevision": "sha256:d6a574b300c3964b42fd67efebd54ac7947a4814caad21fa677797fe38a92bb0",
+        "updatedAt": "2026-09-25T07:22:55.408563+00:00",
         "repositoryBindings": [
           {
             "baseBranch": "main",
@@ -35,7 +35,7 @@
         "cancellation": null,
         "openBlockerCount": 0,
         "verification": {
-          "evidenceId": "sha256:30d89010ee1599efb550cbc62f1ac2f4f4d2e96c3b9d31f63b4f78606eb1f7d3",
+          "evidenceId": "sha256:89237d5a5d78fc647b4346b4a74d3dd1f0d58437acc871f886927e70de44bae8",
           "recordedResult": "passed",
           "applicability": "not_checked"
         }
@@ -44,7 +44,7 @@
     "counts": {
       "total": 1
     },
-    "collectionRevision": "sha256:c4dccbd879f72d9a8d87e4b44f9203fa87ef7a27028b7ad9043189d2898bc32a",
+    "collectionRevision": "sha256:e9483b480520aed8ea7ab196164d6a579151adaa7f40031060b432b8faf65691",
     "page": {
       "offset": 0,
       "limit": 20,
@@ -52,5 +52,5 @@
       "hasMore": false
     }
   },
-  "responseRevision": "sha256:d1d2976d81a712edabe92f4bbf31bb15d085dc7ffe59cc39a953006d3b068ed6"
+  "responseRevision": "sha256:44c14d0b32166a9c35e793517c4591ba03ca570e0134ac659ad8a4bbd2255744"
 }

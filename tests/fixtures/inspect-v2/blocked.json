@@ -11,7 +11,7 @@
   "data": {
     "view": "task",
     "slug": "demo",
-    "stateRevision": "sha256:a302f25c7803b4145278dc6ed3f5b9a988b41a96b87a8e5cb22ad7f1036f12cb",
+    "stateRevision": "sha256:3be96566d9ad55fdb9312592e3e4ce051865178a587cd453e876009b7236582f",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:a302f25c7803b4145278dc6ed3f5b9a988b41a96b87a8e5cb22ad7f1036f12cb",
-      "updatedAt": "2026-09-25T07:10:59.533417+00:00",
+      "stateRevision": "sha256:3be96566d9ad55fdb9312592e3e4ce051865178a587cd453e876009b7236582f",
+      "updatedAt": "2026-09-25T07:22:56.257695+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -40,7 +40,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:30d89010ee1599efb550cbc62f1ac2f4f4d2e96c3b9d31f63b4f78606eb1f7d3",
+        "evidenceId": "sha256:89237d5a5d78fc647b4346b4a74d3dd1f0d58437acc871f886927e70de44bae8",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -77,10 +77,10 @@
         }
       ],
       "artifactSummary": {
-        "total": 0,
-        "readable": 0,
+        "total": 1,
+        "readable": 1,
         "unreadable": 0,
-        "collectionRevision": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        "collectionRevision": "sha256:9f3997b29dc271080cf06d32f0aee006082c23bf9e7d0962b7784617ecf82b98"
       },
       "delivery": {},
       "executionBlockers": [
@@ -89,7 +89,7 @@
           "id": "B01",
           "owner": "测试负责人",
           "reason": "等待验收环境",
-          "recordedAt": "2026-09-25T07:10:59.533402+00:00",
+          "recordedAt": "2026-09-25T07:22:56.257672+00:00",
           "resolution": null,
           "status": "open",
           "taskIds": []
@@ -180,12 +180,12 @@
           }
         ],
         "status": "completed",
-        "evidenceId": "sha256:b2227ea9ce62dfa0c3ef3f92be8926b112e86e16764ca2e1772b552725bf7f69",
+        "evidenceId": "sha256:000ebbd45c30701660f28d793105827584b0fa2a241c0491ed9bbafc1d328f7f",
         "completed": true,
         "waitingFor": [],
         "executionBlocked": true
       }
     ]
   },
-  "responseRevision": "sha256:6dfc4ce90fa6ab521ff43ae4541f4c9d0fe12a9707284061539ad2c2c5992b1b"
+  "responseRevision": "sha256:6e02393c36690a953371b55d511ecb29d70762387fde1a6a6055bf367f5ffadb"
 }

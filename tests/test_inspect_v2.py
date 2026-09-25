@@ -127,9 +127,11 @@ def generate():
     case=InspectV2Test();case.setUp()
     try:
         case.fixture.plan();case.fixture.review();case.fixture.record('T01');case.fixture.record()
+        artifact = case.fixture.item / 'artifacts' / 'report.json'; artifact.parent.mkdir(); artifact.write_text('{"fixture": true}\n')
         requests={'workspace':['workspace'],'items':['items'],'task':['projection','demo','--view','task'],
                   'summary':['projection','demo','--view','summary'],'change':['projection','demo','--view','change'],
                   'flow':['projection','demo','--view','flow'],'document':['document','demo','--path','change.md'],
+                  'artifacts':['artifacts','demo'],
                   'verification':['verification','demo'],'handoff':['handoff','demo'],'search':['search','--query','Demo'],
                   'workflow':['workflow'],'runs':['runs']}
         destination=ROOT/'tests/fixtures/inspect-v2';destination.mkdir(exist_ok=True)

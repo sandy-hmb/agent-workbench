@@ -707,7 +707,7 @@ def apply(root: Path, operation: str, config: Path | None, expected_hash: str) -
         _require_managed_state_ignored(root, outputs, directories_required)
         if _git_status(root) != before:
             raise WorkspaceError("init apply 后治理仓 Git 状态发生变化")
-    print("初始化完成" if operation == "init" else "新增仓库登记完成")
+    print("初始化完成" if operation == "init" else "生成视图已刷新" if operation == "refresh" else "新增仓库登记完成")
     return 0
 
 

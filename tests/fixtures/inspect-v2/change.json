@@ -11,7 +11,7 @@
   "data": {
     "view": "change",
     "slug": "demo",
-    "stateRevision": "sha256:b9d7c0b09ec5566abbede74103a9b45236edc19028fe529ba44a13bdbce29815",
+    "stateRevision": "sha256:d6a574b300c3964b42fd67efebd54ac7947a4814caad21fa677797fe38a92bb0",
     "repositories": [
       {
         "baseBranch": "main",
@@ -25,5 +25,5 @@
       "source": "item-bindings"
     }
   },
-  "responseRevision": "sha256:fa0ea1fbf170a6ad1bd5c7ba88fd880a69623bd5b32b5c3a80f08bd1b6cf9b0b"
+  "responseRevision": "sha256:5d1f05362bde018ae15d1e76bce54c5e7ff0015a902f4ec437c9ccbad98741be"
 }

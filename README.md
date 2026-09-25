@@ -1,8 +1,8 @@
-# agent-workbench 2.0
+# agent-workbench 2.2
 
 面向本地编码 Agent 的多仓开发工作流工具。它把仓库上下文、需求记录、离线验证和可选本地 Extension 放在同一套可检查的约定中，而每个业务仓仍是独立 Git 仓。
 
-2.0 仅支持新工作区配置（major 3）和 Inspect 2；配套 IntelliJ 插件为 1.0。旧本地数据保留原状，不提供迁移，使用新目录初始化。
+2.2 仅支持 workspace 配置 major 4 和 Inspect 2.2；配套 IntelliJ 插件为 1.1.1。旧本地数据保留原状，不提供迁移，使用新目录初始化。共享配置、本机配置和可编辑草稿位于 `.workspace/config/`，完整布局见[本地工作区布局](docs/reference/local-workspace-layout.md)。
 
 运行条件：Python 3.10+、Git 2.23+，不安装第三方运行依赖。Linux 和 macOS 已在 CI 中验证；其他平台尚未验证。
 

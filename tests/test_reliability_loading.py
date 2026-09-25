@@ -64,7 +64,7 @@ class ReliabilityLoadingTest(ItemFixture, unittest.TestCase):
         directory = self.item / 'artifacts'; directory.mkdir()
         (directory / 'fixture.json').write_text('a' * (1024 * 1024 + 1))
         self.assertEqual('demo', WorkItemQuery(self.root, 'demo').continuation()['itemSlug'])
-        document = next(row for row in api.projection(self.root, 'demo', 'task')['documents'] if row['path'] == 'artifacts/fixture.json')
+        document = next(row for row in api.artifacts(self.root, 'demo')['items'] if row['path'] == 'artifacts/fixture.json')
         self.assertFalse(document['readable'])
 
     def test_needs_review_handles_unregistered_dependent_draft(self):
@@ -100,8 +100,8 @@ class ReliabilityLoadingTest(ItemFixture, unittest.TestCase):
     def test_delivery_document_is_in_current_navigation(self):
         self.artifact()
         (self.item / 'artifacts/frontend.md').write_text('Integration guide')
-        value = api.projection(self.root, 'demo', 'task')
-        self.assertIn('artifacts/frontend.md', [row['path'] for row in value['documents']])
+        value = api.artifacts(self.root, 'demo')
+        self.assertIn('artifacts/frontend.md', [row['path'] for row in value['items']])
 
     def test_collection_revision_is_stable_across_pages_and_changes_with_membership(self):
         values = [{'slug': f'item-{i}'} for i in range(201)]

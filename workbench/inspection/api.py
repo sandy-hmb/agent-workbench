@@ -80,7 +80,6 @@ def projection(root, slug, view, task_id=None, check_code=False, deadline=None):
                                        'reason': None if available else '仍有未完成事项；以 Kit 再次校验为准'}
         base.update(summary=summary, progression=reader.decision(), documents=summary['documents'])
         if view == 'task':
-            base['documents'] = [*summary['documents'], *reader.artifact_page(0, 200)['items']]
             base['tasks'] = [reader.task(task_id)] if task_id else reader.task_states()
     elif view == 'change':
         base.update(repositories=[{**b, 'absolutePath': str(reader.roots()[b['repository']])} for b in reader.state['bindings']],
