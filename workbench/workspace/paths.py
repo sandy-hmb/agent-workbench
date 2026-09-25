@@ -68,7 +68,7 @@ def extension_state_root(root: Path) -> Path:
 
 
 def extension_input_file(root: Path) -> Path:
-    return extension_state_root(root) / "input.json"
+    return config_root(root) / "extensions.draft.json"
 
 
 def lock_file(root: Path) -> Path:

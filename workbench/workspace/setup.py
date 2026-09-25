@@ -288,9 +288,14 @@ def operation_workspaces(
 
 
 def operation_inputs(
-    root: Path, operation: str, config: Path
+    root: Path, operation: str, config: Path | None
 ) -> tuple[Workspace | None, Workspace, Workspace, LocalSettings]:
     root = root.resolve()
+    if operation == "refresh":
+        existing = _existing_workspace(root)
+        return existing, existing, existing, load_local_settings(root, required=True)
+    if config is None:
+        raise WorkspaceError(f"{operation} 必须提供配置文件")
     if operation == "init":
         candidate = _load_candidate(root, config, operation)
         if _initialized(root):
@@ -315,7 +320,8 @@ def validate_all_states(workspace: Workspace) -> None:
 
 def _plan_result(root: Path, operation: str, config: Path) -> dict[str, object]:
     _, additions, combined, local = operation_inputs(root, operation, config)
-    validate_all_states(combined)
+    if operation != "refresh":
+        validate_all_states(combined)
     registered = {repository.path for repository in combined.repositories}
     candidates = [
         path
@@ -450,6 +456,17 @@ def _prepare_outputs(
     combined: Workspace,
     local: LocalSettings | None = None,
 ) -> list[tuple[Path, str]]:
+    if operation == "refresh":
+        return [
+            (context_file(root), render_context(combined)),
+            *(
+                (
+                    profiles_root(root) / f"{repository.path}.md",
+                    render_repository_profile(combined, repository),
+                )
+                for repository in combined.repositories
+            ),
+        ]
     outputs = [
         (context_file(root), render_context(combined)),
         (workspace_file(root), canonical_json(combined)),
@@ -504,6 +521,8 @@ def _preflight_apply(
         _preflight_file(root, path)
     for directory in directories:
         _preflight_directory(root, directory)
+    if operation == "refresh":
+        return
     if operation == "init":
         conflict = next(
             (path for path, _ in outputs if path.exists() or path.is_symlink()),
@@ -545,7 +564,7 @@ def _preflight_apply(
 
 
 def _preview_state(
-    root: Path, operation: str, config: Path
+    root: Path, operation: str, config: Path | None
 ) -> tuple[list[tuple[Path, str]], list[dict[str, object]], str]:
     root = root.resolve()
     existing, additions, combined, local = operation_inputs(root, operation, config)
@@ -595,23 +614,16 @@ def _preview_state(
 def preview(
     root: Path,
     operation: str,
-    config: Path,
+    config: Path | None,
     json_output: bool = False,
     include_diff: bool = False,
 ) -> int:
     _, changes, preview_hash = _preview_state(root, operation, config)
-    apply_command = shlex.join(
-        [
-            "python3",
-            "scripts/kit.py", "setup",
-            operation,
-            "apply",
-            "--config",
-            str(config),
-            "--preview-hash",
-            preview_hash,
-        ]
-    )
+    apply_args = ["python3", "scripts/kit.py", "setup", operation, "apply"]
+    if config is not None:
+        apply_args.extend(["--config", str(config)])
+    apply_args.extend(["--preview-hash", preview_hash])
+    apply_command = shlex.join(apply_args)
     result = {
         "schemaVersion": 1,
         "operation": operation,
@@ -625,7 +637,7 @@ def preview(
         ),
         "directories": [
             path.relative_to(root.resolve()).as_posix() + "/"
-            for path in (cache_root(root), items_root(root), extensions_root(root))
+            for path in ((cache_root(root), items_root(root), extensions_root(root)) if operation != "refresh" else (profiles_root(root),))
         ],
         "preservedPaths": [".workspace/items/"],
         "previewHash": preview_hash,
@@ -641,7 +653,7 @@ def preview(
     return 0
 
 
-def apply(root: Path, operation: str, config: Path, expected_hash: str) -> int:
+def apply(root: Path, operation: str, config: Path | None, expected_hash: str) -> int:
     root = root.resolve()
     before = _git_status(root) if operation == "init" else None
     if operation == "init" and before:
@@ -651,7 +663,11 @@ def apply(root: Path, operation: str, config: Path, expected_hash: str) -> int:
         raise WorkspaceError(
             f"预览哈希不匹配：期望 {expected_hash}，实际 {preview_hash}"
         )
-    directories_required = {items_root(root), extensions_root(root), cache_root(root)}
+    directories_required = (
+        {items_root(root), extensions_root(root), cache_root(root)}
+        if operation != "refresh"
+        else ({profiles_root(root)} if any(path.parent == profiles_root(root) for path, _ in outputs) else set())
+    )
     if operation == "init":
         _require_managed_state_ignored(root, outputs, directories_required)
     created_directories: list[Path] = []
@@ -857,10 +873,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="治理仓目录（默认脚本所在项目目录）",
     )
     operations = parser.add_subparsers(dest="operation", required=True)
-    for operation in ("init", "add-repo"):
+    for operation in ("init", "add-repo", "refresh"):
         operation_parser = operations.add_parser(
             operation,
-            help="初始化工作区" if operation == "init" else "登记新增仓库",
+            help="初始化工作区" if operation == "init" else "刷新生成视图" if operation == "refresh" else "登记新增仓库",
         )
         actions = operation_parser.add_subparsers(dest="action", required=True)
         explain_parser = actions.add_parser(
@@ -873,6 +889,13 @@ def build_parser() -> argparse.ArgumentParser:
             )
             draft_parser.add_argument("--output", type=Path, required=True)
             draft_parser.add_argument("--json", action="store_true")
+        if operation == "refresh":
+            preview_parser = actions.add_parser("preview", help="只读预览生成视图刷新")
+            preview_parser.add_argument("--json", action="store_true")
+            preview_parser.add_argument("--diff", action="store_true")
+            apply_parser = actions.add_parser("apply", help="应用生成视图刷新")
+            apply_parser.add_argument("--preview-hash", required=True)
+            continue
         plan_parser = actions.add_parser("plan", help="只读生成候选和 clone 清单")
         plan_parser.add_argument("--config", type=Path, required=True)
         plan_parser.add_argument("--json", action="store_true")
@@ -905,6 +928,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return explain(root, args.operation, args.json)
         if args.action == "draft":
             return draft(root, args.operation, args.output, args.json)
+        if args.operation == "refresh":
+            if args.action == "preview":
+                return preview(root, args.operation, None, args.json, args.diff)
+            return apply(root, args.operation, None, args.preview_hash)
         if args.action == "plan":
             return plan(root, args.operation, args.config, args.json)
         if args.action == "clone":

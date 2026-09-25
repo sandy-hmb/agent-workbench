@@ -114,6 +114,14 @@ class WorkspaceSetupTest(unittest.TestCase):
         self.assertEqual("", stderr.getvalue())
         return preview
 
+    def refresh(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = workspace_setup.main(self.args("refresh", "preview", "--json"))
+        self.assertEqual(0, code, stderr.getvalue())
+        return json.loads(stdout.getvalue())
+
     def git_url_environment(self, remotes: Path):
         return mock.patch.dict(
             os.environ,
@@ -468,6 +476,25 @@ class WorkspaceSetupTest(unittest.TestCase):
         self.assertIn("--- /dev/null", text_output.getvalue())
         self.assertIn(f"预览哈希：{expected_hash}", text_output.getvalue())
         self.assertIn(f"应用命令：{expected_command}", text_output.getvalue())
+
+    def test_refresh_repairs_only_generated_context_and_profiles(self):
+        self.apply_config("init", config(self.root / "input.json", [repository()]))
+        context = self.root / ".workspace/CONTEXT.md"
+        profile = self.root / ".workspace/repositories/service.md"
+        item = self.root / ".workspace/items/keep.md"; item.write_text("keep\n")
+        local = self.root / ".workspace/config/local.json"
+        before = {path: path.read_bytes() for path in (item, local)}
+        context.write_text("stale\n")
+        profile.write_text("stale\n")
+        preview = self.refresh()
+        self.assertEqual({".workspace/CONTEXT.md", ".workspace/repositories/service.md"}, {row["path"] for row in preview["changes"]})
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = workspace_setup.main(self.args("refresh", "apply", "--preview-hash", preview["previewHash"]))
+        self.assertEqual(0, code)
+        self.assertEqual(before, {path: path.read_bytes() for path in (item, local)})
+        self.assertNotEqual("stale\n", context.read_text())
+        self.assertNotEqual("stale\n", profile.read_text())
 
     def test_add_preview_reports_updates_and_skips_unchanged_output(self):
         initial = config(self.root / "init.json", [repository()])

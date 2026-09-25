@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 1
+    "minor": 2
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "task",
     "slug": "demo",
-    "stateRevision": "sha256:1666053e7212d279e1fc02240e92aca7f2a7b5d029cb616a4f62d96ed75eb85d",
+    "stateRevision": "sha256:a302f25c7803b4145278dc6ed3f5b9a988b41a96b87a8e5cb22ad7f1036f12cb",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:1666053e7212d279e1fc02240e92aca7f2a7b5d029cb616a4f62d96ed75eb85d",
-      "updatedAt": "2026-09-25T02:23:25.441587+00:00",
+      "stateRevision": "sha256:a302f25c7803b4145278dc6ed3f5b9a988b41a96b87a8e5cb22ad7f1036f12cb",
+      "updatedAt": "2026-09-25T07:10:59.533417+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -40,7 +40,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:8d5b787a9c18cc3298d5b95766c0e7714c25fad48ad70a2b34dbb8a02420ea2b",
+        "evidenceId": "sha256:30d89010ee1599efb550cbc62f1ac2f4f4d2e96c3b9d31f63b4f78606eb1f7d3",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -76,6 +76,12 @@
           "lineCount": 17
         }
       ],
+      "artifactSummary": {
+        "total": 0,
+        "readable": 0,
+        "unreadable": 0,
+        "collectionRevision": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
       "delivery": {},
       "executionBlockers": [
         {
@@ -83,7 +89,7 @@
           "id": "B01",
           "owner": "测试负责人",
           "reason": "等待验收环境",
-          "recordedAt": "2026-09-25T02:23:25.441572+00:00",
+          "recordedAt": "2026-09-25T07:10:59.533402+00:00",
           "resolution": null,
           "status": "open",
           "taskIds": []
@@ -174,12 +180,12 @@
           }
         ],
         "status": "completed",
-        "evidenceId": "sha256:f5f324dc9d3909ac7f35c8ae09cd8610adcd5eb38c746476846ba374629527a7",
+        "evidenceId": "sha256:b2227ea9ce62dfa0c3ef3f92be8926b112e86e16764ca2e1772b552725bf7f69",
         "completed": true,
         "waitingFor": [],
         "executionBlocked": true
       }
     ]
   },
-  "responseRevision": "sha256:129a2e2f507efd1c2d874d3c9386b0175b85a0edd32f713e4bb337a00d19e206"
+  "responseRevision": "sha256:6dfc4ce90fa6ab521ff43ae4541f4c9d0fe12a9707284061539ad2c2c5992b1b"
 }

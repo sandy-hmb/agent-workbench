@@ -122,7 +122,7 @@ def make_provider_workspace(
         },
         "config": {"example-extension": shared_config or {}},
     }
-    config = state / "extensions" / ".state" / "input.json"
+    config = state / "config" / "extensions.draft.json"
     config.write_text(json.dumps(desired) + "\n", encoding="utf-8")
     preview = workspace_extension.preview_result(root, config)
     workspace_extension.apply(root, config, str(preview["previewHash"]))

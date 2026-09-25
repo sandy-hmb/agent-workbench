@@ -273,7 +273,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         )
         import workbench.extensions.management as workspace_extension
 
-        config = root / ".workspace/extensions/.state/input.json"
+        config = root / ".workspace/config/extensions.draft.json"
         preview = workspace_extension.preview_result(root, config)
         workspace_extension.apply(root, config, str(preview["previewHash"]))
         local_path = root / ".workspace/config/local.json"
@@ -412,7 +412,7 @@ class WorkspaceProviderTest(unittest.TestCase):
             "https://example.test/v1",
         ]
         manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
-        config = self.root / ".workspace/extensions/.state/input.json"
+        config = self.root / ".workspace/config/extensions.draft.json"
         import workbench.extensions.management as workspace_extension
 
         preview = workspace_extension.preview_result(self.root, config)
@@ -510,7 +510,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["provides"][0]["command"] = ["curl", "provider/missing.py"]
         manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
-        config = self.root / ".workspace/extensions/.state/input.json"
+        config = self.root / ".workspace/config/extensions.draft.json"
         import workbench.extensions.management as workspace_extension
 
         preview = workspace_extension.preview_result(self.root, config)
@@ -554,7 +554,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         for provider in manifest["provides"]:
             provider["command"] = ["python3", "provider/branch.py"]
         manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
-        config = self.root / ".workspace/extensions/.state/input.json"
+        config = self.root / ".workspace/config/extensions.draft.json"
         desired = json.loads(config.read_text(encoding="utf-8"))
         desired["config"] = {"example-extension": {}}
         config.write_text(json.dumps(desired) + "\n", encoding="utf-8")

@@ -46,18 +46,18 @@ python3 scripts/kit.py extension scaffold --root . --id <extension-id> --json
 ## 激活流程
 
 1. 将需要的本地目录放到 `.workspace/extensions/<extension-id>/`，其中必须有 `workspace-extension.json` 和声明的 `skills/<skill>/SKILL.md`。
-2. 编写 `.workspace/extensions/.state/input.json`，只声明本次要激活的 `extensions`、每个 capability 的单一 Provider 绑定及非敏感 `config`。
+2. 编写 `.workspace/config/extensions.draft.json`，只声明本次要激活的 `extensions`、每个 capability 的单一 Provider 绑定及非敏感 `config`。
 3. 运行 preview，展示 `previewHash` 和完整 `applyCommand`：
 
    ```bash
-   python3 scripts/kit.py extension preview --root . --config .workspace/extensions/.state/input.json --json
+   python3 scripts/kit.py extension preview --root . --config .workspace/config/extensions.draft.json --json
    ```
 
 4. 向用户说明激活项、Provider 绑定、会生成或移除的 `local-*` Skill Adapter；没有覆盖本次实际影响的已有授权时等待明确确认。
 5. 只使用 preview 返回的哈希执行 apply：
 
    ```bash
-   python3 scripts/kit.py extension apply --root . --config .workspace/extensions/.state/input.json --preview-hash <previewHash>
+   python3 scripts/kit.py extension apply --root . --config .workspace/config/extensions.draft.json --preview-hash <previewHash>
    ```
 
 apply 会同时更新 `.workspace/config/workspace.json`、`.workspace/extensions/.state/lock.json` 和受管 Adapter。只为已激活 Extension 生成 `.agents/skills/local-<extension>-<skill>/`；Claude 使用对应的相对符号链接。

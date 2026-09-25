@@ -36,7 +36,7 @@ python3 scripts/kit.py verify record payment-retry --input evidence.json --state
 
 已批准内容发生非实质修改时用 `item approval --decision unchanged --reason <原因>` 沿用批准。范围、验收或关键方案变化时记录 needs-review，并审阅实际变更；受影响任务不能沿用原完成证据。
 
-通过 `item delivery` 记录实际版本、提测、部署和外部验收。未关闭待办需保留负责人和完成条件；关闭必须附证据或范围调整理由。没有部署事实显示未确认。
+通过 `item delivery` 记录实际版本、提测、部署和外部验收。未关闭待办需保留负责人和完成条件；关闭必须附证据或范围调整理由。没有部署事实显示未确认。已有 Workflow Action 结果可选地以 `evidenceRefs` 引用同一 WorkItem 的 runId、requestId 和 stage；引用不会代替人工确认或自动关闭验收。
 
 本次验收完成、用户确认结束后：
 

@@ -66,7 +66,7 @@ class WorkflowFixture:
         (self.root / ".agents/skills").mkdir(parents=True)
         (self.root / ".claude/skills").mkdir(parents=True)
         shutil.copytree(ACTION_FIXTURE, state / "extensions/action-extension")
-        self.extension_config = state / "extensions" / ".state" / "input.json"
+        self.extension_config = state / "config" / "extensions.draft.json"
         self.extension_config.write_text(
             json.dumps(
                 {

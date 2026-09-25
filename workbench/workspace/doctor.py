@@ -159,7 +159,15 @@ REMEDIATIONS: dict[str, Remediation] = {
     "EXTENSION_DRIFT": Remediation(
         "command",
         "python3 scripts/kit.py extension preview --root . "
-        "--config .workspace/extensions/.state/input.json --json，核对后执行返回的 applyCommand",
+        "--config .workspace/config/extensions.draft.json --json，核对后执行返回的 applyCommand",
+    ),
+    "CONTEXT_INVALID": Remediation(
+        "command",
+        "python3 scripts/kit.py setup refresh preview --root . --json，核对后执行返回的 applyCommand",
+    ),
+    "REPOSITORY_PROFILE_INVALID": Remediation(
+        "command",
+        "python3 scripts/kit.py setup refresh preview --root . --json，核对后执行返回的 applyCommand",
     ),
     "MARKDOWN_LINK_BROKEN": Remediation(
         "manual", "修正 message 中标出的相对链接目标路径，或补齐缺失的目标文件。"

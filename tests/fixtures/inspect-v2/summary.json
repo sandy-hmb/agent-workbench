@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 1
+    "minor": 2
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "summary",
     "slug": "demo",
-    "stateRevision": "sha256:3da0ee594a6f5473f043218952a99b780922cf36140ca6f3b8f4e0d35069939e",
+    "stateRevision": "sha256:b9d7c0b09ec5566abbede74103a9b45236edc19028fe529ba44a13bdbce29815",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:3da0ee594a6f5473f043218952a99b780922cf36140ca6f3b8f4e0d35069939e",
-      "updatedAt": "2026-09-25T02:23:24.613537+00:00",
+      "stateRevision": "sha256:b9d7c0b09ec5566abbede74103a9b45236edc19028fe529ba44a13bdbce29815",
+      "updatedAt": "2026-09-25T07:10:58.743264+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -40,7 +40,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:8d5b787a9c18cc3298d5b95766c0e7714c25fad48ad70a2b34dbb8a02420ea2b",
+        "evidenceId": "sha256:30d89010ee1599efb550cbc62f1ac2f4f4d2e96c3b9d31f63b4f78606eb1f7d3",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -76,6 +76,12 @@
           "lineCount": 17
         }
       ],
+      "artifactSummary": {
+        "total": 0,
+        "readable": 0,
+        "unreadable": 0,
+        "collectionRevision": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
       "delivery": {},
       "executionBlockers": [],
       "cancellation": null,
@@ -139,5 +145,5 @@
       }
     ]
   },
-  "responseRevision": "sha256:ab9e6e7b334686130af7d680a3c5c83ce3f58b51f92f27a55b8698795aca044b"
+  "responseRevision": "sha256:8a16dbc36f7cb015f89c0d20210bba4facfbe7e589a9860d348a3541a71c52cd"
 }

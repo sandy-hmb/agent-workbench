@@ -12,9 +12,9 @@ from workbench.workspace.model import load_workspace, repository_path, effective
 from workbench.workspace.paths import workflow_file, workflow_runs_root, workspace_file
 
 API_MAJOR = 2
-API_MINOR = 1
+API_MINOR = 2
 MAX_RESPONSE = 8 * 1024 * 1024
-OPERATIONS = ['workspace', 'items', 'projection', 'document', 'verification', 'evidence', 'handoff', 'search', 'workflow', 'runs', 'run']
+OPERATIONS = ['workspace', 'items', 'projection', 'document', 'artifacts', 'verification', 'evidence', 'handoff', 'search', 'workflow', 'runs', 'run']
 
 
 class Deadline:
@@ -51,10 +51,10 @@ def workspace(root):
                          'kitVersion': (root / 'VERSION').read_text().strip() if (root / 'VERSION').exists() else '2.0.0'}}
 
 
-def _documents(reader):
+def _documents(reader, *, include_artifacts=False):
     docs = [{**doc, 'exists': True, 'kind': doc['role'], 'mediaType': 'text/markdown'} for doc in reader.documents()]
     known = {row['path'] for row in docs}
-    for name in ['references', 'artifacts']:
+    for name in ['references'] + (['artifacts'] if include_artifacts else []):
         folder = safe_path(reader.path, name)
         if not folder.exists(): continue
         for count, path in enumerate(folder.rglob('*')):
@@ -80,6 +80,7 @@ def projection(root, slug, view, task_id=None, check_code=False, deadline=None):
                                        'reason': None if available else '仍有未完成事项；以 Kit 再次校验为准'}
         base.update(summary=summary, progression=reader.decision(), documents=summary['documents'])
         if view == 'task':
+            base['documents'] = [*summary['documents'], *reader.artifact_page(0, 200)['items']]
             base['tasks'] = [reader.task(task_id)] if task_id else reader.task_states()
     elif view == 'change':
         base.update(repositories=[{**b, 'absolutePath': str(reader.roots()[b['repository']])} for b in reader.state['bindings']],
@@ -107,6 +108,13 @@ def document(root, slug, relative, document_revision=None, deadline=None):
     result = {'slug': slug, 'path': relative, 'documentRevision': actual, 'content': data.decode('utf-8'), 'bytes': len(data), 'lineCount': len(data.splitlines()), 'mediaType': 'text/markdown' if path.suffix == '.md' else 'text/plain'}
     reader.assert_unchanged()
     return result
+
+
+def artifacts(root, slug, offset=0, limit=50, deadline=None):
+    reader = WorkItemQuery(root, slug, deadline=deadline)
+    result = reader.artifact_page(offset, limit)
+    reader.assert_unchanged()
+    return {'slug': slug, **result}
 
 
 def verification(root, slug, check_code=False, deadline=None):
@@ -179,7 +187,7 @@ def search(root, query, repo, status, offset, limit, deadline):
         deadline.check()
         if repo and repo not in {b['repository'] for b in item['repositoryBindings']}: continue
         reader = WorkItemQuery(root, item['slug'], deadline=deadline.end)
-        for reference in _documents(reader):
+        for reference in _documents(reader, include_artifacts=True):
             text = read_bytes(safe_path(reader.path, reference['path']), 1024 * 1024).decode()
             consumed += len(text.encode())
             if consumed > 16 * 1024 * 1024: raise WorkItemError('INSPECT_LIMIT', '搜索文本超过上限')
@@ -200,6 +208,7 @@ def build_parser():
     items = commands.add_parser('items'); items.add_argument('--status')
     projects = commands.add_parser('projection'); projects.add_argument('slug'); projects.add_argument('--view', choices=['summary', 'task', 'change', 'flow'], default='summary'); projects.add_argument('--task')
     documents = commands.add_parser('document'); documents.add_argument('slug'); documents.add_argument('--path', required=True); documents.add_argument('--document-revision')
+    artifact_parser = commands.add_parser('artifacts'); artifact_parser.add_argument('slug'); artifact_parser.add_argument('--offset', type=int, default=0); artifact_parser.add_argument('--limit', type=int, default=50)
     for op in ['verification', 'handoff']:
         command = commands.add_parser(op); command.add_argument('slug'); command.add_argument('--check-code', action='store_true')
     evidence = commands.add_parser('evidence'); evidence.add_argument('slug'); evidence.add_argument('--task'); evidence.add_argument('--id')
@@ -233,6 +242,7 @@ def main(argv=None):
             envelope['diagnostics'] = listed['diagnostics']
         elif op == 'projection': data = projection(root, args.slug, args.view, args.task, deadline=deadline.end)
         elif op == 'document': data = document(root, args.slug, args.path, args.document_revision, deadline.end)
+        elif op == 'artifacts': data = artifacts(root, args.slug, args.offset, args.limit, deadline.end)
         elif op == 'verification': data = verification(root, args.slug, args.check_code, deadline.end)
         elif op == 'handoff': data = handoff(root, args.slug, args.check_code, deadline.end)
         elif op == 'evidence':

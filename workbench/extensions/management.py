@@ -396,7 +396,7 @@ def load_desired_state(root: Path, config: Path) -> DesiredState:
     config = _inside_state(root, config)
     raw = _read_regular_json(root, config, code="EXTENSION_MISSING")
     if set(raw) != DESIRED_FIELDS:
-        raise _command("EXTENSION_MISSING", "extensions/.state/input.json 字段必须是 extensions、providers、config")
+        raise _command("EXTENSION_MISSING", "config/extensions.draft.json 字段必须是 extensions、providers、config")
     requested = raw["extensions"]
     if not isinstance(requested, list):
         raise _command("EXTENSION_MISSING", "extensions 必须是数组")
@@ -1220,11 +1220,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--json", action="store_true")
     preview = commands.add_parser("preview")
     preview.add_argument("--root", type=Path, default=Path.cwd())
-    preview.add_argument("--config", type=Path, required=True)
+    preview.add_argument("--config", type=Path)
     preview.add_argument("--json", action="store_true")
     apply_parser = commands.add_parser("apply")
     apply_parser.add_argument("--root", type=Path, default=Path.cwd())
-    apply_parser.add_argument("--config", type=Path, required=True)
+    apply_parser.add_argument("--config", type=Path)
     apply_parser.add_argument("--preview-hash", required=True)
     install = commands.add_parser("install")
     install_commands = install.add_subparsers(dest="install_command", required=True)
@@ -1264,10 +1264,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             _print(validate_result(args.path), args.json)
             return 0
         if args.command == "preview":
-            _print(preview_result(args.root, args.config), args.json)
+            _print(preview_result(args.root, args.config or extension_input_file(args.root)), args.json)
             return 0
         if args.command == "apply":
-            return apply(args.root, args.config, args.preview_hash)
+            return apply(args.root, args.config or extension_input_file(args.root), args.preview_hash)
         if args.command == "install":
             if args.install_command == "preview":
                 _print(install_preview_result(args.root, args.source), args.json)

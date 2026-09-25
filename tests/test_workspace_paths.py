@@ -58,7 +58,7 @@ class WorkspacePathsTest(unittest.TestCase):
         self.assertEqual(resolved / ".workspace/repositories", profiles_root(root))
         self.assertEqual(resolved / ".workspace/extensions", extensions_root(root))
         self.assertEqual(resolved / ".workspace/extensions/.state", extension_state_root(root))
-        self.assertEqual(resolved / ".workspace/extensions/.state/input.json", extension_input_file(root))
+        self.assertEqual(resolved / ".workspace/config/extensions.draft.json", extension_input_file(root))
         self.assertEqual(
             resolved / ".workspace/extensions/.state/lock.json", lock_file(root)
         )

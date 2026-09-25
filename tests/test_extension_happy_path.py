@@ -62,7 +62,7 @@ class ExtensionHappyPathTest(unittest.TestCase):
                 str(install["previewHash"]),
             )
 
-            extension_config = kit / ".workspace/extensions/.state/input.json"
+            extension_config = kit / ".workspace/config/extensions.draft.json"
             extension_config.write_text(
                 json.dumps(
                     {

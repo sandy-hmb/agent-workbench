@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 1
+    "minor": 2
   },
   "operation": "workflow",
   "observedAt": "2026-09-25T00:00:00Z",

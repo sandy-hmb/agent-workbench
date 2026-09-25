@@ -72,7 +72,7 @@ class KitDescribeTest(unittest.TestCase):
             shutil.copytree(ACTION_FIXTURE, source)
             install = workspace_extension.install_preview_result(root, source)
             workspace_extension.install_apply(root, source, str(install["previewHash"]))
-            config = root / ".workspace/extensions/.state/input.json"
+            config = root / ".workspace/config/extensions.draft.json"
             config.write_text(
                 json.dumps(
                     {

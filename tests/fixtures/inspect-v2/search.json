@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 1
+    "minor": 2
   },
   "operation": "search",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -15,7 +15,7 @@
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-25T02:23:24.613537+00:00",
+        "lastUpdated": "2026-09-25T07:10:58.743264+00:00",
         "path": "change.md",
         "line": 1,
         "heading": null,
@@ -25,7 +25,7 @@
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-25T02:23:24.613537+00:00",
+        "lastUpdated": "2026-09-25T07:10:58.743264+00:00",
         "path": "README.md",
         "line": 1,
         "heading": null,
@@ -35,7 +35,7 @@
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-25T02:23:24.613537+00:00",
+        "lastUpdated": "2026-09-25T07:10:58.743264+00:00",
         "path": "verification.md",
         "line": 17,
         "heading": null,
@@ -45,7 +45,7 @@
     "counts": {
       "total": 3
     },
-    "collectionRevision": "sha256:81e5a7607d6dd5cb89f2d8d6ae87ac4cb440d83af9fac786aefa347b53088da2",
+    "collectionRevision": "sha256:32adfd363a4ce39bfc3a1c755dec95edef5a79fbaca2c1527b51e8397410c7b9",
     "page": {
       "offset": 0,
       "limit": 20,
@@ -53,5 +53,5 @@
       "hasMore": false
     }
   },
-  "responseRevision": "sha256:6fb06e4de4789c54ac385b72742ae78dbe894d49211df9399d8845d4a9182108"
+  "responseRevision": "sha256:7c8834dfd26f52eb685b8b49b1e9e3db7c4e48a649a232c8663624cad1d7b0dd"
 }

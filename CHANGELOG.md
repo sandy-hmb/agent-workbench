@@ -2,6 +2,10 @@
 
 ## 未发布
 
+- 新增 Python 3.10 运行时预检、统一 `kit.py --root <path> <command>` 参数位置，并将 Extension 期望配置移至 `config/extensions.draft.json`。
+- Inspect 2.2 增加交付物分页读取；WorkItem 概览不再预读 artifacts 正文。交付事实可引用同一 WorkItem 的 Workflow Action 尝试。
+- CONTEXT.md 收敛为工作区索引，仓 profile 保留详细事实；新增 `setup refresh preview/apply` 用于安全重建生成视图。
+
 - 工作区布局收敛为 `config/`、`repositories/`、`items/`、`extensions/` 与 `runs/`：根目录只保留规则和事实；共享配置、本机配置、Workflow 草稿与生效配置统一进入 `config/`。
 - 工作区配置主版本升级为 4；旧 v3 布局不再读取，需要在新目录初始化或按当前布局重新建立本地状态。
 

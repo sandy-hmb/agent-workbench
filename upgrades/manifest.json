@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.1.0",
+  "kitVersion": "2.2.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.2.0",
+      "summary": "2.2 将 Extension 期望配置移至 .workspace/config/extensions.draft.json；旧 .state/input.json 不再读取。更新后先运行 setup refresh preview，再按 preview 更新生成视图与 Extension lock。",
+      "runbook": "docs/reference/local-workspace-layout.md"
+    },
     {
       "sinceVersion": "2.1.0",
       "summary": "2.1 将本地配置收纳到 .workspace/config/，仓 profile 移至 .workspace/repositories/；旧 v3 布局不迁移，请在新目录初始化或重新建立本地状态。",

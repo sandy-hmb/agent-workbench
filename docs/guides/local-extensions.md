@@ -41,7 +41,7 @@ python3 scripts/kit.py extension validate-extension \
 
 预期输出：`actions` 含 `example-action`，`capabilities` 为空数组。
 
-写一份最小激活配置声明它（`.workspace/extensions/.state/input.json`）：
+写一份最小激活配置声明它（`.workspace/config/extensions.draft.json`）：
 
 ```json
 {"extensions": [{"id": "demo-ext", "version": "0.1.0"}], "providers": {}, "config": {"demo-ext": {}}}
@@ -51,7 +51,7 @@ python3 scripts/kit.py extension validate-extension \
 
 ```bash
 python3 scripts/kit.py extension preview \
-  --root . --config .workspace/extensions/.state/input.json --json
+  --root . --config .workspace/config/extensions.draft.json --json
 ```
 
 确认后执行 preview 返回的 `applyCommand`；因为是 Action（不是 Provider），apply 不会生成任何 `local-*` Skill Adapter。用 doctor 确认无 drift：
@@ -146,7 +146,7 @@ python3 scripts/kit.py extension validate-extension \
 
 ## 激活 Provider 和 Action
 
-在 `.workspace/extensions/.state/input.json` 中声明需要激活的 Extension、单一 Provider 绑定和非敏感配置：
+在 `.workspace/config/extensions.draft.json` 中声明需要激活的 Extension、单一 Provider 绑定和非敏感配置：
 
 ```json
 {
@@ -162,7 +162,7 @@ python3 scripts/kit.py extension validate-extension \
 
 ```bash
 python3 scripts/kit.py extension preview \
-  --root . --config .workspace/extensions/.state/input.json --json
+  --root . --config .workspace/config/extensions.draft.json --json
 ```
 
 确认后使用返回的 `applyCommand`。apply 更新 `.workspace/config/workspace.json` 与 `extensions/.state/lock.json`。只有 Provider Skill 会生成 `local-*` Adapter；Action Skill 保留在 Extension 目录，直到 Workflow 到达该 Action 才按需读取。
@@ -198,7 +198,7 @@ Extension 不得改写需求、设计或实施计划正文，除非用户已经�
 python3 scripts/kit.py extension doctor --root . --json
 ```
 
-停用前，先从 `.workspace/config/local.json` 移除对应本地配置；再从 `extensions/.state/input.json` 移除 Extension 并执行 preview、确认、apply。系统不会自动删除本地配置，也不会覆盖手工改动的受管 Adapter。
+停用前，先从 `.workspace/config/local.json` 移除对应本地配置；再从 `.workspace/config/extensions.draft.json` 移除 Extension 并执行 preview、确认、apply。系统不会自动删除本地配置，也不会覆盖手工改动的受管 Adapter。
 
 `effects` 只用于审阅预期影响，不是操作系统级权限隔离。任何网络、Git、文件写入、部署或外部系统操作都仍须在执行前取得当前会话授权。
 

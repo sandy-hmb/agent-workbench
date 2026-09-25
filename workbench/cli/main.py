@@ -35,6 +35,10 @@ COMMANDS = {
     "inspect": ("workbench.inspection.api", "供工作台按需读取工作区、需求与工作流记录"),
 }
 
+ROOT_BEFORE_SUBCOMMAND = frozenset(
+    {"setup", "registry", "describe", "context-measure", "inspect"}
+)
+
 
 def _help_text() -> str:
     lines = [
@@ -53,6 +57,40 @@ def _help_text() -> str:
     return "\n".join(lines)
 
 
+def _root_value(arguments: list[str], index: int) -> tuple[str, int]:
+    value = arguments[index]
+    if value == "--root":
+        if index + 1 >= len(arguments) or arguments[index + 1].startswith("-"):
+            raise ValueError("--root 需要路径参数")
+        return arguments[index + 1], 2
+    return value.partition("=")[2], 1
+
+
+def normalize_root_arguments(name: str, arguments: Sequence[str]) -> list[str]:
+    """Accept --root before or after nested subcommands and canonicalize it."""
+    values = list(arguments)
+    matches: list[tuple[int, str, int]] = []
+    index = 0
+    while index < len(values):
+        value = values[index]
+        if value == "--root" or value.startswith("--root="):
+            root, consumed = _root_value(values, index)
+            if not root:
+                raise ValueError("--root 需要非空路径")
+            matches.append((index, root, consumed))
+            index += consumed
+        else:
+            index += 1
+    if not matches:
+        return values
+    if len(matches) > 1:
+        raise ValueError("--root 只能指定一次")
+    position, root, consumed = matches[0]
+    remaining = values[:position] + values[position + consumed:]
+    return (["--root", root, *remaining] if name in ROOT_BEFORE_SUBCOMMAND
+            else [*remaining, "--root", root])
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
@@ -60,7 +98,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_help_text())
         return 0
 
-    name, rest = argv[0], argv[1:]
+    if argv[0] == "--root" or argv[0].startswith("--root="):
+        try:
+            root, consumed = _root_value(argv, 0)
+        except ValueError as exc:
+            print(f"参数错误：{exc}", file=sys.stderr)
+            return 2
+        if len(argv) <= consumed:
+            print("参数错误：--root 后缺少子命令", file=sys.stderr)
+            return 2
+        name = argv[consumed]
+        tail = argv[consumed + 1:]
+        rest = (["--root", root, *tail] if name in ROOT_BEFORE_SUBCOMMAND else [*tail, "--root", root])
+    else:
+        name, rest = argv[0], argv[1:]
     if name not in COMMANDS:
         print(
             f"未知子命令：{name}\n可用子命令：{', '.join(sorted(COMMANDS))}",
@@ -68,6 +119,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         return 2
 
+    try:
+        rest = normalize_root_arguments(name, rest)
+    except ValueError as exc:
+        print(f"参数错误：{exc}", file=sys.stderr)
+        return 2
     module_name, _ = COMMANDS[name]
     module = importlib.import_module(module_name)
     try:

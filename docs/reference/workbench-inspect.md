@@ -1,4 +1,4 @@
-# Inspect 2.1
+# Inspect 2.2
 
 通过 `kit.py inspect --root <kit> --api-major 2 --json <operation>` 只读查询。仅支持 major=2；旧客户端和旧 WorkItem 明确拒绝，不自动转换数据。
 
@@ -10,6 +10,7 @@
 | items | status/offset/limit | 不读取代码指纹的 WorkItem 列表 |
 | projection | slug、view=summary/task/change/flow，可选 task | 当前视图所需事实 |
 | document | slug、path、可选 documentRevision | 安全 UTF-8 正文 |
+| artifacts | slug、offset、limit | 按需分页的交付物索引，不读取正文 |
 | verification | slug、可选 check-code | 记录结果与当前代码适用性 |
 | evidence | slug、可选 task/id | 一条实际证据 |
 | handoff | slug | 引用当前文档的接手摘要 |

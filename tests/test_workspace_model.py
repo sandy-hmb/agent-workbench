@@ -122,6 +122,18 @@ class WorkspaceModelTest(unittest.TestCase):
                 with self.subTest(identity=identity), self.assertRaises(WorkspaceError):
                     parse_workspace(payload, root)
 
+    def test_context_is_an_index_and_profile_keeps_description(self):
+        from workbench.workspace.model import render_context, render_repository_profile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "kit"
+            root.mkdir()
+            model = workspace(root, [repository(description="Detailed service description")])
+            context = render_context(model)
+            profile = render_repository_profile(model, model.repositories[0])
+            self.assertIn("`service`（backend）", context)
+            self.assertNotIn("Detailed service description", context)
+            self.assertIn("Detailed service description", profile)
+
     def test_term_router_runtime_validation_matches_schema_contract(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "kit"

@@ -125,6 +125,46 @@ class ItemOperationsTest(ItemFixture, unittest.TestCase):
         self.assertIn('共 25', summary)
         self.assertIn('其余 5', summary)
 
+    def test_delivery_can_reference_current_workflow_attempt_without_completing_acceptance(self):
+        from workbench.extensions import attempts
+        run = self.root / '.workspace' / 'runs' / 'demo-i01.json'
+        run.parent.mkdir(parents=True)
+        run.write_text(json.dumps({'schemaVersion': 3, 'id': 'demo-i01', 'workflow': 'item-development',
+                                   'itemSlug': 'demo', 'iteration': 'i01', 'bindingRevision': None,
+                                   'repository': 'kit', 'branch': 'main'}))
+        attempts.save(self.root, 'demo-i01', {'schemaVersion': 1, 'run': 'demo-i01', 'requests': {
+            'request-deploy': {'requestId': 'request-deploy', 'run': 'demo-i01', 'stage': 'team.deploy',
+                               'planHash': 'a' * 64, 'fingerprint': 'sha256:' + 'b' * 64,
+                               'sequence': 1, 'action': 'team/deploy', 'status': 'succeeded', 'origin': 'runner',
+                               'updatedAt': '2026-09-25T10:00:00Z', 'summary': 'deployed'}}})
+        result = commands.delivery(
+            self.root, 'demo',
+            {'repositories': {'kit': {
+                'deployment': '已部署', 'evidence': '测试环境部署回执',
+                'evidenceRefs': [{'kind': 'workflow', 'runId': 'demo-i01', 'requestId': 'request-deploy', 'stage': 'team.deploy'}],
+            }}},
+            expected_revision=self.state()['stateRevision'],
+        )
+        ref = result['state']['delivery']['kit']['evidenceRefs'][0]
+        self.assertEqual('succeeded', ref['status'])
+        self.assertEqual('已部署', result['state']['delivery']['kit']['deployment'])
+
+    def test_delivery_rejects_workflow_reference_from_other_item(self):
+        run = self.root / '.workspace' / 'runs' / 'other-i01.json'
+        run.parent.mkdir(parents=True)
+        run.write_text(json.dumps({'schemaVersion': 3, 'id': 'other-i01', 'workflow': 'item-development',
+                                   'itemSlug': 'other', 'iteration': 'i01', 'bindingRevision': None,
+                                   'repository': 'kit', 'branch': 'main'}))
+        with self.assertRaisesRegex(WorkItemError, 'EVIDENCE_REFERENCE_SUBJECT_MISMATCH'):
+            commands.delivery(
+                self.root, 'demo',
+                {'repositories': {'kit': {
+                    'evidence': 'wrong item',
+                    'evidenceRefs': [{'kind': 'workflow', 'runId': 'other-i01', 'requestId': 'missing', 'stage': 'team.deploy'}],
+                }}},
+                expected_revision=self.state()['stateRevision'],
+            )
+
     def add_second_repository(self):
         repository = self.root.parent / 'other'
         repository.mkdir()

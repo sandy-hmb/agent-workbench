@@ -80,7 +80,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
         shutil.copytree(FIXTURE, state / "extensions/example-extension")
         (self.root / ".agents/skills").mkdir(parents=True)
         (self.root / ".claude/skills").mkdir(parents=True)
-        self.config = state / "extensions" / ".state" / "input.json"
+        self.config = state / "config" / "extensions.draft.json"
         self.write_desired()
 
     def tearDown(self) -> None:

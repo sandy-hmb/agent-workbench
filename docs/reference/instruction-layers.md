@@ -32,13 +32,22 @@
 
 ## 事实轴
 
-`.workspace/CONTEXT.md` 保存跨仓业务事实，`.workspace/repositories/<repo>.md` 保存仓 profile。它们是 `.workspace/config/workspace.json` 的生成视图，不参与规则冲突判断；需要定位路径和存在性时使用：
+`.workspace/CONTEXT.md` 是跨仓索引，只保留工作区描述、仓库路径和类别；`.workspace/repositories/<repo>.md` 保存仓描述、技术栈、规范入口、分支策略和验证命令。它们是 `.workspace/config/workspace.json` 的生成视图，不参与规则冲突判断；需要定位路径和存在性时使用：
 
 ```bash
 python3 scripts/kit.py status --root . --context-sources --json
 ```
 
 不要把 guardrails、操作命令或权限规则混入 CONTEXT.md，也不要把业务事实复制进 AGENTS.md。
+
+生成视图发生漂移时，先预览再刷新：
+
+```bash
+python3 scripts/kit.py setup refresh preview --root . --json
+python3 scripts/kit.py setup refresh apply --root . --preview-hash <previewHash>
+```
+
+refresh 只重建 CONTEXT.md 与仓 profile，不修改配置、WorkItem、Extension 或 Run。
 
 ## 入口判据
 

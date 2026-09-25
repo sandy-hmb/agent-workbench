@@ -704,7 +704,7 @@ def render_context(workspace: Workspace) -> str:
     lines.extend(("## 仓库", ""))
     if workspace.repositories:
         lines.extend(
-            f"- `{repository.path}`（{repository.category}）：{repository.description}"
+            f"- `{repository.path}`（{repository.category}）"
             for repository in workspace.repositories
         )
     else:

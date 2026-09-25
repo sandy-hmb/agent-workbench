@@ -16,6 +16,8 @@ from workbench.workspace.paths import context_file, workspace_file
 STAGE_SKILLS = {'item.design': 'workspace-item-design', 'item.implement': 'workspace-execute-plan',
                 'item.verify': 'workspace-verify', 'item.submit-test': 'workspace-submit-test',
                 'item.complete': 'workspace-verify', 'item.prepare-branch': 'workspace-execute-plan'}
+ARTIFACT_SUFFIXES = {'.md', '.txt', '.json', '.sql', '.csv'}
+ARTIFACT_READ_LIMIT = 1024 * 1024
 
 
 def recorded_task_status(state: dict, task_id: str, evidence: dict | None) -> str:
@@ -97,6 +99,7 @@ class WorkItemQuery:
         self._roots = {}
         self._references = {}
         self._artifact_documents = None
+        self._artifact_collection_revision = None
         self.deadline = deadline
 
     def remaining(self, maximum: float = 25) -> float:
@@ -121,22 +124,50 @@ class WorkItemQuery:
         folder = safe_path(self.path, 'artifacts')
         if include_artifacts and self._artifact_documents is None:
             self._artifact_documents = []
-            for count, path in enumerate(folder.rglob('*') if folder.is_dir() else []):
-                self.remaining()
-                if count >= 10000 or len(documents) + len(self._artifact_documents) >= 500:
-                    raise WorkItemError('DOCUMENT_LIMIT', '文档条目超过上限')
-                relative = path.relative_to(self.path).as_posix()
-                safe_path(self.path, relative)
-                if path.is_file() and path.suffix in {'.md', '.txt', '.json', '.sql', '.csv'}:
-                    size = path.stat().st_size
-                    if size > 1024 * 1024:
-                        self._artifact_documents.append({'role': 'artifacts', 'path': relative, 'documentRevision': None, 'bytes': size, 'readable': False, 'reason': '文件超过在线文档读取上限，可从交付目录打开'})
-                    else:
-                        data = read_bytes(path, 1024 * 1024)
-                        self._artifact_documents.append({'role': 'artifacts', 'path': relative, 'documentRevision': text_digest(data), 'bytes': len(data), 'readable': True})
+            self._load_artifact_index()
         if include_artifacts:
             documents.extend(self._artifact_documents or [])
         return documents
+
+    def _load_artifact_index(self) -> None:
+        if self._artifact_documents is not None:
+            return
+        folder = safe_path(self.path, 'artifacts')
+        rows, fingerprints = [], []
+        for count, path in enumerate(folder.rglob('*') if folder.is_dir() else []):
+            self.remaining()
+            if count >= 10000:
+                raise WorkItemError('DOCUMENT_LIMIT', '交付物条目超过上限')
+            relative = path.relative_to(self.path).as_posix()
+            safe_path(self.path, relative)
+            if not path.is_file() or path.suffix not in ARTIFACT_SUFFIXES:
+                continue
+            size = path.stat().st_size
+            readable = size <= ARTIFACT_READ_LIMIT
+            fingerprints.append((relative, size, path.stat().st_mtime_ns))
+            rows.append({'role': 'artifacts', 'path': relative, 'bytes': size,
+                         'readable': readable, 'documentRevision': None,
+                         **({'reason': '文件超过在线文档读取上限，可从交付目录打开'} if not readable else {})})
+        self._artifact_documents = rows
+        self._artifact_collection_revision = digest(fingerprints)
+
+    def artifact_page(self, offset: int = 0, limit: int = 50) -> dict:
+        if offset < 0 or not 1 <= limit <= 200:
+            raise WorkItemError('DOCUMENT_ARGUMENT_INVALID', '交付物分页参数无效')
+        self._load_artifact_index()
+        items = self._artifact_documents or []
+        return {'items': items[offset:offset + limit],
+                'counts': {'total': len(items)},
+                'collectionRevision': self._artifact_collection_revision,
+                'page': {'offset': offset, 'limit': limit, 'total': len(items),
+                          'hasMore': offset + limit < len(items)}}
+
+    def artifact_summary(self) -> dict:
+        self._load_artifact_index()
+        items = self._artifact_documents or []
+        return {'total': len(items), 'readable': sum(item['readable'] for item in items),
+                'unreadable': sum(not item['readable'] for item in items),
+                'collectionRevision': self._artifact_collection_revision}
 
     def review_revision(self, role: str) -> str | None:
         document = self.document(role)
@@ -377,7 +408,8 @@ class WorkItemQuery:
                   'updatedAt': self.state['updatedAt'], 'repositoryBindings': self.state['bindings'],
                   'progress': {'completed': sum(t['completed'] for t in tasks), 'total': len(tasks)},
                   'reviews': self.review_state(), 'verification': self.verification(check_code=check_code),
-                  'documents': self.documents(include_artifacts=True), 'delivery': self.state['delivery'],
+                  'documents': self.documents(), 'artifactSummary': self.artifact_summary(),
+                  'delivery': self.state['delivery'],
                   'executionBlockers': self.state['blockers'], 'cancellation': self.state['cancellation']}
         result.update(self.decision(check_code=check_code))
         return result

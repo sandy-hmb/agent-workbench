@@ -104,6 +104,18 @@ class KitForwardingTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         json.loads(result.stdout)
 
+    def test_root_can_be_placed_before_setup_subcommand(self):
+        code, _, err = _run(kit.main, ["setup", "--root", str(ROOT), "init", "explain", "--json"])
+        self.assertEqual(0, code, err)
+
+    def test_item_root_position_is_preserved_for_nested_parser(self):
+        forwarded_code, forwarded_out, _ = _run(
+            kit.main,
+            ["item", "complete", "missing-item", "--root", str(ROOT), "--state-revision", "sha256:missing"],
+        )
+        self.assertEqual(1, forwarded_code)
+        self.assertIn("ITEM_NOT_FOUND", forwarded_out)
+
 
 if __name__ == "__main__":
     unittest.main()

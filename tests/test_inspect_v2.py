@@ -48,6 +48,19 @@ class InspectV2Test(unittest.TestCase):
         (self.fixture.item/'change.md').write_text('# changed\n')
         code,response=self.cli('document','demo','--path','change.md','--document-revision',value['data']['documentRevision'])
         self.assertEqual(1,code)
+
+    def test_artifacts_are_listed_on_demand_without_loading_summary_files(self):
+        artifact = self.fixture.item / 'artifacts' / 'reports' / 'summary.json'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('{"ok": true}\n', encoding='utf-8')
+        code, summary = self.cli('projection', 'demo', '--view', 'summary')
+        self.assertEqual(0, code)
+        self.assertNotIn('artifacts/reports/summary.json', {row['path'] for row in summary['data']['summary']['documents']})
+        self.assertEqual(1, summary['data']['summary']['artifactSummary']['total'])
+        code, page = self.cli('artifacts', 'demo', '--limit', '10')
+        self.assertEqual(0, code)
+        self.assertEqual(['artifacts/reports/summary.json'], [row['path'] for row in page['data']['items']])
+        self.assertIsNone(page['data']['items'][0]['documentRevision'])
     def test_symlinked_or_oversized_documents_rejected(self):
         target=self.fixture.item/'change.md';target.unlink();target.symlink_to(self.root/'AGENTS.md')
         self.assertEqual(1,self.cli('document','demo','--path','change.md')[0])
@@ -76,7 +89,7 @@ class InspectV2Test(unittest.TestCase):
         from workbench.schema_validation import validate
         schema = json.loads((ROOT / 'schemas/inspect-result.schema.json').read_text())
         for args in [('workspace',), ('items',), ('projection', 'demo', '--view', 'summary'),
-                     ('document', 'demo', '--path', 'change.md'), ('verification', 'demo')]:
+                     ('document', 'demo', '--path', 'change.md'), ('artifacts', 'demo'), ('verification', 'demo')]:
             code, value = self.cli(*args)
             self.assertEqual(0, code)
             validate(value, schema)

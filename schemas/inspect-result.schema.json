@@ -257,6 +257,27 @@
       },
       "additionalProperties": true
     },
+    "artifacts": {
+      "type": "object",
+      "required": ["slug", "items", "page", "collectionRevision"],
+      "properties": {
+        "slug": {"type": "string"},
+        "items": {"type": "array"},
+        "page": {
+          "type": "object",
+          "required": ["offset", "limit", "total", "hasMore"],
+          "properties": {
+            "offset": {"type": "integer"},
+            "limit": {"type": "integer"},
+            "total": {"type": "integer"},
+            "hasMore": {"type": "boolean"}
+          },
+          "additionalProperties": true
+        },
+        "collectionRevision": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
     "verification": {
       "type": "object",
       "required": [
