@@ -39,6 +39,9 @@
         },
         "with": {
           "type": "object"
+        },
+        "optional": {
+          "type": "boolean"
         }
       }
     }

@@ -1,17 +1,17 @@
 """Validate structured references from WorkItem delivery facts to Workflow attempts."""
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from workbench.extensions import attempts
 from workbench.workspace.paths import workflow_run_file
 from workbench.work_items.store import WorkItemError, read_json
 from workbench.validation import object_fields, text, array
-
-
-IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
-STAGE = re.compile(r"^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$")
+from workbench.identifiers import (
+    request_id as validate_request_id,
+    stage_id as validate_stage_id,
+    workflow_run_id as validate_workflow_run_id,
+)
 
 
 def validate_evidence_refs(root: Path, item_slug: str, value: object, field: str) -> list[dict]:
@@ -26,7 +26,11 @@ def validate_evidence_refs(root: Path, item_slug: str, value: object, field: str
                       required={'kind', 'runId', 'requestId', 'stage'}, field=location)
         for name in ('kind', 'runId', 'requestId', 'stage'):
             text(ref[name], f'{location}.{name}')
-        if ref['kind'] != 'workflow' or not IDENTIFIER.fullmatch(ref['runId']) or not IDENTIFIER.fullmatch(ref['requestId']) or not STAGE.fullmatch(ref['stage']):
+        try:
+            validate_workflow_run_id(ref['runId'], field=f'{location}.runId')
+            validate_request_id(ref['requestId'], field=f'{location}.requestId')
+            validate_stage_id(ref['stage'], field=f'{location}.stageId')
+        except ValueError as exc:
             raise WorkItemError('EVIDENCE_REFERENCE_INVALID', 'Workflow 证据引用格式无效', location)
         run_path = workflow_run_file(root, ref['runId'])
         run = read_json(run_path)

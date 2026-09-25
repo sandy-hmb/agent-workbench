@@ -13,16 +13,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from workbench.workspace.model import atomic_write_many
+from workbench.identifiers import (
+    plan_hash as validate_plan_hash,
+    request_id as validate_request_id,
+    stage_id as validate_stage_id,
+    workflow_run_id as validate_workflow_run_id,
+)
 
-ID = re.compile(r'^[a-z0-9][a-z0-9._-]{0,127}$')
 STATES = {'running', 'succeeded', 'failed', 'unknown', 'skipped'}
 LIMIT = 1024 * 1024
+FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def identifier(value: str) -> str:
-    if not isinstance(value, str) or not ID.fullmatch(value) or '..' in value:
-        raise ValueError('ACTION_REQUEST_INVALID: 请求编号无效')
-    return value
+    try:
+        return validate_request_id(value, field="requestId")
+    except ValueError as exc:
+        raise ValueError(f'ACTION_REQUEST_INVALID: {exc}') from exc
 
 
 def default_request_id(run_id: str, stage: str, plan_hash: str) -> str:
@@ -30,7 +37,10 @@ def default_request_id(run_id: str, stage: str, plan_hash: str) -> str:
 
 
 def _path(root: Path, run_id: str, request_id: str | None = None) -> Path:
-    identifier(run_id)
+    try:
+        validate_workflow_run_id(run_id)
+    except ValueError as exc:
+        raise ValueError(f'ACTION_RUN_INVALID: {exc}') from exc
     base = root / '.workspace/runs/attempts'
     path = base / (f'{run_id}.json' if request_id is None else f'{run_id}.{identifier(request_id)}.lock')
     for parent in (path, *path.parents):
@@ -60,8 +70,13 @@ def read(root: Path, run_id: str) -> dict:
         for field in ('stage', 'planHash', 'fingerprint', 'summary', 'updatedAt'):
             if not isinstance(item.get(field), str):
                 raise ValueError('ACTION_RECORD_INVALID: 请求字段无效')
-        if not re.fullmatch(r'[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*', item['stage']) or not re.fullmatch(r'[a-f0-9]{64}', item['planHash']) or not re.fullmatch(r'sha256:[a-f0-9]{64}', item['fingerprint']):
-            raise ValueError('ACTION_RECORD_INVALID: 请求指纹无效')
+        try:
+            validate_stage_id(item['stage'])
+            validate_plan_hash(item['planHash'])
+            if not FINGERPRINT_RE.fullmatch(item['fingerprint']):
+                raise ValueError("fingerprint")
+        except ValueError as exc:
+            raise ValueError('ACTION_RECORD_INVALID: 请求指纹无效') from exc
         sequence = item.get('sequence')
         if type(sequence) is not int or sequence < 1 or sequence in seen:
             raise ValueError('ACTION_RECORD_INVALID: 请求顺序无效')

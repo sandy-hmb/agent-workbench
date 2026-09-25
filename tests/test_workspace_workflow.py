@@ -229,6 +229,63 @@ class WorkspaceWorkflowTest(WorkflowFixture, unittest.TestCase):
         )
         self.assertEqual(["team-delivery.integration-test"], [item["stage"] for item in changed["pending"]])
 
+    def test_unrelated_core_regions_do_not_block_each_other(self) -> None:
+        self.write_overlay(
+            [
+                {
+                    "id": "team-delivery.after-implement",
+                    "after": "item.implement",
+                    "uses": "action-extension/integration-test",
+                },
+                {
+                    "id": "team-delivery.after-verify",
+                    "after": "item.verify",
+                    "uses": "action-extension/integration-test",
+                },
+                {
+                    "id": "team-delivery.depends-on-implement",
+                    "after": "team-delivery.after-implement",
+                    "uses": "action-extension/integration-test",
+                },
+            ]
+        )
+        self.activate_overlay()
+        workspace_workflow.start_run(self.root, run_id="region-run")
+
+        verify_plan = workspace_workflow.plan_result(self.root, "region-run", after="item.verify")
+        self.assertEqual(["team-delivery.after-verify"], [item["stage"] for item in verify_plan["pending"]])
+        finished = workspace_workflow.finish(
+            self.root, "region-run", "team-delivery.after-verify",
+            verify_plan["pending"][0]["planHash"], status="succeeded", summary="ok",
+        )
+        self.assertEqual("succeeded", finished["status"])
+
+        implement_plan = workspace_workflow.plan_result(self.root, "region-run", after="item.implement")
+        self.assertEqual(["team-delivery.after-implement"], [item["stage"] for item in implement_plan["pending"]])
+        _, _, _, blocked_item, _ = workspace_workflow._stage_context(
+            self.root.resolve(), "region-run", "team-delivery.depends-on-implement"
+        )
+        with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "ACTION_BLOCKED"):
+            workspace_workflow.finish(
+                self.root, "region-run", "team-delivery.depends-on-implement",
+                blocked_item["planHash"], status="succeeded", summary="must wait",
+            )
+
+    def test_custom_stage_cannot_be_used_as_plan_anchor(self) -> None:
+        self.write_overlay(
+            [{
+                "id": "team-delivery.integration-test",
+                "after": "item.implement",
+                "uses": "action-extension/integration-test",
+            }]
+        )
+        self.activate_overlay()
+        workspace_workflow.start_run(self.root, run_id="anchor-run")
+        with self.assertRaisesRegex(workspace_workflow.WorkflowCommandError, "当前参数只接受 Core Stage"):
+            workspace_workflow.plan_result(
+                self.root, "anchor-run", after="team-delivery.integration-test"
+            )
+
 
     def test_command_environment_and_summary_limits_are_safe(self) -> None:
         self.write_overlay(

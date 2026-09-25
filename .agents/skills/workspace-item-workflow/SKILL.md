@@ -18,7 +18,7 @@ python3 scripts/kit.py status --root . --json
 `workflow.enabled` 为 `false` 时直接按现有 Core Skill 工作，不读取 Extension Action，不创建 Workflow Run。为 `true` 时，再读取当前需求的最小上下文，并使用：
 
 ```bash
-python3 scripts/kit.py workflow start --root . --item <slug> --json
+python3 scripts/kit.py workflow start --root . --item-slug <itemSlug> --json
 ```
 
 轻量改动不创建需求目录；只传仓库和分支即可。标准需求要求有效 state.json，验证记录尚未生成时也可以启动 Run；一个 Run 只服务当前一次流程续接。
@@ -29,10 +29,10 @@ Core Stage 完成或即将开始时，只查询当前锚点：
 
 ```bash
 python3 scripts/kit.py workflow plan \
-  --root . --run <run-id> --after <core-stage> --json
+  --root . --workflow-run-id <workflowRunId> --after <core-stage> --json
 ```
 
-需要前置 Action 时使用 `--before`。plan 只返回待执行 Stage、一个 Action、确认摘要、Skill 路径、effects、参数和 plan hash，不返回整个 Extension 或历史日志。
+需要前置 Action 时使用 `--before`。`--before/--after` 只接受 Core Stage；传入 Custom Stage 会列出可用 Core Stage，并提示使用 `run`、`finish` 或 `skip`。plan 只返回待执行 Stage、一个 Action、确认摘要、Skill 路径、effects、参数和 plan hash，不返回整个 Extension 或历史日志。
 
 - `manual`：Action API v1 必须带 confirmation，才能进入 plan。使用 plan 的 `confirmation.title`、`confirmation.summary`、非敏感 `with` 参数和 effects 核对实际影响；已有授权明确覆盖同一目标、环境、参数和 effects 时直接继续，否则等待用户明确执行或跳过。`planHash` 只用于防漂移，不是新的确认对象。
 - `auto`：自动选中 Action；仅当 effects 包含未授权网络、远端 Git、外部环境或其他共享副作用时暂停授权。
@@ -44,22 +44,32 @@ python3 scripts/kit.py workflow plan \
 
 ```bash
 python3 scripts/kit.py workflow run \
-  --root . --run <run-id> --stage <stage-id> --plan-hash <plan-hash> --request-id <request-id> --json
+  --root . --workflow-run-id <workflowRunId> --stage-id <stageId> --plan-hash <planHash> --request-id <requestId> --json
 ```
 
 无 `command` 的 Action 只读取 plan 返回的精确 `SKILL.md`，完成后使用 `finish`；用户决定不执行时使用带理由的 `skip`。所有命令都必须使用当前 plan hash，失配就重新 plan。
+
+```bash
+python3 scripts/kit.py workflow finish \
+  --root . --workflow-run-id <workflowRunId> --stage-id <stageId> \
+  --plan-hash <planHash> --status succeeded --summary "completed" --json
+
+python3 scripts/kit.py workflow skip \
+  --root . --workflow-run-id <workflowRunId> --stage-id <stageId> \
+  --plan-hash <planHash> --reason "deferred by user" --json
+```
 
 ## 请求结果与中断恢复
 
 命令型 Action 使用 plan 返回的 requestId。重复 run 同一请求只返回原结果或运行状态，不启动第二次命令；省略编号沿稳定初次请求兼容。结果查询不依赖当前扩展仍可用：
 
 ```bash
-python3 scripts/kit.py workflow result --root . --run <run-id> --request-id <request-id> --json
+python3 scripts/kit.py workflow result --root . --workflow-run-id <workflowRunId> --request-id <requestId> --json
 ```
 
-明确失败后的重新执行使用 `workflow retry --run <run-id> --stage <stage-id> --plan-hash <current-hash> --previous-request-id <old-id> --request-id <new-id> --reason "已核对失败原因" --json`。已有授权覆盖重试范围时不重复确认。
+明确失败后的重新执行使用 `workflow retry --workflow-run-id <workflowRunId> --stage-id <stageId> --plan-hash <planHash> --previous-request-id <oldRequestId> --request-id <newRequestId> --reason "已核对失败原因" --json`。已有授权覆盖重试范围时不重复确认。
 
-结果 unknown 表示执行者退出、超时或协议失败后外部结果尚未确认；查询命令不写状态。先核对真实目标，用 `workflow reconcile --run <run-id> --request-id <id> --status succeeded|failed|skipped --summary "实际结论" --evidence "证据位置或外部操作编号" --json` 记录核对来源，再按结果继续或 retry。不能把进程消失推断为动作没有发生。结果未知时不得用 skip 绕过核对。
+结果 unknown 表示执行者退出、超时或协议失败后外部结果尚未确认；查询命令不写状态。先核对真实目标，用 `workflow reconcile --workflow-run-id <workflowRunId> --request-id <requestId> --status succeeded|failed|skipped --summary "实际结论" --evidence "证据位置或外部操作编号" --json` 记录核对来源，再按结果继续或 retry。不能把进程消失推断为动作没有发生。结果未知时不得用 skip 绕过核对。
 
 保持前台执行与工作区互斥，不启动后台守护进程。说明书型 Action 仍由 Agent 按授权执行并 finish，不承诺工具外操作去重。新旧 Runner 不混用。
 

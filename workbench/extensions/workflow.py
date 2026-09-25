@@ -5,7 +5,7 @@ from workbench.resources import KIT_ROOT
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Mapping
@@ -60,6 +60,7 @@ class CustomStage:
     trigger: str
     config: Mapping[str, object]
     index: int
+    optional: bool = False
 
     @property
     def anchor(self) -> str:
@@ -98,6 +99,7 @@ class ResolvedStage:
 class ResolvedWorkflow:
     workflow: str
     stages: tuple[ResolvedStage, ...]
+    direct_predecessors: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def stage_ids(self) -> tuple[str, ...]:
@@ -205,8 +207,11 @@ def load_overlay(path: Path) -> WorkflowOverlay:
             reject_sensitive_fields(config, f"workflow.stages[{index}].with")
         except WorkspaceError as exc:
             _error("WORKFLOW_INVALID", str(exc))
+        optional = value.get("optional", False)
+        if type(optional) is not bool:
+            _error("WORKFLOW_INVALID", f"Custom Stage optional 必须为布尔值：{stage_id}")
         stages.append(
-            CustomStage(stage_id, before, after, uses, trigger, dict(config), index)
+            CustomStage(stage_id, before, after, uses, trigger, dict(config), index, optional)
         )
         seen.add(stage_id)
     return WorkflowOverlay(workflow, tuple(stages))
@@ -294,12 +299,27 @@ def resolve_stages(core: WorkflowDefinition, overlay: WorkflowOverlay) -> Resolv
                 edges.setdefault(source, set()).add(target)
         ordered_groups[region] = _stable_topological_order(tuple(stages), edges)
 
+    direct_predecessors: dict[str, set[str]] = {stage.id: set() for stage in overlay.stages}
+    for region, group in ordered_groups.items():
+        # A region is a single Core boundary. Its declaration/topological order is
+        # intentionally serial, while regions belonging to different Core stages
+        # remain independent.
+        for previous_stage, current_stage in zip(group, group[1:]):
+            direct_predecessors[current_stage.id].add(previous_stage.id)
+        for current_stage in group:
+            if current_stage.anchor in custom:
+                if current_stage.after:
+                    direct_predecessors[current_stage.id].add(current_stage.anchor)
+                else:
+                    direct_predecessors[current_stage.anchor].add(current_stage.id)
+
     resolved: list[ResolvedStage] = []
     for index, stage in enumerate(core.stages):
         resolved.extend(
             ResolvedStage(
                 item.id,
                 core=False,
+                optional=item.optional,
                 action=item.uses,
                 trigger=item.trigger,
                 config=item.config,
@@ -312,10 +332,15 @@ def resolve_stages(core: WorkflowDefinition, overlay: WorkflowOverlay) -> Resolv
                 ResolvedStage(
                     item.id,
                     core=False,
+                    optional=item.optional,
                     action=item.uses,
                     trigger=item.trigger,
                     config=item.config,
                 )
                 for item in ordered_groups.get((stage.id, None), ())
             )
-    return ResolvedWorkflow(core.id, tuple(resolved))
+    return ResolvedWorkflow(
+        core.id,
+        tuple(resolved),
+        {stage_id: tuple(sorted(values)) for stage_id, values in direct_predecessors.items()},
+    )

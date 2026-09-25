@@ -138,11 +138,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "plan",
             "--root",
             str(self.root),
-            "--repo",
+            "--repository-path",
             "service",
             "--branch",
             "owner/feature/demo",
-            "--item",
+            "--item-slug",
             "demo-feature",
             "--path",
             "README.md",
@@ -154,6 +154,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertEqual(0, code, error)
         assert plan is not None
         self.assertEqual(["README.md"], plan["changedFiles"])
+        self.assertIn("submit apply", plan["applyCommand"])
+        self.assertIn("--repository-path service", plan["applyCommand"])
+        self.assertIn("--item-slug demo-feature", plan["applyCommand"])
+        self.assertIn("--path README.md", plan["applyCommand"])
+        self.assertIn(plan["planHash"], plan["applyCommand"])
         self.assertEqual(["artifacts/sql/001-create.sql"], plan["itemArtifacts"])
         self.assertNotIn("artifacts/sql/001-create.sql", plan["paths"])
 
@@ -168,6 +173,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
         )
         self.assertEqual(0, code, error)
         self.assertEqual("submitted", result["status"])
+        self.assertTrue(result["attemptId"])
+        attempt = json.loads((self.root / ".workspace/submit-attempts" / f"{result['attemptId']}.json").read_text(encoding="utf-8"))
+        self.assertEqual("succeeded", attempt["phases"]["commit"]["status"])
+        self.assertEqual("succeeded", attempt["phases"]["featurePush"]["status"])
+        self.assertEqual("succeeded", attempt["phases"]["testPush"]["status"])
         self.assertEqual("owner/feature/demo", run_git("branch", "--show-current", cwd=self.service))
         self.assertEqual("active", (self.root / ".workspace/items/demo-feature/README.md").read_text(encoding="utf-8").split("状态：", 1)[1].splitlines()[0])
         self.assertEqual(0, run_git("--git-dir", str(self.remote), "show-ref", "--verify", "--quiet", "refs/heads/test", cwd=self.parent).__len__())
@@ -179,11 +189,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "plan",
                 "--root",
                 str(self.root),
-                "--repo",
+                "--repository-path",
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--item",
+                "--item-slug",
                 "demo-feature",
                 "--path",
                 "../kit/.workspace/items/demo-feature/artifacts/sql/001-create.sql",
@@ -203,11 +213,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "plan",
                 "--root",
                 str(self.root),
-                "--repo",
+                "--repository-path",
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--item",
+                "--item-slug",
                 "demo-feature",
                 "--path",
                 "README.md",
@@ -218,6 +228,21 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertIsNone(result)
         self.assertIn("SUBMIT_MESSAGE_REQUIRED", error)
 
+    def test_plan_without_paths_lists_dirty_files_and_repair_command(self):
+        (self.service / "README.md").write_text("updated\n", encoding="utf-8")
+        code, result, error = self.run_command(
+            [
+                "plan", "--root", str(self.root), "--repository-path", "service",
+                "--branch", "owner/feature/demo", "--item-slug", "demo-feature",
+                "--message", "feat: update demo", "--json",
+            ]
+        )
+        self.assertEqual(1, code)
+        self.assertIsNone(result)
+        value = json.loads(error)
+        self.assertEqual(["README.md"], value["error"]["detectedDirtyPaths"])
+        self.assertIn("--path README.md", value["error"]["repairCommand"])
+
     def test_patch_mode_requires_testing_feature(self):
         readme = self.root / ".workspace/items/demo-feature/README.md"
         readme.write_text(readme.read_text(encoding="utf-8").replace("状态：active", "状态：planning"), encoding="utf-8")
@@ -226,11 +251,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "plan",
                 "--root",
                 str(self.root),
-                "--repo",
+                "--repository-path",
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--item",
+                "--item-slug",
                 "demo-feature",
                 "--mode",
                 "patch",
@@ -251,11 +276,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
                 "plan",
                 "--root",
                 str(self.root),
-                "--repo",
+                "--repository-path",
                 "service",
                 "--branch",
                 "owner/feature/demo",
-                "--item",
+                "--item-slug",
                 "demo-feature",
                 "--json",
             ]
@@ -290,8 +315,8 @@ class WorkspaceSubmitTest(unittest.TestCase):
 
         code, plan, error = self.run_command(
             [
-                "plan", "--root", str(self.root), "--repo", "service",
-                "--branch", "owner/feature/demo", "--item", "demo-feature", "--json",
+                "plan", "--root", str(self.root), "--repository-path", "service",
+                "--branch", "owner/feature/demo", "--item-slug", "demo-feature", "--json",
             ]
         )
 
@@ -310,11 +335,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "plan",
             "--root",
             str(self.root),
-            "--repo",
+            "--repository-path",
             "service",
             "--branch",
             "owner/feature/demo",
-            "--item",
+            "--item-slug",
             "demo-feature",
             "--path",
             "README.md",
@@ -335,6 +360,16 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertEqual(
             "owner/feature/demo", json.loads(error)["error"]["currentBranch"]
         )
+        failure = json.loads(error)["error"]
+        self.assertIn("attemptId", failure)
+        commit_count = len(run_git("rev-list", "--count", "owner/feature/demo", cwd=self.service))
+        hook.unlink()
+        code, continued, continue_error = self.run_command(
+            ["continue", "--root", str(self.root), "--attempt-id", failure["attemptId"], "--json"]
+        )
+        self.assertEqual(0, code, continue_error)
+        self.assertEqual("succeeded", continued["phases"]["testPush"]["status"])
+        self.assertEqual(commit_count, len(run_git("rev-list", "--count", "owner/feature/demo", cwd=self.service)))
         self.assertIn(
             "状态：active",
             (self.root / ".workspace/items/demo-feature/README.md").read_text(encoding="utf-8"),
@@ -356,11 +391,11 @@ class WorkspaceSubmitTest(unittest.TestCase):
             "plan",
             "--root",
             str(self.root),
-            "--repo",
+            "--repository-path",
             "service",
             "--branch",
             "owner/feature/demo",
-            "--item",
+            "--item-slug",
             "demo-feature",
             "--path",
             "README.md",
@@ -380,6 +415,10 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertEqual("test", run_git("branch", "--show-current", cwd=self.service))
         self.assertEqual("test", json.loads(error)["error"]["currentBranch"])
         self.assertTrue((self.service / ".git/MERGE_HEAD").is_file())
+        attempts = list((self.root / ".workspace/submit-attempts").glob("*.json"))
+        self.assertTrue(attempts)
+        record = json.loads(attempts[-1].read_text(encoding="utf-8"))
+        self.assertEqual("failed", record["phases"]["testMerge"]["status"])
         self.assertIn(
             "状态：active",
             (self.root / ".workspace/items/demo-feature/README.md").read_text(encoding="utf-8"),

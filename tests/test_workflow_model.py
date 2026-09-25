@@ -98,6 +98,25 @@ class WorkflowModelTest(unittest.TestCase):
             ),
             resolved.stage_ids,
         )
+        self.assertEqual(("team-check.integration-test",), resolved.direct_predecessors["team-check.deploy-test"])
+
+    def test_custom_stage_optional_flag_is_preserved(self) -> None:
+        core = load_core_workflow(ROOT / "workflows/item-development.json")
+        with tempfile.TemporaryDirectory() as directory:
+            overlay = load_overlay(
+                self.write_overlay(
+                    Path(directory),
+                    [{
+                        "id": "team-check.optional",
+                        "after": "item.implement",
+                        "uses": "team-check/integration-test",
+                        "optional": True,
+                    }],
+                )
+            )
+        resolved = resolve_stages(core, overlay)
+        stage = next(item for item in resolved.stages if item.id == "team-check.optional")
+        self.assertTrue(stage.optional)
 
     def test_invalid_overlay_is_rejected_with_stable_error_codes(self) -> None:
         core = load_core_workflow(ROOT / "workflows/item-development.json")

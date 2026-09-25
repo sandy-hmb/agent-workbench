@@ -56,6 +56,13 @@ from workbench.extensions.workflow import (  # noqa: E402
     load_overlay,
     resolve_stages,
 )
+from workbench.identifiers import (
+    item_slug as validate_item_slug,
+    plan_hash as validate_plan_hash,
+    request_id as validate_request_id,
+    stage_id as validate_stage_id,
+    workflow_run_id as validate_workflow_run_id,
+)
 
 
 CORE_WORKFLOW = KIT_ROOT / "workflows" / "item-development.json"
@@ -339,7 +346,11 @@ def _ensure_runs_root(root: Path) -> Path:
 
 
 def _valid_run_id(value: object) -> bool:
-    return isinstance(value, str) and bool(RUN_ID_RE.fullmatch(value))
+    try:
+        validate_workflow_run_id(value)
+        return True
+    except ValueError:
+        return False
 
 
 def start_run(
@@ -352,17 +363,44 @@ def start_run(
 ) -> dict[str, object]:
     root = _root(root)
     _state(root)
+    if repository is not None:
+        try:
+            from workbench.workspace.model import load_workspace, resolve_repository
+            resolved_repository = resolve_repository(load_workspace(root).repositories, repository)
+            if repository != resolved_repository.path:
+                raise _command(
+                    "WORKFLOW_REPOSITORY_INVALID",
+                    f"repositoryPath 必须填写已登记业务仓路径 {resolved_repository.path}，不能填写别名或仓库名称：{repository}",
+                )
+            repository = resolved_repository.path
+        except WorkflowCommandError:
+            raise
+        except (OSError, RuntimeError, WorkspaceError, ValueError) as exc:
+            if item_slug is not None:
+                raise _command("WORKFLOW_REPOSITORY_INVALID", f"repositoryPath 不是已登记业务仓路径：{repository}") from exc
+            try:
+                from workbench.identifiers import repository_path as validate_repository_path
+                repository = validate_repository_path(repository)
+            except ValueError as path_exc:
+                raise _command("WORKFLOW_REPOSITORY_INVALID", str(path_exc)) from path_exc
     with extension_lock(root, fcntl.LOCK_EX, create_cache=True):
         core, overlay, _, _ = _resolve(root)
         if run_id is None:
             if item_slug is None:
                 raise _command("WORKFLOW_INVALID", "轻量改动必须显式提供 run id")
+            try:
+                validate_item_slug(item_slug)
+            except ValueError as exc:
+                raise _command("ARGUMENT_INVALID", str(exc)) from exc
             from workbench.work_items.store import item_path, load_state
             run_id = item_slug + "-" + load_state(item_path(root, item_slug))["iteration"]
         if not _valid_run_id(run_id):
             raise _command("WORKFLOW_INVALID", "run id 必须是小写 kebab-case")
-        if item_slug is not None and not _valid_run_id(item_slug):
-            raise _command("WORKFLOW_INVALID", "item slug 必须是小写 kebab-case")
+        if item_slug is not None:
+            try:
+                validate_item_slug(item_slug)
+            except ValueError as exc:
+                raise _command("WORKFLOW_INVALID", str(exc)) from exc
         for label, value in (("repository", repository), ("branch", branch)):
             if value is not None and (
                 not isinstance(value, str) or not value or any(char in value for char in "\0\r\n")
@@ -414,10 +452,14 @@ def start_run(
 
 
 def _load_run(root: Path, run_id: str) -> dict[str, object]:
-    if not _valid_run_id(run_id):
-        raise _command("WORKFLOW_RUN_MISSING", "run id 无效")
+    try:
+        run_id = validate_workflow_run_id(run_id)
+    except ValueError as exc:
+        raise _command("WORKFLOW_RUN_MISSING", str(exc)) from exc
     path = workflow_run_file(root, run_id)
     _safe_path(root, path)
+    if not path.exists():
+        raise _command("WORKFLOW_RUN_MISSING", f"未找到 workflowRunId：{run_id}；此参数不能填写 itemSlug")
     raw = _read_json(path, "WORKFLOW_RUN_MISSING")
     if set(raw) != RUN_FIELDS or raw.get("schemaVersion") != 3 or raw.get("id") != run_id:
         raise _command("WORKFLOW_RUN_MISSING", "仅支持新版 Workflow Run")
@@ -427,7 +469,14 @@ def _load_run(root: Path, run_id: str) -> dict[str, object]:
 def _region_stages(resolved: ResolvedWorkflow, anchor: str, *, before: bool) -> tuple[CustomStage, ...]:
     core_ids = {stage.id for stage in resolved.stages if stage.core}
     if anchor not in core_ids:
-        raise _command("WORKFLOW_ANCHOR_MISSING", f"plan 锚点不是 Core Stage：{anchor}")
+        available = ", ".join(stage.id for stage in resolved.stages if stage.core)
+        raise _command(
+            "WORKFLOW_CORE_ANCHOR_REQUIRED",
+            "当前参数只接受 Core Stage；"
+            f"收到 Custom Stage 或未知 Stage：{anchor}；"
+            f"当前可用 Core Stage：{available}；"
+            "Custom Stage 应使用 workflow run、workflow finish 或 workflow skip",
+        )
     index = resolved.stage_ids.index(anchor)
     values = list(resolved.stages)
     if before:
@@ -482,8 +531,10 @@ def _plan_item(
     assert binding.action.confirmation_summary is not None
     item: dict[str, object] = {
         "stage": stage.id,
+        "stageId": stage.id,
         "action": binding.ref,
         "trigger": stage.trigger,
+        "optional": stage.optional,
         "confirmation": {
             "title": binding.action.confirmation_title,
             "summary": binding.action.confirmation_summary,
@@ -493,6 +544,7 @@ def _plan_item(
         "with": dict(stage.config),
         "fingerprint": _stage_fingerprint(stage, binding, run),
     }
+    item["executionMode"] = "command" if binding.action.command is not None else "skill-only"
     item["planHash"] = _hash(item)
     if binding.action.command is not None:
         item["requestId"] = attempts.default_request_id(str(run["id"]), stage.id, item["planHash"])
@@ -507,6 +559,10 @@ def plan_result(
     after: str | None = None,
 ) -> dict[str, object]:
     root = _root(root)
+    try:
+        run_id = validate_workflow_run_id(run_id)
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     if (before is None) == (after is None):
         raise _command("WORKFLOW_INVALID", "plan 必须恰好声明 before 或 after")
     _state(root)
@@ -535,6 +591,27 @@ def plan_result(
         fingerprint = item["fingerprint"]
         assert isinstance(fingerprint, str)
         record = stage_records.get(stage.id)
+        predecessors = (resolved.direct_predecessors or {}).get(stage.id, ())
+        unready: list[str] = []
+        for predecessor in predecessors:
+            predecessor_record = stage_records.get(predecessor)
+            predecessor_source = source_stages.get(predecessor)
+            predecessor_binding = actions.get(predecessor_source.uses) if predecessor_source else None
+            expected = (
+                _stage_fingerprint(predecessor_source, predecessor_binding, run)
+                if predecessor_source is not None and predecessor_binding is not None else None
+            )
+            if (
+                not isinstance(predecessor_record, dict)
+                or predecessor_record.get("status") not in {"succeeded", "skipped"}
+                or predecessor_record.get("fingerprint") != expected
+            ):
+                unready.append(predecessor)
+        if unready:
+            item["blockedBy"] = unready
+            pending.append(item)
+            blocked = True
+            break
         if isinstance(record, dict) and record.get("fingerprint") == fingerprint:
             status = record.get("status")
             if status in {"succeeded", "skipped"}:
@@ -542,10 +619,11 @@ def plan_result(
             if status in {"failed", "running", "unknown"}:
                 blocked = True
         pending.append(item)
-        if blocked:
+        if blocked or record is None:
             break
     return {
         "run": run_id,
+        "workflowRunId": run_id,
         "anchor": anchor,
         "event": "before" if before is not None else "after",
         "blocked": blocked,
@@ -556,6 +634,11 @@ def plan_result(
 def _stage_context(
     root: Path, run_id: str, stage_id: str
 ) -> tuple[dict[str, object], CustomStage, ActionBinding, dict[str, object], tuple[str, ...]]:
+    try:
+        run_id = validate_workflow_run_id(run_id)
+        stage_id = validate_stage_id(stage_id)
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     core, overlay, resolved, actions = _resolve(root)
     run = _load_run(root, run_id)
     if run['itemSlug'] is not None:
@@ -583,10 +666,8 @@ def _stage_context(
     if binding is None:
         raise _command("ACTION_MISSING", f"Action 未安装或未锁定：{stage.uses}")
     item = _plan_item(stage, binding, run)
-    ordered = list(resolved.stages)
-    index = resolved.stage_ids.index(stage_id)
-    previous = [item_before.id for item_before in ordered[:index] if not item_before.core]
-    return run, stage, binding, item, tuple(previous)
+    predecessors = tuple((resolved.direct_predecessors or {}).get(stage_id, ()))
+    return run, stage, binding, item, predecessors
 
 
 def _summary(value: object, label: str) -> str:
@@ -600,7 +681,7 @@ def _summary(value: object, label: str) -> str:
 
 def _assert_plan_hash(item: Mapping[str, object], expected_hash: str) -> None:
     if not isinstance(expected_hash, str) or not re_full_hash(expected_hash):
-        raise _command("ACTION_PLAN_REQUIRED", "必须提供当前 plan hash")
+        raise _command("ACTION_PLAN_REQUIRED", "必须提供当前 planHash（64 位小写 SHA-256）")
     if item["planHash"] != expected_hash:
         raise _command("ACTION_PLAN_STALE", "Action plan hash 已变化")
 
@@ -650,6 +731,12 @@ def finish(
     status: str,
     summary: str,
 ) -> dict[str, object]:
+    try:
+        run_id = validate_workflow_run_id(run_id)
+        stage_id = validate_stage_id(stage_id)
+        plan_hash = validate_plan_hash(plan_hash)
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     if status not in {"succeeded", "failed"}:
         raise _command("WORKFLOW_INVALID", "finish 只接受 succeeded 或 failed")
     root = _root(root)
@@ -666,6 +753,12 @@ def finish(
 def skip(
     root: Path, run_id: str, stage_id: str, plan_hash: str, *, reason: str
 ) -> dict[str, object]:
+    try:
+        run_id = validate_workflow_run_id(run_id)
+        stage_id = validate_stage_id(stage_id)
+        plan_hash = validate_plan_hash(plan_hash)
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     root = _root(root)
     with extension_lock(root, fcntl.LOCK_EX, create_cache=True):
         run, _, _, item, previous = _stage_context(root, run_id, stage_id)
@@ -692,7 +785,11 @@ def _result_summary(result: Mapping[str, object]) -> str:
 
 def action_result(root: Path, run_id: str, request_id: str) -> dict[str, object]:
     root = _root(root)
-    attempts.identifier(request_id)
+    try:
+        validate_workflow_run_id(run_id)
+        validate_request_id(request_id)
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     item = attempts.read(root, run_id)["requests"].get(request_id)
     if item is None:
         raise _command("ACTION_REQUEST_NOT_FOUND", "请求不存在")
@@ -714,7 +811,13 @@ def run_action(
     reason: str | None = None,
 ) -> dict[str, object]:
     root = _root(root)
-    request_id = attempts.identifier(request_id or attempts.default_request_id(run_id, stage_id, plan_hash))
+    try:
+        run_id = validate_workflow_run_id(run_id)
+        stage_id = validate_stage_id(stage_id)
+        plan_hash = validate_plan_hash(plan_hash)
+        request_id = validate_request_id(request_id or attempts.default_request_id(run_id, stage_id, plan_hash))
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     replay = _replay(root, run_id, stage_id, plan_hash, request_id)
     if replay is not None:
         return replay
@@ -756,7 +859,10 @@ def run_action(
             attempts.save(root, run_id, data)  # Publish intent before any process can start.
             request = {
                 "workflow": run["workflow"], "run": run_id, "stage": stage.id,
+                "workflowRunId": run_id, "stageId": stage.id,
+                "requestId": request_id, "planHash": plan_hash,
                 "itemSlug": run["itemSlug"], "repository": run["repository"],
+                "repositoryPath": run["repository"],
                 "branch": run["branch"], "with": dict(stage.config),
             }
             try:
@@ -779,6 +885,11 @@ def run_action(
 
 def reconcile_action(root: Path, run_id: str, request_id: str, *, status: str, summary: str, evidence: str) -> dict[str, object]:
     root = _root(root)
+    try:
+        run_id = validate_workflow_run_id(run_id)
+        request_id = validate_request_id(request_id)
+    except ValueError as exc:
+        raise _command("ARGUMENT_INVALID", str(exc)) from exc
     if status not in {"succeeded", "failed", "skipped"}:
         raise _command("WORKFLOW_INVALID", "核对结果必须是 succeeded、failed 或 skipped")
     summary = _summary(summary, "reconcile summary")
@@ -832,6 +943,7 @@ def status_result(root: Path) -> dict[str, object]:
         return {"enabled": True, "blockedCodes": ["WORKFLOW_INVALID"]}
     pending = failed = interrupted = running = 0
     next_stage: str | None = None
+    ready_stages: set[str] = set()
     source = {stage.id: stage for stage in active.stages}
     custom_ids = [stage.id for stage in resolved.stages if not stage.core]
     count = 0
@@ -869,6 +981,13 @@ def status_result(root: Path) -> dict[str, object]:
                 pending += 1
                 if next_stage is None:
                     next_stage = stage_id
+                predecessors = (resolved.direct_predecessors or {}).get(stage_id, ())
+                if all(
+                    isinstance(records.get(predecessor), dict)
+                    and records[predecessor].get("status") in {"succeeded", "skipped"}
+                    for predecessor in predecessors
+                ):
+                    ready_stages.add(stage_id)
         except (WorkflowCommandError, ValueError) as exc:
             code, _, _ = str(exc).partition(": ")
             return {"enabled": True, "blockedCodes": [code]}
@@ -881,6 +1000,7 @@ def status_result(root: Path) -> dict[str, object]:
         "interrupted": interrupted,
         **({"running": running} if running else {}),
         "nextStage": next_stage,
+        "readyStages": sorted(ready_stages),
     }
 
 
@@ -901,34 +1021,38 @@ def build_parser() -> argparse.ArgumentParser:
     apply_parser.add_argument("--preview-hash", required=True)
     start = commands.add_parser("start")
     start.add_argument("--root", type=Path, default=Path.cwd())
-    start.add_argument("--run-id")
-    start.add_argument("--item")
-    start.add_argument("--repo")
+    start.add_argument("--workflow-run-id", dest="run_id", help="Workflow Run ID")
+    start.add_argument("--item-slug", dest="item_slug", help="WorkItem slug")
+    start.add_argument("--repository-path", dest="repository_path", help="已登记业务仓路径")
     start.add_argument("--branch")
     start.add_argument("--json", action="store_true")
     plan = commands.add_parser("plan")
     plan.add_argument("--root", type=Path, default=Path.cwd())
-    plan.add_argument("--run", required=True)
+    plan.add_argument("--workflow-run-id", dest="run_id", required=True)
     event = plan.add_mutually_exclusive_group(required=True)
-    event.add_argument("--before")
-    event.add_argument("--after")
+    event.add_argument("--before", help="Core Stage ID；不接受 Custom Stage")
+    event.add_argument("--after", help="Core Stage ID；不接受 Custom Stage")
     plan.add_argument("--json", action="store_true")
     run = commands.add_parser("run")
     run.add_argument("--root", type=Path, default=Path.cwd())
-    run.add_argument("--run", required=True)
-    run.add_argument("--stage", required=True)
+    run.add_argument("--workflow-run-id", dest="run_id", required=True)
+    run.add_argument("--stage-id", dest="stage_id", required=True)
     run.add_argument("--plan-hash", required=True)
     run.add_argument("--json", action="store_true")
     run.add_argument("--request-id")
     retry = commands.add_parser("retry")
     retry.add_argument("--root", type=Path, default=Path.cwd())
-    for flag in ("run", "stage", "plan-hash", "request-id", "previous-request-id", "reason"):
-        retry.add_argument("--" + flag, required=True)
+    retry.add_argument("--workflow-run-id", dest="run_id", required=True)
+    retry.add_argument("--stage-id", dest="stage_id", required=True)
+    retry.add_argument("--plan-hash", required=True)
+    retry.add_argument("--request-id", required=True)
+    retry.add_argument("--previous-request-id", required=True)
+    retry.add_argument("--reason", required=True)
     retry.add_argument("--json", action="store_true")
     for name in ("result", "reconcile"):
         operation = commands.add_parser(name)
         operation.add_argument("--root", type=Path, default=Path.cwd())
-        operation.add_argument("--run", required=True)
+        operation.add_argument("--workflow-run-id", dest="run_id", required=True)
         operation.add_argument("--request-id", required=True)
         operation.add_argument("--json", action="store_true")
         if name == "reconcile":
@@ -937,16 +1061,16 @@ def build_parser() -> argparse.ArgumentParser:
             operation.add_argument("--evidence", required=True)
     finish_parser = commands.add_parser("finish")
     finish_parser.add_argument("--root", type=Path, default=Path.cwd())
-    finish_parser.add_argument("--run", required=True)
-    finish_parser.add_argument("--stage", required=True)
+    finish_parser.add_argument("--workflow-run-id", dest="run_id", required=True)
+    finish_parser.add_argument("--stage-id", dest="stage_id", required=True)
     finish_parser.add_argument("--plan-hash", required=True)
     finish_parser.add_argument("--status", choices=("succeeded", "failed"), required=True)
     finish_parser.add_argument("--summary", required=True)
     finish_parser.add_argument("--json", action="store_true")
     skip_parser = commands.add_parser("skip")
     skip_parser.add_argument("--root", type=Path, default=Path.cwd())
-    skip_parser.add_argument("--run", required=True)
-    skip_parser.add_argument("--stage", required=True)
+    skip_parser.add_argument("--workflow-run-id", dest="run_id", required=True)
+    skip_parser.add_argument("--stage-id", dest="stage_id", required=True)
     skip_parser.add_argument("--plan-hash", required=True)
     skip_parser.add_argument("--reason", required=True)
     skip_parser.add_argument("--json", action="store_true")
@@ -971,30 +1095,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 start_run(
                     args.root,
                     run_id=args.run_id,
-                    item_slug=args.item,
-                    repository=args.repo,
+                    item_slug=args.item_slug,
+                    repository=args.repository_path,
                     branch=args.branch,
                 ),
                 args.json,
             )
         elif args.command == "plan":
-            _print(plan_result(args.root, args.run, before=args.before, after=args.after), args.json)
+            _print(plan_result(args.root, args.run_id, before=args.before, after=args.after), args.json)
         elif args.command in {"run", "retry"}:
-            _print(run_action(args.root, args.run, args.stage, args.plan_hash,
+            _print(run_action(args.root, args.run_id, args.stage_id, args.plan_hash,
                               request_id=args.request_id,
                               previous_request_id=getattr(args, "previous_request_id", None),
                               reason=getattr(args, "reason", None)), args.json)
         elif args.command == "result":
-            _print(action_result(args.root, args.run, args.request_id), args.json)
+            _print(action_result(args.root, args.run_id, args.request_id), args.json)
         elif args.command == "reconcile":
-            _print(reconcile_action(args.root, args.run, args.request_id, status=args.status,
+            _print(reconcile_action(args.root, args.run_id, args.request_id, status=args.status,
                                     summary=args.summary, evidence=args.evidence), args.json)
         elif args.command == "finish":
             _print(
                 finish(
                     args.root,
-                    args.run,
-                    args.stage,
+                    args.run_id,
+                    args.stage_id,
                     args.plan_hash,
                     status=args.status,
                     summary=args.summary,
@@ -1002,7 +1126,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.json,
             )
         elif args.command == "skip":
-            _print(skip(args.root, args.run, args.stage, args.plan_hash, reason=args.reason), args.json)
+            _print(skip(args.root, args.run_id, args.stage_id, args.plan_hash, reason=args.reason), args.json)
         return 0
     except (OSError, RuntimeError, UnicodeError, ValueError, WorkspaceError, ExtensionError, WorkflowError) as exc:
         print(f"错误：{exc}", file=sys.stderr)

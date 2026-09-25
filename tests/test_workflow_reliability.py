@@ -84,6 +84,21 @@ class ActionReliabilityTest(unittest.TestCase):
         self.assertEqual('succeeded', result['status'])
         self.assertNotIn('secret-fixture', json.dumps(result))
 
+    def test_provider_request_contains_canonical_workflow_ids(self):
+        captured = {}
+
+        def provider(*args, **kwargs):
+            captured.update(kwargs['request'])
+            return {'status': 'ok', 'diagnostics': []}
+
+        with mock.patch.object(workflow, 'run_provider', side_effect=provider):
+            result = self.execute(request_id='canonical-request')
+        self.assertEqual('succeeded', result['status'])
+        self.assertEqual('reliable', captured['workflowRunId'])
+        self.assertEqual(self.stage, captured['stageId'])
+        self.assertEqual('canonical-request', captured['requestId'])
+        self.assertEqual(self.item['planHash'], captured['planHash'])
+
     def test_unknown_outcome_requires_reconciliation_before_retry(self):
         uncertain = {'status': 'failed', 'diagnostics': [{'code': 'PROVIDER_TIMEOUT'}]}
         with mock.patch.object(workflow, 'run_provider', return_value=uncertain) as dispatch:
