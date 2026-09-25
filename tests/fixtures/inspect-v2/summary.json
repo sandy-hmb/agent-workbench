@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 0
+    "minor": 1
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "summary",
     "slug": "demo",
-    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "stateRevision": "sha256:3da0ee594a6f5473f043218952a99b780922cf36140ca6f3b8f4e0d35069939e",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
-      "updatedAt": "2026-09-25T00:48:49.091160+00:00",
+      "stateRevision": "sha256:3da0ee594a6f5473f043218952a99b780922cf36140ca6f3b8f4e0d35069939e",
+      "updatedAt": "2026-09-25T02:23:24.613537+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -40,7 +40,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+        "evidenceId": "sha256:8d5b787a9c18cc3298d5b95766c0e7714c25fad48ad70a2b34dbb8a02420ea2b",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -139,5 +139,5 @@
       }
     ]
   },
-  "responseRevision": "sha256:481f71d8c628d59cf9f51e4ff9e8b9424ec47cd5169191c8da8bfec4d261eb85"
+  "responseRevision": "sha256:ab9e6e7b334686130af7d680a3c5c83ce3f58b51f92f27a55b8698795aca044b"
 }

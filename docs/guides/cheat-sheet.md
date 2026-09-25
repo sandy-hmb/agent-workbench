@@ -4,6 +4,7 @@
 python3 scripts/kit.py status --json
 python3 scripts/kit.py brief <slug> --json
 python3 scripts/kit.py brief <slug> --task T01 --json
+python3 scripts/kit.py brief --repo <repo> --path <path> --json
 python3 scripts/kit.py brief <slug> --check-code --json
 python3 scripts/kit.py verify snapshot <slug> --json
 python3 scripts/kit.py verify record <slug> --input evidence.json --state-revision <stateRevision> --json

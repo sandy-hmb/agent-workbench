@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 0
+    "minor": 1
   },
   "operation": "verification",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -10,13 +10,13 @@
   "status": "ok",
   "data": {
     "recordedResult": "passed",
-    "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+    "evidenceId": "sha256:8d5b787a9c18cc3298d5b95766c0e7714c25fad48ad70a2b34dbb8a02420ea2b",
     "applicability": "not_checked",
     "verificationScope": "",
     "pendingExternalChecks": [],
     "repositoryStates": [],
     "slug": "demo",
-    "stateRevision": "sha256:16ba05be8a34b720a7867ecc5575413e2a4e38e10dc278134fb0ced151e38ab9",
+    "stateRevision": "sha256:3da0ee594a6f5473f043218952a99b780922cf36140ca6f3b8f4e0d35069939e",
     "record": {
       "basisRevision": "sha256:78b6d7138dc2a0d31dcd2fb3c410671dc82c78fee1cd1a4b2a008b7e622a268e",
       "checks": [
@@ -32,24 +32,24 @@
         }
       ],
       "codeState": {
-        "kit": "sha256:06d050ba11ba8f40c34e3470e8454d3e6db36ab33989886f62b6e041e0e6e254"
+        "kit": "sha256:075f30eeca52f443e4a726ff0cae24752e9b8dac1a25713b7f38b3cf0ebe41db"
       },
       "itemSlug": "demo",
       "iteration": "i01",
-      "receipt": "sha256:e46aaca8d6d5ca6ce05efbb3ece0cfaddbcd72be6adaac64efa9206cb62a1816",
+      "receipt": "sha256:da9a076f19e2496903468c4444fbf6c92c83519089bbc46cea93666d49cf75ba",
       "recordedAt": "2026-09-25T10:00:00+08:00",
       "result": "passed",
       "reviewResult": "passed",
       "schemaVersion": 1,
       "scope": "item",
       "taskId": null,
-      "id": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1"
+      "id": "sha256:8d5b787a9c18cc3298d5b95766c0e7714c25fad48ad70a2b34dbb8a02420ea2b"
     },
     "tasks": [
       {
         "id": "T01",
         "status": "completed",
-        "evidenceId": "sha256:563843cd617b6766436c14a43339ab8c15ee7b8ef99703e6bd04c2c3c4879a2b"
+        "evidenceId": "sha256:f5f324dc9d3909ac7f35c8ae09cd8610adcd5eb38c746476846ba374629527a7"
       }
     ],
     "progression": {
@@ -66,5 +66,5 @@
       "canComplete": false
     }
   },
-  "responseRevision": "sha256:8bdbbb1ffb6386c87911b8291608179bf694217029199c03c893203123cbdf35"
+  "responseRevision": "sha256:2fc17173980c93e507e5dd4bfb399f3cabf10f358627cbcae222f445dde2d702"
 }

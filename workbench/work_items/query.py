@@ -4,6 +4,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 import time
+import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from workbench.work_items.documents import ROLES, LINK, content_roles, instructions, parse_tasks, source
@@ -41,6 +42,48 @@ def repository_roots(root: Path, state: dict, names=None) -> dict[str, Path]:
     return result
 
 
+def repository_context(root: Path, repository: Path, paths=None, task=None) -> dict:
+    configured = (root / '.workspace/workspace.json').exists()
+    facts = []
+    source_instruction = None
+    if configured:
+        workspace = load_workspace(root)
+        repo = resolve_repository(workspace.repositories, repository.name)
+        source_instruction = repo.source_instruction
+        facts = [(root / '.workspace/CONTEXT.md', 'workspace-context', True),
+                 (safe_path(root / '.workspace', repo.instruction), 'repository-profile', True)]
+        if source_instruction and Path(source_instruction).name != 'AGENTS.md':
+            facts.append((safe_path(repository, source_instruction), 'repository-reference', True))
+    facts.append((repository / 'CONTEXT.md', 'repository-context', False))
+    context = instructions(root, repository, task, paths=paths, source_instruction=source_instruction)
+    context['facts'] = []
+    for path, kind, required in facts:
+        try:
+            safe_path(path.parent, path.name)
+            if not path.exists() and not required:
+                continue
+            data = read_bytes(path, 1024 * 1024)
+            context['facts'].append({'path': str(path), 'kind': kind, 'documentRevision': text_digest(data)})
+        except (OSError, ValueError) as exc:
+            context['diagnostics'].append({'code': 'FACT_SOURCE_UNAVAILABLE', 'severity': 'warning', 'path': str(path), 'message': str(exc)})
+    return context
+
+
+def combine_contexts(contexts: list[dict]) -> dict:
+    result = {'rules': [], 'facts': [], 'diagnostics': [], 'targets': [], 'scopedRulesPending': False}
+    for key in ('rules', 'facts', 'diagnostics'):
+        seen = set()
+        for context in contexts:
+            for row in context.get(key, []):
+                identity = (row['path'], row.get('code'))
+                if identity not in seen:
+                    result[key].append(row); seen.add(identity)
+    result['rules'].sort(key=lambda row: (row['level'], len(Path(row['scope']).parts), row['path']))
+    result['targets'] = [row for context in contexts for row in context['targets']]
+    result['scopedRulesPending'] = any(context['scopedRulesPending'] for context in contexts)
+    return result
+
+
 class WorkItemQuery:
     def __init__(self, root: Path, slug: str, *, state: dict | None = None, deadline: float | None = None):
         self.root = Path(root).resolve()
@@ -52,6 +95,7 @@ class WorkItemQuery:
         self._code = {}
         self._roots = {}
         self._references = {}
+        self._artifact_documents = None
         self.deadline = deadline
 
     def remaining(self, maximum: float = 25) -> float:
@@ -68,11 +112,29 @@ class WorkItemQuery:
             self._documents[role] = source(self.path, role)
         return self._documents[role]
 
-    def documents(self) -> list[dict]:
+    def documents(self, *, include_artifacts=False) -> list[dict]:
         documents = [{k: v for k, v in value.items() if k != 'content'} for role in ROLES if (value := self.document(role))]
         for role in content_roles(self.state):
             self.review_revision(role)
         documents.extend({'role': 'references', 'path': name, 'documentRevision': value['revision']} for name, value in self._references.items())
+        folder = safe_path(self.path, 'artifacts')
+        if include_artifacts and self._artifact_documents is None:
+            self._artifact_documents = []
+            for count, path in enumerate(folder.rglob('*') if folder.is_dir() else []):
+                self.remaining()
+                if count >= 10000 or len(documents) + len(self._artifact_documents) >= 500:
+                    raise WorkItemError('DOCUMENT_LIMIT', '文档条目超过上限')
+                relative = path.relative_to(self.path).as_posix()
+                safe_path(self.path, relative)
+                if path.is_file() and path.suffix in {'.md', '.txt', '.json', '.sql', '.csv'}:
+                    size = path.stat().st_size
+                    if size > 1024 * 1024:
+                        self._artifact_documents.append({'role': 'artifacts', 'path': relative, 'documentRevision': None, 'bytes': size, 'readable': False, 'reason': '文件超过在线文档读取上限，可从交付目录打开'})
+                    else:
+                        data = read_bytes(path, 1024 * 1024)
+                        self._artifact_documents.append({'role': 'artifacts', 'path': relative, 'documentRevision': text_digest(data), 'bytes': len(data), 'readable': True})
+        if include_artifacts:
+            documents.extend(self._artifact_documents or [])
         return documents
 
     def review_revision(self, role: str) -> str | None:
@@ -213,6 +275,32 @@ class WorkItemQuery:
             affected.update(dependencies)
         return {'itemBlocked': item_blocked, 'tasks': affected, 'records': opened}
 
+    def artifact_states(self, record: dict) -> list[dict]:
+        identifiers = {self.state['tasks'][task_id].get('evidence') for task_id in self.state['currentTasks']}
+        records = [self.evidence(identifier) for identifier in self.state['evidence'] if identifier in identifiers]
+        records.append(record)
+        references = {}
+        for evidence in records:
+            if evidence['result'] != 'passed':
+                continue
+            for reference in evidence.get('artifactRefs', []):
+                references[reference['path']] = reference
+        results = []
+        for reference in references.values():
+            self.remaining()
+            row = {'path': reference['path'], 'state': 'unknown'}
+            try:
+                path = safe_path(self.path, reference['path'])
+                if not path.exists():
+                    row['state'] = 'missing'
+                else:
+                    data = read_bytes(path)
+                    row['state'] = 'matched' if text_digest(data) == reference['sha256'] and len(data) == reference['bytes'] else 'changed'
+            except (OSError, ValueError) as exc:
+                row['reason'] = str(exc)
+            results.append(row)
+        return results
+
     def verification(self, *, check_code: bool = False, browse: bool = False) -> dict:
         record = self.evidence(self.state['verification'])
         result = {'recordedResult': record['result'] if record else 'unknown', 'evidenceId': self.state['verification'],
@@ -241,6 +329,9 @@ class WorkItemQuery:
                                                'source': sources.get(name, 'worktree'), 'currentFingerprint': value,
                                                'recordedFingerprint': record['codeState'].get(name)} for name, value in current.items()]
                 result['applicability'] = 'valid' if current == record['codeState'] else 'invalid'
+                result['artifactStates'] = self.artifact_states(record)
+                if any(row['state'] != 'matched' for row in result['artifactStates']):
+                    result['applicability'] = 'invalid'
             except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
                 result.update(applicability='unknown', reason=str(exc))
         return result
@@ -285,7 +376,7 @@ class WorkItemQuery:
                   'updatedAt': self.state['updatedAt'], 'repositoryBindings': self.state['bindings'],
                   'progress': {'completed': sum(t['completed'] for t in tasks), 'total': len(tasks)},
                   'reviews': self.review_state(), 'verification': self.verification(check_code=check_code),
-                  'documents': self.documents(), 'delivery': self.state['delivery'],
+                  'documents': self.documents(include_artifacts=True), 'delivery': self.state['delivery'],
                   'executionBlockers': self.state['blockers'], 'cancellation': self.state['cancellation']}
         result.update(self.decision(check_code=check_code))
         return result
@@ -299,10 +390,42 @@ class WorkItemQuery:
             raise WorkItemError('TASK_UNREGISTERED', '当前任务尚未经过计划审阅')
         return {**task, 'status': current['status'], 'completed': current['completed'],
                 'executionBlocked': current['executionBlocked'], 'waitingFor': current['waitingFor'],
-                'instructionContext': {'rules': instructions(self.root, self.roots({task['repository']})[task['repository']], task)}}
+                'instructionContext': repository_context(self.root, self.roots({task['repository']})[task['repository']], task=task)}
 
-    def continuation(self, *, task_id=None, check_code=False) -> dict:
+    def requirement_sources(self, task: dict) -> list[dict]:
+        identifiers = list(dict.fromkeys(re.findall(r'(?<![A-Za-z0-9])(?:R\d+(?:\.\d+)*|D\d+)(?![A-Za-z0-9])', task['basis'])))
+        sources = []
+        for identifier in identifiers:
+            role = 'design' if identifier.startswith('D') else ('change' if self.state['documentKind'] == 'change' else 'requirements')
+            document = self.document(role)
+            if not document:
+                continue
+            lines = document['content'].splitlines()
+            headings = [(i, match) for i, line in enumerate(lines) if (match := re.match(r'^(#{1,6})\s+(.+)', line))]
+            start, end = 0, len(lines)
+            found = False
+            for pos, (line, match) in enumerate(headings):
+                if re.match(re.escape(identifier) + r'(?![A-Za-z0-9.])', match[2]):
+                    start = line; found = True
+                    end = next((following for following, heading in headings[pos + 1:] if len(heading[1]) <= len(match[1])), len(lines))
+                    break
+            sources.append({'id': identifier, 'path': document['path'], 'documentRevision': document['documentRevision'],
+                            'startLine': start + 1, 'endLine': max(start + 1, end), 'located': found})
+        # Explicit links may address detailed contracts whose headings are not R/D IDs.
+        for reference in task.get('references', []):
+            if not any(row['path'] == reference.split('#', 1)[0] for row in sources):
+                sources.append({'reference': reference})
+        return sources
+
+    def continuation(self, *, task_id=None, check_code=False, repository=None, paths=None) -> dict:
         selected = self.task(task_id) if task_id else None
+        if selected and repository and repository != selected['repository']:
+            raise WorkItemError('CONTEXT_REPOSITORY_MISMATCH', '查询仓库与任务目标仓不一致')
+        if not selected and repository and repository not in {row['repository'] for row in self.state['bindings']}:
+            raise WorkItemError('CONTEXT_REPOSITORY_MISMATCH', '仓库不属于当前工作项')
+        names = {selected['repository']} if selected else {repository} if repository else None
+        if paths and names is None and len(self.state['bindings']) > 1:
+            raise WorkItemError('CONTEXT_REPOSITORY_REQUIRED', '按路径查询时明确指定目标仓')
         decision = self.decision(execution=task_id is not None, check_code=check_code,
                                  repository_names={selected['repository']} if selected else None)
         if selected and (selected['executionBlocked'] or selected['waitingFor']):
@@ -310,15 +433,25 @@ class WorkItemQuery:
             decision.update(executionDecision='BLOCKED', blockers=list(dict.fromkeys([*decision['blockers'], reason])), canComplete=False)
         result = {'itemSlug': self.state['slug'], 'stateRevision': self.state['stateRevision'], 'iteration': self.state['iteration'], **decision}
         if task_id:
-            result['selectedTask'] = selected
-            result['directDependencies'] = [task for task in self.task_states() if task['id'] in selected['dependencies']]
+            context = selected['instructionContext']
+            if paths:
+                context = repository_context(self.root, self.roots(names)[selected['repository']], paths=paths, task=selected)
+            result['instructionContext'] = context
+            result['selectedTask'] = {key: selected[key] for key in ('id', 'path', 'documentRevision', 'startLine', 'endLine', 'body', 'status', 'executionBlocked', 'waitingFor')}
+            result['sources'] = self.requirement_sources(selected)
+            result['directDependencies'] = [{key: task[key] for key in ('id', 'status', 'evidenceId')} for task in self.task_states() if task['id'] in selected['dependencies']]
             result['repositoryContext'] = self.branches({selected['repository']})
         else:
             result.update(activity=self.state['activity'], riskTier=self.state['risk'], lifecycle=self.state['lifecycle'],
                           reviews=self.review_state(), verification=self.verification(check_code=check_code),
-                          documents=self.documents(), repositoryContext=self.branches())
+                          documents=self.documents(), repositoryContext=self.branches(names))
+            result['instructionContext'] = combine_contexts([repository_context(self.root, path, paths=paths) for path in self.roots(names).values()])
             if decision['readyTasks']:
-                result['currentTask'] = next(task for task in self.task_states() if task['id'] == decision['readyTasks'][0])
+                candidate = next(task for task in self.task_states() if task['id'] == decision['readyTasks'][0])
+                result['currentTask'] = {key: candidate[key] for key in ('id', 'title', 'repository', 'status')}
+        rule_errors = [row['code'] for row in result['instructionContext']['diagnostics'] if row['severity'] == 'error']
+        if rule_errors and result['currentStage'] in {'item.implement', 'item.prepare-branch'}:
+            result.update(executionDecision='BLOCKED', blockers=list(dict.fromkeys([*result['blockers'], *rule_errors])), canComplete=False)
         self.assert_unchanged()
         result['executionBlockers'] = self.execution_blocks()['records']
         return result

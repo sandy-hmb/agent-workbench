@@ -45,3 +45,13 @@ python3 scripts/kit.py status --root . --context-sources --json
 规则入口应是仓内普通、可读的 `AGENTS.md`。已有工作区中存在 `sourceInstruction` 指向 `README.md` 的真实案例：doctor 会给出 INFO，迁移或 onboarding 不会擅自改写业务仓。`CLAUDE.md`、生成的 profile 和 README 可以作为补充事实或线索，但不能替代规范入口。WorkItem 的 README 是工作项入口，不承担仓级规则职责；普通活动可用 `change.md`，复杂需求才按需生成 Requirements、Design 和 `plan.md`。
 
 常见错放包括：把“金额使用定点类型”这类工程 guardrail 塞进事实轴，或把某一仓的业务状态写进根层；应按适用范围下移或上移，并让更具体层只收紧、不放宽。
+
+## 按修改路径加载
+
+`brief <slug> --task T01` 自动使用任务交付路径；普通工作项用 `brief <slug> --repo service --path src/module.py`，无工作项的小改使用 `brief --repo service --path src/module.py`。可多次传入 --path，目录目标会包含该目录自己的 AGENTS.md。
+
+instructionContext 只返回 rules、facts、targets 和 diagnostics 指针。每项规则有 path、documentRevision、scope 和 level；兄弟目录规则分别作用于各自 scope，不能因为列表中的先后顺序而互相覆盖。sources 返回当前任务 R/D 的文档和行定位，正文按需读取。
+
+Kit 根、已初始化工作区和目标仓入口应存在，缺失或不可读时明确诊断。普通目录没有 AGENTS.md 不报错。尚未提供路径时 scopedRulesPending=true；这表示需要先定位修改范围，不代表已经检查所有目录。
+
+同会话按路径、版本和适用范围复用，文件变化、删除或扩展修改目录时重新查询；新会话重新加载必要上下文。Kit 不持久化“模型已读”状态，也不声称证明模型遵守规范。

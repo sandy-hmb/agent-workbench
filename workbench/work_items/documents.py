@@ -97,21 +97,39 @@ def parse_tasks(text: str, path: str = 'plan.md') -> list[dict]:
     return result
 
 
-def instructions(root: Path, repository: Path, task: dict | None) -> list[dict]:
-    candidates = [(root / 'AGENTS.md', 1), (root / '.workspace/AGENTS.md', 2), (repository / 'AGENTS.md', 3)]
-    if task:
-        for item in task['deliverables']:
-            target = safe_path(repository, item['path'])
-            for parent in reversed(target.parent.parents):
-                if parent != repository and parent.is_relative_to(repository):
-                    candidates.append((parent / 'AGENTS.md', 4))
-            if target.parent != repository:
-                candidates.append((target.parent / 'AGENTS.md', 4))
-    values, seen = [], set()
-    for candidate, level in candidates:
-        if candidate in seen or not candidate.exists():
+def instructions(root: Path, repository: Path, task: dict | None = None, *, paths=None, source_instruction=None) -> dict:
+    """Discover scoped pointers without loading rule prose into the response."""
+    root, repository = Path(root).resolve(), Path(repository).resolve()
+    targets = list(dict.fromkeys([*(paths or []), *[item['path'] for item in (task or {}).get('deliverables', [])]]))
+    configured = (root / '.workspace/workspace.json').exists()
+    candidates = [(root / 'AGENTS.md', 1, root, True),
+                  (root / '.workspace/AGENTS.md', 2, root, configured),
+                  (repository / 'AGENTS.md', 3, repository, True)]
+    if source_instruction and Path(source_instruction).name == 'AGENTS.md':
+        declared = safe_path(repository, source_instruction)
+        if declared != repository / 'AGENTS.md':
+            candidates.append((declared, 4, declared.parent, True))
+    for relative in targets:
+        target = safe_path(repository, relative)
+        scope = target if target.is_dir() else target.parent
+        for parent in [*reversed(scope.parents), scope]:
+            if parent != repository and parent.is_relative_to(repository):
+                candidates.append((parent / 'AGENTS.md', 4, parent, False))
+    rules, diagnostics, seen = [], [], set()
+    for candidate, level, scope, required in sorted(candidates, key=lambda row: (row[1], len(row[2].parts), str(row[0]))):
+        if candidate in seen:
             continue
-        safe_path(candidate.parent, candidate.name)
         seen.add(candidate)
-        values.append({'path': str(candidate), 'level': level, 'documentRevision': text_digest(read_bytes(candidate))})
-    return values
+        try:
+            safe_path(candidate.parent, candidate.name)
+            if not candidate.exists():
+                if required:
+                    diagnostics.append({'code': 'RULE_SOURCE_MISSING', 'severity': 'error', 'path': str(candidate), 'message': '必需规范入口缺失，读取并确认规范后才能实施'})
+                continue
+            data = read_bytes(candidate, 1024 * 1024)
+            data.decode('utf-8')
+            rules.append({'path': str(candidate), 'scope': str(scope), 'level': level, 'documentRevision': text_digest(data)})
+        except (OSError, ValueError, UnicodeError) as exc:
+            diagnostics.append({'code': 'RULE_SOURCE_UNREADABLE', 'severity': 'error', 'path': str(candidate), 'message': str(exc)})
+    return {'rules': rules, 'targets': [{'repository': str(repository), 'paths': targets}],
+            'scopedRulesPending': not bool(targets), 'diagnostics': diagnostics}

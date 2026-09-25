@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 0
+    "minor": 1
   },
   "operation": "workspace",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -30,7 +30,7 @@
     "protocol": {
       "apiVersion": {
         "major": 2,
-        "minor": 0
+        "minor": 1
       },
       "operations": [
         "workspace",
@@ -48,5 +48,5 @@
       "kitVersion": "2.0.0"
     }
   },
-  "responseRevision": "sha256:b6a2df18503f1ddb4f9cf31a1000e0535f15341be346242d8e564dce628ece6d"
+  "responseRevision": "sha256:c3f1a5c73aef00ede61ea78df540b82edf7942e55f8cee5ec75110b1ec20a74a"
 }

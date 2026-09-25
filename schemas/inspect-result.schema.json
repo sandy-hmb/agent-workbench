@@ -81,7 +81,8 @@
       "type": "object",
       "required": [
         "items",
-        "page"
+        "page",
+        "collectionRevision"
       ],
       "properties": {
         "items": {
@@ -110,6 +111,9 @@
             }
           },
           "additionalProperties": true
+        },
+        "collectionRevision": {
+          "type": "string"
         }
       },
       "additionalProperties": true
@@ -186,7 +190,10 @@
                     "type": "string"
                   },
                   "documentRevision": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "additionalProperties": true
@@ -215,7 +222,10 @@
                 "type": "string"
               },
               "documentRevision": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "additionalProperties": true
@@ -302,7 +312,8 @@
       "required": [
         "query",
         "items",
-        "page"
+        "page",
+        "collectionRevision"
       ],
       "properties": {
         "query": {
@@ -334,6 +345,9 @@
             }
           },
           "additionalProperties": true
+        },
+        "collectionRevision": {
+          "type": "string"
         }
       },
       "additionalProperties": true
@@ -352,7 +366,8 @@
       "type": "object",
       "required": [
         "items",
-        "page"
+        "page",
+        "collectionRevision"
       ],
       "properties": {
         "items": {
@@ -381,6 +396,9 @@
             }
           },
           "additionalProperties": true
+        },
+        "collectionRevision": {
+          "type": "string"
         }
       },
       "additionalProperties": true

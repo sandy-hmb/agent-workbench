@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 0
+    "minor": 1
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "task",
     "slug": "demo",
-    "stateRevision": "sha256:950e3a7f4ec2374cba30e9df3e2f921c6c582c63edc3715e0c85f798f6f228be",
+    "stateRevision": "sha256:1666053e7212d279e1fc02240e92aca7f2a7b5d029cb616a4f62d96ed75eb85d",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:950e3a7f4ec2374cba30e9df3e2f921c6c582c63edc3715e0c85f798f6f228be",
-      "updatedAt": "2026-09-25T00:48:49.857030+00:00",
+      "stateRevision": "sha256:1666053e7212d279e1fc02240e92aca7f2a7b5d029cb616a4f62d96ed75eb85d",
+      "updatedAt": "2026-09-25T02:23:25.441587+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -40,7 +40,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:0fbd6ae94a0c6a94a48a622d9cd59b56f4f79b714b1866c8fbab1e5d3f128aa1",
+        "evidenceId": "sha256:8d5b787a9c18cc3298d5b95766c0e7714c25fad48ad70a2b34dbb8a02420ea2b",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -83,7 +83,7 @@
           "id": "B01",
           "owner": "测试负责人",
           "reason": "等待验收环境",
-          "recordedAt": "2026-09-25T00:48:49.856990+00:00",
+          "recordedAt": "2026-09-25T02:23:25.441572+00:00",
           "resolution": null,
           "status": "open",
           "taskIds": []
@@ -174,12 +174,12 @@
           }
         ],
         "status": "completed",
-        "evidenceId": "sha256:563843cd617b6766436c14a43339ab8c15ee7b8ef99703e6bd04c2c3c4879a2b",
+        "evidenceId": "sha256:f5f324dc9d3909ac7f35c8ae09cd8610adcd5eb38c746476846ba374629527a7",
         "completed": true,
         "waitingFor": [],
         "executionBlocked": true
       }
     ]
   },
-  "responseRevision": "sha256:f77dc1de93667ce6f67933a6f38afc13a1852e8654724825c9a6131bf810d688"
+  "responseRevision": "sha256:129a2e2f507efd1c2d874d3c9386b0175b85a0edd32f713e4bb337a00d19e206"
 }

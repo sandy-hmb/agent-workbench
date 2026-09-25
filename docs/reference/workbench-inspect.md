@@ -1,4 +1,4 @@
-# Inspect 2
+# Inspect 2.1
 
 通过 `kit.py inspect --root <kit> --api-major 2 --json <operation>` 只读查询。仅支持 major=2；旧客户端和旧 WorkItem 明确拒绝，不自动转换数据。
 
@@ -25,3 +25,11 @@ summary.completionAction 指示可请求完成及阻塞原因；实际写入仍�
 summary 中的 executionBlockers 和 cancellation 分别展示开发阻塞与取消结论。任务包含 executionBlocked 与 waitingFor；readyTasks 排除实际阻塞和依赖未完成任务。取消项不出现在默认未完成视图。
 
 JSON 输入错误返回 error.code、error.message 和 error.field；例如 externalChecks 必须为数组，错误定位 $.externalChecks。命令参数错误定位 $args，退出码 2；业务校验失败退出码 1。Inspect 仍使用版本化信封和 diagnostics。
+
+## 集合版本与验证适用性
+
+items、runs、search 的 data.collectionRevision 对完整筛选集合计算，分页消费者比较集合版本；responseRevision 仍描述单页响应，不能用它判断两页是否来自同一集合。集合真实变化时最多重新读取两次，不混合不同版本。
+
+显式检查当前适用性时，同时核对当前批次和当前任务引用的交付物；artifactStates 标明 matched/changed/missing/unknown。修改交付物后旧证据保留，但不能支持当前完成。
+
+接手包包含未解决阻塞的原因、负责人、解除条件及待外部验收摘要；完整事项通过定向 brief 查询，历史不默认展开。

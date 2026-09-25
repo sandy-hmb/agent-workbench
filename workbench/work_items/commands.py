@@ -69,6 +69,13 @@ def _finish(root: Path, slug: str, state: dict, **extra) -> dict:
         result['summaryUpdated'] = True
     except (OSError, ValueError) as exc:
         result.update(summaryUpdated=False, diagnostic=f'状态已提交，摘要待重建：{exc}')
+    if 'id' in extra:
+        try:
+            decision = WorkItemQuery(root, slug).decision()
+            result['nextStep'] = {'stage': decision['currentStage'], 'taskId': next(iter(decision['readyTasks']), None),
+                                  'blockers': decision['blockers'], 'stateRevision': state['stateRevision']}
+        except (OSError, ValueError) as exc:
+            result['nextStep'] = {'blockers': [str(exc)], 'stateRevision': state['stateRevision']}
     return result
 
 
@@ -110,7 +117,7 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
                 raise WorkItemError('REVIEW_INVALID', '没有可沿用的已批准内容')
             document_revision = reader.review_revision(role)
             changed = old is not None and old['revision'] != document_revision
-            if decision != 'unchanged' and changed and role in {'change', 'requirements', 'design'} and affected_tasks is None:
+            if affected_tasks is None and (decision == 'needs-review' or (decision != 'unchanged' and changed and role in {'change', 'requirements', 'design'})):
                 invalidated.update(old_ids)
             state['reviews'][role] = {'revision': document_revision,
                                       'semanticRevision': old['semanticRevision'] if decision == 'unchanged' else document_revision,
@@ -130,7 +137,7 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
             if dependents <= invalidated:
                 break
             invalidated.update(dependents)
-        for task_id in invalidated:
+        for task_id in invalidated & state['tasks'].keys():
             state['tasks'][task_id]['evidence'] = None
         if decision != 'unchanged':
             state['verification'] = None
@@ -295,6 +302,7 @@ def delivery(root: Path, slug: str, changes: dict, *, expected_revision: str) ->
         if 'externalChecks' in changes:
             checks = changes['externalChecks']
             seen = set()
+            previously_open = {row['id'] for row in state['externalChecks'] if row['status'] not in {'passed', 'waived'}}
             for index, check in enumerate(checks):
                 fields = {'id', 'requirement', 'description', 'owner', 'status', 'evidence'}
                 object_fields(check, allowed=fields, required=fields, field=f'$.externalChecks[{index}]')
@@ -304,6 +312,8 @@ def delivery(root: Path, slug: str, changes: dict, *, expected_revision: str) ->
                     raise WorkItemError('DELIVERY_INVALID', '外部验收编号或状态无效')
                 if check['status'] in {'passed', 'waived'} and not check['evidence'].strip():
                     raise WorkItemError('DELIVERY_INVALID', '关闭验收需要实际依据或范围调整理由')
+                if state['lifecycle'] in {'done', 'cancelled'} and check['status'] not in {'passed', 'waived'} and check['id'] not in previously_open:
+                    raise WorkItemError('ITERATION_REQUIRED', '已结束轮次不能新增或重开未完成验收，请通过 next-iteration 处理')
                 seen.add(check['id'])
             if {c['id'] for c in state['externalChecks'] if c['status'] not in {'passed', 'waived'}} - seen:
                 raise WorkItemError('DELIVERY_INVALID', '不能静默丢弃未关闭的外部验收')

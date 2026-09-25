@@ -12,7 +12,7 @@ from workbench.workspace.model import load_workspace, repository_path, effective
 from workbench.workspace.paths import workflow_file, workflow_runs_root
 
 API_MAJOR = 2
-API_MINOR = 0
+API_MINOR = 1
 MAX_RESPONSE = 8 * 1024 * 1024
 OPERATIONS = ['workspace', 'items', 'projection', 'document', 'verification', 'evidence', 'handoff', 'search', 'workflow', 'runs', 'run']
 
@@ -31,6 +31,7 @@ class InspectParser(argparse.ArgumentParser):
 def _page(items, offset, limit):
     if offset < 0 or not 1 <= limit <= 200: raise WorkItemError('INSPECT_ARGUMENT_INVALID', '分页参数无效')
     return {'items': items[offset:offset + limit], 'counts': {'total': len(items)},
+            'collectionRevision': digest(items),
             'page': {'offset': offset, 'limit': limit, 'total': len(items), 'hasMore': offset + limit < len(items)}}
 
 
@@ -52,6 +53,7 @@ def workspace(root):
 
 def _documents(reader):
     docs = [{**doc, 'exists': True, 'kind': doc['role'], 'mediaType': 'text/markdown'} for doc in reader.documents()]
+    known = {row['path'] for row in docs}
     for name in ['references', 'artifacts']:
         folder = safe_path(reader.path, name)
         if not folder.exists(): continue
@@ -62,8 +64,9 @@ def _documents(reader):
             if len(docs) >= 500: raise WorkItemError('INSPECT_LIMIT', '文档条目超过上限')
             relative = path.relative_to(reader.path).as_posix()
             safe_path(reader.path, relative)
-            if path.is_file() and path.suffix in {'.md', '.txt', '.json', '.sql', '.csv'}:
+            if relative not in known and path.is_file() and path.suffix in {'.md', '.txt', '.json', '.sql', '.csv'}:
                 docs.append({'path': relative, 'role': name, 'kind': name, 'exists': True, 'documentRevision': text_digest(read_bytes(path, 1024 * 1024)), 'mediaType': 'text/plain'})
+                known.add(relative)
     return docs
 
 
@@ -75,7 +78,7 @@ def projection(root, slug, view, task_id=None, check_code=False, deadline=None):
         available = summary['currentStage'] == 'item.complete' and not summary['blockers'] and not reader.execution_blocks()['records']
         summary['completionAction'] = {'available': available,
                                        'reason': None if available else '仍有未完成事项；以 Kit 再次校验为准'}
-        base.update(summary=summary, progression=reader.decision(), documents=reader.documents())
+        base.update(summary=summary, progression=reader.decision(), documents=summary['documents'])
         if view == 'task':
             base['tasks'] = [reader.task(task_id)] if task_id else reader.task_states()
     elif view == 'change':
@@ -123,6 +126,12 @@ def handoff(root, slug, check_code=False, deadline=None):
     sources = [{'kind': d['role'], 'path': d['path'], 'documentRevision': d['documentRevision'], 'startLine': 1} for d in brief['documents']]
     content = '# ' + slug + ' 接手\n\n' + '\n'.join(f'- {key}：{json.dumps(brief.get(key), ensure_ascii=False)}' for key in ['iteration', 'activity', 'lifecycle', 'currentStage', 'currentTask', 'blockers', 'nextActions'])
     content += '\n\n文档：\n' + '\n'.join(f"- [{s['kind']}]({s['path']})" for s in sources)
+    for label, rows in [('开发阻塞', brief.get('executionBlockers', [])), ('待外部验收', brief.get('verification', {}).get('pendingExternalChecks', []))]:
+        opened = [row for row in rows if row.get('status') not in {'resolved', 'passed', 'waived'}]
+        if opened:
+            content += '\n\n' + label + '：\n' + '\n'.join('- ' + json.dumps(row, ensure_ascii=False) for row in opened[:10])
+            if len(opened) > 10:
+                content += f'\n其余 {len(opened)-10} 项使用 kit.py brief {slug} 查看。'
     return {'slug': slug, 'content': content, 'estimatedTokens': estimate_tokens(content)['estTokens'], 'sources': sources,
             'stateRevision': brief['stateRevision'], 'progression': {key: brief[key] for key in ['currentStage', 'nextActions', 'blockers']}}
 

@@ -82,6 +82,33 @@ class InspectV2Test(unittest.TestCase):
             validate(value, schema)
             validate(value['data'], schema['$defs'][args[0]], root=schema)
 
+    def test_real_pagination_uses_collection_version_separate_from_response(self):
+        from workbench.work_items.store import save_state
+        import copy
+        for index in range(200):
+            slug = f'page-{index:03d}'
+            directory = self.fixture.item.parent / slug; directory.mkdir()
+            state = copy.deepcopy(self.fixture.state()); state['slug'] = slug
+            save_state(directory, state)
+        first = self.cli('items', '--limit', '200', '--offset', '0')[1]
+        second = self.cli('items', '--limit', '200', '--offset', '200')[1]
+        self.assertEqual(200, len(first['data']['items']))
+        self.assertEqual(1, len(second['data']['items']))
+        self.assertEqual(first['data']['collectionRevision'], second['data']['collectionRevision'])
+        self.assertNotEqual(first['responseRevision'], second['responseRevision'])
+
+    def test_run_pages_share_collection_revision(self):
+        directory = self.root / '.workspace/runs'; directory.mkdir(parents=True)
+        for index in range(201):
+            identifier = f'run-{index:03d}'
+            (directory / (identifier + '.json')).write_text(json.dumps({'schemaVersion': 3, 'id': identifier,
+                'workflow': 'item-development', 'itemSlug': None, 'repository': 'kit', 'branch': 'main',
+                'iteration': None, 'bindingRevision': None}))
+        first = self.cli('runs', '--limit', '200', '--offset', '0')[1]
+        second = self.cli('runs', '--limit', '200', '--offset', '200')[1]
+        self.assertEqual(first['data']['collectionRevision'], second['data']['collectionRevision'])
+        self.assertEqual(1, len(second['data']['items']))
+
 
 def generate():
     case=InspectV2Test();case.setUp()
