@@ -16,6 +16,7 @@ from workbench.errors import WorkbenchError
 from workbench.validation import object_fields, text, array
 from workbench.resources import KIT_ROOT
 from workbench.schema_validation import validate, SchemaValidationError
+from workbench.workspace.paths import workspace_file
 
 SCHEMA_VERSION = 1
 MAX_BYTES = 2 * 1024 * 1024
@@ -62,7 +63,7 @@ def safe_path(root: Path, relative: str) -> Path:
 
 def item_area(root: Path) -> Path:
     root = Path(root).resolve()
-    return safe_path(root, '.workspace/items' if (root / '.workspace/workspace.json').exists() else 'docs/development/items')
+    return safe_path(root, '.workspace/items' if workspace_file(root).exists() else 'docs/development/items')
 
 
 def item_path(root: Path, slug: str) -> Path:

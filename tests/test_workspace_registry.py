@@ -23,11 +23,11 @@ class WorkspaceRegistryTest(unittest.TestCase):
         self.root = self.parent / "kit"
         self.root.mkdir()
         state = self.root / ".workspace"
-        state.mkdir()
-        (state / "workspace.json").write_text(
+        (state / "config").mkdir(parents=True)
+        (state / "config" / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 3, "minor": 0},
+                    "version": {"major": 4, "minor": 0},
                     "workspace": {"name": "Demo Workspace"},
                     "context": {},
                     "branchPolicy": {"workBase": "trunk", "testTarget": "qa"},
@@ -39,7 +39,7 @@ class WorkspaceRegistryTest(unittest.TestCase):
                             "remote": "https://example.test/service.git",
                             "category": "backend",
                             "description": "Service",
-                            "instruction": "docs/repositories/service.md",
+                            "instruction": "repositories/service.md",
                             "branchPolicy": {"hotfixBase": "stable"},
                         }
                     ],
@@ -47,7 +47,7 @@ class WorkspaceRegistryTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        (state / "workspace.local.json").write_text(
+        (state / "config" / "local.json").write_text(
             json.dumps({"branchOwner": "alice", "primaryRole": None, "extensions": {}}),
             encoding="utf-8",
         )
@@ -273,9 +273,9 @@ class WorkspaceRegistryTest(unittest.TestCase):
                     workspace_registry.main(["--root", str(self.root), *arguments]),
                 )
 
-        raw = json.loads((self.root / ".workspace/workspace.json").read_text(encoding="utf-8"))
+        raw = json.loads((self.root / ".workspace/config/workspace.json").read_text(encoding="utf-8"))
         raw["repositories"][0]["branchPolicy"]["hotfixBase"] = None
-        (self.root / ".workspace/workspace.json").write_text(json.dumps(raw), encoding="utf-8")
+        (self.root / ".workspace/config/workspace.json").write_text(json.dumps(raw), encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(
                 1,
@@ -308,7 +308,7 @@ class WorkspaceRegistryTest(unittest.TestCase):
         outside = self.parent / "outside"
         self.root.joinpath(".workspace").rename(outside)
         self.root.joinpath(".workspace").symlink_to(outside, target_is_directory=True)
-        registry = outside / "workspace.json"
+        registry = outside / "config" / "workspace.json"
         original = registry.read_bytes()
         for command in ("list", "resolve"):
             arguments = ["--root", str(self.root), command]

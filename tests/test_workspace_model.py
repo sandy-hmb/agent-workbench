@@ -37,7 +37,7 @@ def repository(**overrides):
         "remote": "https://git.example.com/team/service.git",
         "category": "backend",
         "description": "Service",
-        "instruction": f"docs/repositories/{path}.md",
+        "instruction": f"repositories/{path}.md",
     }
     value.update(overrides)
     return value
@@ -82,9 +82,9 @@ class WorkspaceModelTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "kit"
             root.mkdir()
-            for instruction in ("AGENTS.md", "docs/repositories/other.md"):
+            for instruction in ("AGENTS.md", "repositories/other.md"):
                 with self.subTest(instruction=instruction), self.assertRaisesRegex(
-                    WorkspaceError, "docs/repositories/service.md"
+                    WorkspaceError, "repositories/service.md"
                 ):
                     workspace(root, [repository(instruction=instruction)])
 
@@ -112,7 +112,7 @@ class WorkspaceModelTest(unittest.TestCase):
             )
             for identity in invalid:
                 payload = {
-                    "version": {"major": 3, "minor": 0},
+                    "version": {"major": 4, "minor": 0},
                     "workspace": identity,
                     "context": {},
                     "branchPolicy": {},

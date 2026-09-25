@@ -39,7 +39,8 @@ def make_provider_workspace(
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     state = root / ".workspace"
     (state / "items").mkdir(parents=True)
-    (state / "docs/repositories").mkdir(parents=True)
+    (state / "config").mkdir(parents=True)
+    (state / "repositories").mkdir(parents=True)
     (state / "extensions" / ".state").mkdir(parents=True)
     (state / "extensions" / ".state" / "cache").mkdir()
     extension = state / "extensions/example-extension"
@@ -73,12 +74,12 @@ def make_provider_workspace(
                 "remote": None,
                 "category": "backend",
                 "description": "Service",
-                "instruction": "docs/repositories/service.md",
+                "instruction": "repositories/service.md",
             }
         )
-        (state / "docs/repositories/service.md").write_text("# Service\n", encoding="utf-8")
+        (state / "repositories/service.md").write_text("# Service\n", encoding="utf-8")
     workspace = {
-        "version": {"major": 3, "minor": 0},
+        "version": {"major": 4, "minor": 0},
         "workspace": {"name": "Provider Test"},
         "context": context or {},
         "branchPolicy": {
@@ -90,8 +91,8 @@ def make_provider_workspace(
         "extensions": {"providers": {}, "config": {}},
         "repositories": repositories,
     }
-    (state / "workspace.json").write_text(json.dumps(workspace) + "\n", encoding="utf-8")
-    (state / "workspace.local.json").write_text(
+    (state / "config" / "workspace.json").write_text(json.dumps(workspace) + "\n", encoding="utf-8")
+    (state / "config" / "local.json").write_text(
         json.dumps(
             {
                 "branchOwner": "alice",

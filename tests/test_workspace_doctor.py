@@ -44,7 +44,7 @@ def repository(remote="https://example.test/service.git"):
         "remote": remote,
         "category": "backend",
         "description": "Service",
-        "instruction": "docs/repositories/service.md",
+        "instruction": "repositories/service.md",
     }
 
 
@@ -92,7 +92,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
         config.write_text(
             json.dumps(
                 {
-                    "version": {"major": 3, "minor": 0},
+                    "version": {"major": 4, "minor": 0},
                     "workspace": {"name": "Demo Workspace"},
                     "local": {"branchOwner": "alice", "primaryRole": None, "extensions": {}},
                     "context": {},
@@ -199,12 +199,12 @@ class WorkspaceDoctorTest(unittest.TestCase):
         gitignore.write_text(".workspace/\ninput.json\n", encoding="utf-8")
 
         subprocess.run(
-            ["git", "-C", str(self.root), "add", "-f", ".workspace/workspace.json"],
+            ["git", "-C", str(self.root), "add", "-f", ".workspace/config/workspace.json"],
             check=True,
         )
         self.assertIn("WORKSPACE_TRACKED", self.codes())
 
-        local = self.root / ".workspace/workspace.local.json"
+        local = self.root / ".workspace/config/local.json"
         local.write_text(
             json.dumps(
                 {
@@ -220,7 +220,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
     def test_ignore_rule_for_registry_only_does_not_protect_workspace_tree(self):
         self.initialize()
         (self.root / ".gitignore").write_text(
-            ".workspace/workspace.json\ninput.json\n", encoding="utf-8"
+            ".workspace/config/workspace.json\ninput.json\n", encoding="utf-8"
         )
         self.assertIn("WORKSPACE_NOT_IGNORED", self.codes())
 
@@ -265,7 +265,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
     def test_workflow_overlay_is_optional_but_invalid_overlay_is_reported(self):
         self.initialize()
         self.assertNotIn("WORKFLOW_INVALID", self.codes())
-        overlay = self.root / ".workspace/workflow.json"
+        overlay = self.root / ".workspace/config/workflow.json"
         overlay.write_text(
             json.dumps(
                 {
@@ -467,10 +467,10 @@ class WorkspaceDoctorTest(unittest.TestCase):
         self.initialize()
         sibling = self.parent / "unregistered"
         subprocess.run(["git", "init", "-q", str(sibling)], check=True)
-        before = (self.root / ".workspace/workspace.json").read_bytes()
+        before = (self.root / ".workspace/config/workspace.json").read_bytes()
         self.assertNotIn("UNREGISTERED_SIBLING", self.codes())
         self.assertIn("UNREGISTERED_SIBLING", self.codes(verbose=True))
-        self.assertEqual(before, (self.root / ".workspace/workspace.json").read_bytes())
+        self.assertEqual(before, (self.root / ".workspace/config/workspace.json").read_bytes())
 
     def test_generated_files_markdown_agents_and_optional_adapters_are_checked(self):
         self.initialize()
@@ -558,7 +558,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
     def test_repository_instruction_is_only_resolved_from_governance_root(self):
         repo = repository()
-        repo["instruction"] = "docs/repositories/service.md"
+        repo["instruction"] = "repositories/service.md"
         self.initialize(repo=repo)
         service = self.parent / "service"
         subprocess.run(["git", "init", "-q", str(service)], check=True)
@@ -574,10 +574,10 @@ class WorkspaceDoctorTest(unittest.TestCase):
             ],
             check=True,
         )
-        business_instruction = service / "docs/repositories/service.md"
+        business_instruction = service / "repositories/service.md"
         business_instruction.parent.mkdir(parents=True)
         business_instruction.write_text("# Business copy\n", encoding="utf-8")
-        (self.root / ".workspace/docs/repositories/service.md").unlink()
+        (self.root / ".workspace/repositories/service.md").unlink()
 
         codes = self.codes()
 
@@ -592,28 +592,28 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
         self.assertIn("MARKDOWN_LINK_UNSAFE", self.codes())
 
-    def test_docs_symlink_inside_root_is_reported_for_generated_and_markdown_paths(self):
+    def test_repositories_symlink_inside_root_is_reported_for_generated_and_markdown_paths(self):
         self.initialize()
-        docs = self.root / ".workspace/docs"
-        real_docs = self.root / "real-docs"
-        docs.rename(real_docs)
-        docs.symlink_to("../real-docs", target_is_directory=True)
+        repositories = self.root / ".workspace/repositories"
+        real_repositories = self.root / "real-repositories"
+        repositories.rename(real_repositories)
+        repositories.symlink_to("../real-repositories", target_is_directory=True)
 
         codes = self.codes()
 
-        self.assertIn("DOCS_DIRECTORY_INVALID", codes)
+        self.assertIn("REPOSITORIES_DIRECTORY_INVALID", codes)
         self.assertIn("MARKDOWN_ROOT_INVALID", codes)
 
-    def test_docs_symlink_outside_root_is_reported_for_generated_and_markdown_paths(self):
+    def test_repositories_symlink_outside_root_is_reported_for_generated_and_markdown_paths(self):
         self.initialize()
-        docs = self.root / ".workspace/docs"
-        outside_docs = self.parent / "outside-docs"
-        shutil.move(str(docs), str(outside_docs))
-        docs.symlink_to(outside_docs, target_is_directory=True)
+        repositories = self.root / ".workspace/repositories"
+        outside_repositories = self.parent / "outside-repositories"
+        shutil.move(str(repositories), str(outside_repositories))
+        repositories.symlink_to(outside_repositories, target_is_directory=True)
 
         codes = self.codes()
 
-        self.assertIn("DOCS_DIRECTORY_INVALID", codes)
+        self.assertIn("REPOSITORIES_DIRECTORY_INVALID", codes)
         self.assertIn("MARKDOWN_ROOT_INVALID", codes)
 
     def test_remote_mismatch_cli_does_not_echo_credentials(self):
@@ -652,7 +652,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
 
     def test_remote_null_missing_is_info_by_default_and_error_when_targeted(self):
         self.initialize()
-        registry_path = self.root / ".workspace/workspace.json"
+        registry_path = self.root / ".workspace/config/workspace.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         registry["repositories"][0]["remote"] = None
         registry_path.write_text(json.dumps(registry), encoding="utf-8")
@@ -670,7 +670,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
     def test_text_mode_prints_remediation_for_covered_code(self):
         self.initialize()
         subprocess.run(
-            ["git", "-C", str(self.root), "add", "-f", ".workspace/workspace.json"],
+            ["git", "-C", str(self.root), "add", "-f", ".workspace/config/workspace.json"],
             check=True,
         )
         output = io.StringIO()
@@ -694,7 +694,7 @@ class WorkspaceDoctorTest(unittest.TestCase):
     def test_json_mode_reports_remediation_and_matching_summary(self):
         self.initialize()
         subprocess.run(
-            ["git", "-C", str(self.root), "add", "-f", ".workspace/workspace.json"],
+            ["git", "-C", str(self.root), "add", "-f", ".workspace/config/workspace.json"],
             check=True,
         )
         output = io.StringIO()

@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from workbench.work_items.store import WorkItemError, read_bytes, safe_path, text_digest
+from workbench.workspace.paths import workspace_file
 
 ROLES = {'change': 'change.md', 'requirements': 'requirements.md', 'design': 'design.md', 'plan': 'plan.md',
          'readme': 'README.md', 'verification': 'verification.md'}
@@ -101,7 +102,7 @@ def instructions(root: Path, repository: Path, task: dict | None = None, *, path
     """Discover scoped pointers without loading rule prose into the response."""
     root, repository = Path(root).resolve(), Path(repository).resolve()
     targets = list(dict.fromkeys([*(paths or []), *[item['path'] for item in (task or {}).get('deliverables', [])]]))
-    configured = (root / '.workspace/workspace.json').exists()
+    configured = workspace_file(root).exists()
     candidates = [(root / 'AGENTS.md', 1, root, True),
                   (root / '.workspace/AGENTS.md', 2, root, configured),
                   (repository / 'AGENTS.md', 3, repository, True)]

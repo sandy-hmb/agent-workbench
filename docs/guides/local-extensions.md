@@ -165,7 +165,7 @@ python3 scripts/kit.py extension preview \
   --root . --config .workspace/extensions/.state/input.json --json
 ```
 
-确认后使用返回的 `applyCommand`。apply 更新 `.workspace/workspace.json` 与 `extensions/.state/lock.json`。只有 Provider Skill 会生成 `local-*` Adapter；Action Skill 保留在 Extension 目录，直到 Workflow 到达该 Action 才按需读取。
+确认后使用返回的 `applyCommand`。apply 更新 `.workspace/config/workspace.json` 与 `extensions/.state/lock.json`。只有 Provider Skill 会生成 `local-*` Adapter；Action Skill 保留在 Extension 目录，直到 Workflow 到达该 Action 才按需读取。
 
 Provider 可显式调用：
 
@@ -198,7 +198,7 @@ Extension 不得改写需求、设计或实施计划正文，除非用户已经�
 python3 scripts/kit.py extension doctor --root . --json
 ```
 
-停用前，先从 `.workspace/workspace.local.json` 移除对应本地配置；再从 `extensions/.state/input.json` 移除 Extension 并执行 preview、确认、apply。系统不会自动删除本地配置，也不会覆盖手工改动的受管 Adapter。
+停用前，先从 `.workspace/config/local.json` 移除对应本地配置；再从 `extensions/.state/input.json` 移除 Extension 并执行 preview、确认、apply。系统不会自动删除本地配置，也不会覆盖手工改动的受管 Adapter。
 
 `effects` 只用于审阅预期影响，不是操作系统级权限隔离。任何网络、Git、文件写入、部署或外部系统操作都仍须在执行前取得当前会话授权。
 

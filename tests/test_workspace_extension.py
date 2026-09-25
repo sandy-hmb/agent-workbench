@@ -49,13 +49,14 @@ class WorkspaceExtensionTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         state = self.root / ".workspace"
         (state / "items").mkdir(parents=True)
-        (state / "docs/repositories").mkdir(parents=True)
+        (state / "config").mkdir(parents=True)
+        (state / "repositories").mkdir(parents=True)
         (state / "extensions" / ".state").mkdir(parents=True)
         (state / "extensions" / ".state" / "cache").mkdir()
-        (state / "workspace.json").write_text(
+        (state / "config" / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 3, "minor": 0},
+                    "version": {"major": 4, "minor": 0},
                     "workspace": {"name": "Demo"},
                     "context": {},
                     "branchPolicy": {},
@@ -66,7 +67,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
-        (state / "workspace.local.json").write_text(
+        (state / "config" / "local.json").write_text(
             json.dumps(
                 {"branchOwner": "alice", "primaryRole": None, "extensions": {}}
             )
@@ -264,7 +265,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
         self.assertEqual("keep", (target / "new-state.txt").read_text(encoding="utf-8"))
 
     def test_doctor_reports_invalid_extension_source_record(self) -> None:
-        (self.root / ".workspace/workspace.local.json").write_text(
+        (self.root / ".workspace/config/local.json").write_text(
             json.dumps({"branchOwner": "alice", "primaryRole": None, "extensions": {}, "extensionSources": {"bad": {"source": "relative", "digest": "bad"}}}),
             encoding="utf-8",
         )
@@ -347,7 +348,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
             encoding="utf-8",
         )
         preview = workspace_extension.preview_result(self.root, self.config)
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         lock = self.root / ".workspace/extensions/.state/lock.json"
         before = {path: path.read_bytes() for path in (registry, lock)}
         agent = self.root / ".agents/skills/local-example-extension-example-branching"
@@ -436,7 +437,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
 
     def test_transition_keeps_provider_and_adapter_drift_as_hard_stops(self) -> None:
         self.apply()
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         workspace = json.loads(registry.read_text(encoding="utf-8"))
         workspace["extensions"]["providers"]["branch.naming"]["default"] = None
         registry.write_text(json.dumps(workspace) + "\n", encoding="utf-8")
@@ -470,7 +471,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
             json.dumps(schema) + "\n", encoding="utf-8"
         )
         self.write_desired(config={"example-extension": {}})
-        local_path = self.root / ".workspace/workspace.local.json"
+        local_path = self.root / ".workspace/config/local.json"
         local = json.loads(local_path.read_text(encoding="utf-8"))
         local["extensions"] = {"example-extension": {"team": "local"}}
         local_path.write_text(json.dumps(local) + "\n", encoding="utf-8")
@@ -486,7 +487,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
             workspace_extension.preview_result(self.root, self.config)
 
         self.write_desired(config={"example-extension": {}})
-        local_path = self.root / ".workspace/workspace.local.json"
+        local_path = self.root / ".workspace/config/local.json"
         local = json.loads(local_path.read_text(encoding="utf-8"))
         local["extensions"] = {"inactive-extension": {"team": "local"}}
         local_path.write_text(json.dumps(local) + "\n", encoding="utf-8")
@@ -704,7 +705,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
         del lock["providers"]["context.term-router"]
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
 
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         workspace = json.loads(registry.read_text(encoding="utf-8"))
         workspace["extensions"]["providers"]["branch.naming"]["default"] = None
         registry.write_text(json.dumps(workspace), encoding="utf-8")
@@ -816,13 +817,13 @@ class WorkspaceExtensionTest(unittest.TestCase):
             ),
         )
         workspace = json.loads(
-            (self.root / ".workspace/workspace.json").read_text(encoding="utf-8")
+            (self.root / ".workspace/config/workspace.json").read_text(encoding="utf-8")
         )
         self.assertEqual({"providers": {}, "config": {}}, workspace["extensions"])
 
     def test_deactivation_requires_explicit_local_config_cleanup(self) -> None:
         self.apply()
-        local_path = self.root / ".workspace/workspace.local.json"
+        local_path = self.root / ".workspace/config/local.json"
         local = json.loads(local_path.read_text(encoding="utf-8"))
         local["extensions"] = {"example-extension": {}}
         local_path.write_text(json.dumps(local) + "\n", encoding="utf-8")
@@ -842,7 +843,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
 
     def test_extension_findings_report_persisted_config_without_manifest_schema(self) -> None:
         self.apply()
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         workspace = json.loads(registry.read_text(encoding="utf-8"))
         workspace["extensions"]["config"] = {"example-extension": {"team": "platform"}}
         registry.write_text(json.dumps(workspace) + "\n", encoding="utf-8")
@@ -881,7 +882,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
         )
         self.write_desired(config={"example-extension": {"team": "platform"}})
         self.apply()
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         workspace = json.loads(registry.read_text(encoding="utf-8"))
         workspace["extensions"]["config"] = {"example-extension": {"extra": True}}
         registry.write_text(json.dumps(workspace) + "\n", encoding="utf-8")
@@ -901,7 +902,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
 
     def test_apply_refuses_force_tracked_workspace_state_files(self) -> None:
         self.apply()
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         lock = self.root / ".workspace/extensions/.state/lock.json"
         before = {path: path.read_bytes() for path in (registry, lock)}
         subprocess.run(
@@ -912,7 +913,7 @@ class WorkspaceExtensionTest(unittest.TestCase):
                 "add",
                 "-f",
                 "--",
-                ".workspace/workspace.json",
+                ".workspace/config/workspace.json",
                 ".workspace/extensions/.state/lock.json",
             ],
             check=True,

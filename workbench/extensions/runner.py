@@ -251,12 +251,13 @@ def _core_digest() -> str:
 def _preview_payload(root: Path, overlay: WorkflowOverlay) -> dict[str, object]:
     core, _, resolved, actions = _resolve(root, overlay)
     normalized = _overlay_dict(overlay)
+    target = workflow_file(root)
     return {
         "workflow": core.id,
         "overlay": normalized,
         "stages": list(resolved.stage_ids),
         "actions": sorted(actions),
-        "paths": [".workspace/workflow.json"],
+        "paths": [str(target.relative_to(root))],
         "previewHash": _hash(
             {
                 "core": _core_digest(),
@@ -310,7 +311,7 @@ def apply(root: Path, config: Path, expected_hash: str) -> int:
             raise _command("WORKFLOW_PLAN_STALE", "Workflow preview hash 已变化")
         target = workflow_file(root)
         _safe_path(root, target)
-        _require_ignored(root, ".workspace/workflow.json")
+        _require_ignored(root, str(target.relative_to(root)))
         overlay = result["overlay"]
         assert isinstance(overlay, dict)
         try:

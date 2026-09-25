@@ -1,6 +1,6 @@
 # agent-workbench 2
 
-本仓是公共工作流 Kit；业务仓保持独立。用户状态放在被忽略的 `.workspace/`；维护记录放在被忽略的 `docs/development/items/`。只支持新版配置和 WorkItem，不转换或覆盖旧数据。
+本仓是公共工作流 Kit；业务仓保持独立。用户状态放在被忽略的 `.workspace/`；维护记录放在被忽略的 `docs/development/items/`。`.workspace/config/` 保存受管 JSON，根目录只保留规则、事实、WorkItem、Extension 与 Run。只支持新版配置和 WorkItem，不转换或覆盖旧数据。
 
 ## 协作与授权
 

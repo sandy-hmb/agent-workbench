@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 from workbench.workspace.paths import (  # noqa: E402
     adapters_root,
     cache_root,
+    config_root,
     context_file,
     extension_input_file,
     extension_state_root,
@@ -24,6 +25,7 @@ from workbench.workspace.paths import (  # noqa: E402
     profiles_root,
     state_root,
     workflow_file,
+    workflow_draft_file,
     workflow_run_file,
     workflow_runs_root,
     workspace_file,
@@ -46,20 +48,22 @@ class WorkspacePathsTest(unittest.TestCase):
         resolved = root.resolve()
         self.assertEqual(resolved, kit_root(root))
         self.assertEqual(resolved / ".workspace", state_root(root))
-        self.assertEqual(resolved / ".workspace/workspace.json", workspace_file(root))
+        self.assertEqual(resolved / ".workspace/config", config_root(root))
+        self.assertEqual(resolved / ".workspace/config/workspace.json", workspace_file(root))
         self.assertEqual(
-            resolved / ".workspace/workspace.local.json", local_file(root)
+            resolved / ".workspace/config/local.json", local_file(root)
         )
         self.assertEqual(resolved / ".workspace/CONTEXT.md", context_file(root))
         self.assertEqual(resolved / ".workspace/items", items_root(root))
-        self.assertEqual(resolved / ".workspace/docs/repositories", profiles_root(root))
+        self.assertEqual(resolved / ".workspace/repositories", profiles_root(root))
         self.assertEqual(resolved / ".workspace/extensions", extensions_root(root))
         self.assertEqual(resolved / ".workspace/extensions/.state", extension_state_root(root))
         self.assertEqual(resolved / ".workspace/extensions/.state/input.json", extension_input_file(root))
         self.assertEqual(
             resolved / ".workspace/extensions/.state/lock.json", lock_file(root)
         )
-        self.assertEqual(resolved / ".workspace/workflow.json", workflow_file(root))
+        self.assertEqual(resolved / ".workspace/config/workflow.json", workflow_file(root))
+        self.assertEqual(resolved / ".workspace/config/workflow.draft.json", workflow_draft_file(root))
         self.assertEqual(resolved / ".workspace/runs", workflow_runs_root(root))
         self.assertEqual(
             resolved / ".workspace/runs/demo.json", workflow_run_file(root, "demo")

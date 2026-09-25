@@ -283,17 +283,11 @@ def _check_generated_workspace(workspace: Workspace, findings: list[Finding]) ->
         "CONTEXT_INVALID",
         findings,
     )
-    docs = state_root(workspace.root) / "docs"
     items = items_root(workspace.root)
     repositories = profiles_root(workspace.root)
     directories = (
-        (docs, "DOCS_DIRECTORY_INVALID", True),
         (items, "ITEMS_DIRECTORY_INVALID", True),
-        (
-            repositories,
-            "REPOSITORIES_DIRECTORY_INVALID",
-            bool(workspace.repositories),
-        ),
+        (repositories, "REPOSITORIES_DIRECTORY_INVALID", bool(workspace.repositories)),
     )
     directories_safe = True
     for path, code, required in directories:
@@ -906,7 +900,7 @@ def audit(
         ]
     if not registry.is_file():
         return [
-            finding("ERROR", "REGISTRY_INVALID", "workspace.json 必须是普通文件且不能是符号链接")
+            finding("ERROR", "REGISTRY_INVALID", ".workspace/config/workspace.json 必须是普通文件且不能是符号链接")
         ]
     try:
         version = workspace_schema_version(root)

@@ -1,6 +1,6 @@
 # 核心工作流
 
-Kit 2 使用唯一新版 WorkItem 格式、workspace 配置主版本 3 与 Inspect 2。业务仓独立，用户状态保存在 `.workspace/`，公共 Kit 维护记录保存在被忽略的 docs/development/items/。
+Kit 2 使用唯一新版 WorkItem 格式、workspace 配置主版本 4 与 Inspect 2。业务仓独立，用户状态保存在 `.workspace/`，其中受管 JSON 位于 `.workspace/config/`；公共 Kit 维护记录保存在被忽略的 docs/development/items/。
 
 按实际风险选择小改直接验证、普通方案一次审阅、重大需求分阶段审阅。活动可以从调查、接手、修复或验收开始，不强制补齐全部开发阶段。
 

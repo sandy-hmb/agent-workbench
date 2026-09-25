@@ -16,6 +16,7 @@ from workbench.work_items.store import (WorkItemError, DIGEST_RE, SCHEMA_VERSION
                            digest, item_lock, item_path, load_state, read_bytes, read_json, safe_path,
                            save_state, stamp, write_evidence)
 from workbench.workspace.model import effective_branch_policy, load_workspace, resolve_repository
+from workbench.workspace.paths import workspace_file
 from workbench.validation import object_fields, text, array
 
 
@@ -30,7 +31,7 @@ def create(root: Path, slug: str, *, title: str, repositories: list[str], summar
     if risk == 'major' and document_kind != 'requirements':
         raise WorkItemError('ITEM_INVALID', '重大风险需要复杂文档模式')
     bindings = []
-    workspace = load_workspace(root) if (root / '.workspace/workspace.json').exists() else None
+    workspace = load_workspace(root) if workspace_file(root).exists() else None
     for name in dict.fromkeys(repositories):
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
             raise WorkItemError('REPOSITORY_INVALID', name)

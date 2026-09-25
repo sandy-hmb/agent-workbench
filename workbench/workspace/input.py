@@ -83,7 +83,7 @@ def _repository_defaults(root: Path, raw: object) -> object:
         result["remote"] = _existing_remote(root, path)
     result.setdefault("category", "repository")
     result.setdefault("description", "")
-    result.setdefault("instruction", f"docs/repositories/{path}.md")
+    result.setdefault("instruction", f"repositories/{path}.md")
     return result
 
 

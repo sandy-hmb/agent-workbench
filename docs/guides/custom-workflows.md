@@ -18,7 +18,7 @@ item.complete
 
 ## 添加 Stage
 
-先激活含有 Action 的 Extension，再在 `.workspace/workflow-input.json` 写入 Overlay：
+先激活含有 Action 的 Extension，再在 `.workspace/config/workflow.draft.json` 写入 Overlay：
 
 ```json
 {
@@ -55,10 +55,10 @@ item.complete
 
 ```bash
 python3 scripts/kit.py workflow preview \
-  --root . --config .workspace/workflow-input.json --json
+  --root . --config .workspace/config/workflow.draft.json --json
 ```
 
-检查 Stage、Action、变化路径和 `previewHash` 后，执行 preview 返回的 apply 命令。apply 只写 `.workspace/workflow.json`。
+检查 Stage、Action、变化路径和 `previewHash` 后，执行 preview 返回的 apply 命令。apply 只写 `.workspace/config/workflow.json`。
 
 ## 运行和续接
 

@@ -37,11 +37,12 @@ class WorkflowFixture:
         (state / "extensions" / ".state").mkdir(parents=True)
         (state / "extensions" / ".state" / "cache").mkdir()
         (state / "items").mkdir(parents=True)
-        (state / "docs/repositories").mkdir(parents=True)
-        (state / "workspace.json").write_text(
+        (state / "config").mkdir(parents=True)
+        (state / "repositories").mkdir(parents=True)
+        (state / "config" / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 3, "minor": 0},
+                    "version": {"major": 4, "minor": 0},
                     "workspace": {"name": "Demo"},
                     "context": {},
                     "branchPolicy": {},
@@ -52,7 +53,7 @@ class WorkflowFixture:
             + "\n",
             encoding="utf-8",
         )
-        (state / "workspace.local.json").write_text(
+        (state / "config" / "local.json").write_text(
             json.dumps({"branchOwner": "alice", "primaryRole": None, "extensions": {}})
             + "\n",
             encoding="utf-8",
@@ -79,7 +80,7 @@ class WorkflowFixture:
         )
         preview = workspace_extension.preview_result(self.root, self.extension_config)
         workspace_extension.apply(self.root, self.extension_config, preview["previewHash"])
-        self.overlay_config = state / "workflow-input.json"
+        self.overlay_config = state / "config" / "workflow.draft.json"
 
     def close(self) -> None:
         self.temp.cleanup()

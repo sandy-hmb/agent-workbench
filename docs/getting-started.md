@@ -12,9 +12,9 @@ graph TD
             Scripts["scripts/kit.py & 校验引擎"]
             Schemas["schemas/ & 模板规范"]
             subgraph DotWorkspace [".workspace/ (本地私有状态 - Git 忽略)"]
-                WSConfig["workspace.json & local.json"]
+                WSConfig["config/ 共享与本机配置"]
                 WSWorkItems["items/ (需求/设计/计划/证据)"]
-                WSExt["extensions/ & overlays"]
+                WSExt["extensions/ & runs/"]
             end
         end
 
@@ -71,7 +71,7 @@ python3 scripts/kit.py doctor --root .
 
 `plan` 和 `preview` 只读。`clone` 可能访问网络，应先确认 plan 的精确清单；`apply` 使用 preview 返回的 `applyCommand` 和 `previewHash`，只写 `.workspace/`。需要查看完整变更时为 preview 添加 `--diff`。
 
-成功后应有 `.workspace/workspace.json`、`.workspace/workspace.local.json`、`.workspace/AGENTS.md` 和 `.workspace/CONTEXT.md`。它们的编辑边界见[本地工作区布局](reference/local-workspace-layout.md)。
+成功后应有 `.workspace/config/workspace.json`、`.workspace/config/local.json`、`.workspace/AGENTS.md` 和 `.workspace/CONTEXT.md`。`workspace-input.json` 已完成使命，可以删除。完整编辑边界见[本地工作区布局](reference/local-workspace-layout.md)。
 
 ## 接下来
 

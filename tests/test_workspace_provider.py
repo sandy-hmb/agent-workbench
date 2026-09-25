@@ -154,7 +154,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         self.assertEqual('{"not":"a lock"}', outside.read_text(encoding="utf-8"))
 
     def test_binding_change_after_health_blocks_before_old_provider_can_run(self):
-        workspace_path = self.root / ".workspace/workspace.json"
+        workspace_path = self.root / ".workspace/config/workspace.json"
         lock_path = self.root / ".workspace/extensions/.state/lock.json"
         original_health = workspace_provider._health_failure
         calls = 0
@@ -276,7 +276,7 @@ class WorkspaceProviderTest(unittest.TestCase):
         config = root / ".workspace/extensions/.state/input.json"
         preview = workspace_extension.preview_result(root, config)
         workspace_extension.apply(root, config, str(preview["previewHash"]))
-        local_path = root / ".workspace/workspace.local.json"
+        local_path = root / ".workspace/config/local.json"
         original_health = workspace_provider._health_failure
         calls = 0
 
@@ -353,7 +353,7 @@ class WorkspaceProviderTest(unittest.TestCase):
             capability="branch.naming",
             operation="name",
             request={},
-            repository=Repository("outside", (), None, "backend", "Outside", "docs/repositories/outside.md"),
+            repository=Repository("outside", (), None, "backend", "Outside", "repositories/outside.md"),
         )
         self.assertEqual("blocked", result["status"])
         self.assertEqual("PROVIDER_WORKSPACE_INVALID", result["diagnostics"][0]["code"])

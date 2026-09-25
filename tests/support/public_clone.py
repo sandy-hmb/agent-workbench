@@ -138,14 +138,14 @@ def workspace_input(kit: Path, *, include_repository: bool) -> Path:
                 "remote": None,
                 "category": "backend",
                 "description": "Fixture service",
-                "instruction": "docs/repositories/service.md",
+                "instruction": "repositories/service.md",
             }
         )
     config = kit / "workspace-input.json"
     config.write_text(
         json.dumps(
             {
-                "version": {"major": 3, "minor": 0},
+                "version": {"major": 4, "minor": 0},
                 "workspace": {"name": "Clone Fixture"},
                 "local": {
                     "branchOwner": "smoke",

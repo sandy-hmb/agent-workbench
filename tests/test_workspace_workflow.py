@@ -49,7 +49,7 @@ class WorkspaceWorkflowTest(WorkflowFixture, unittest.TestCase):
         )
         preview = self.activate_overlay()
         self.assertTrue(preview["previewHash"])
-        self.assertTrue((self.root / ".workspace/workflow.json").is_file())
+        self.assertTrue((self.root / ".workspace/config/workflow.json").is_file())
 
         run = workspace_workflow.start_run(
             self.root,
@@ -147,10 +147,10 @@ class WorkspaceWorkflowTest(WorkflowFixture, unittest.TestCase):
                 }
             ]
         )
-        target = self.root / ".workspace/workflow.json"
+        target = self.root / ".workspace/config/workflow.json"
         target.write_text(self.overlay_config.read_text(encoding="utf-8"), encoding="utf-8")
         subprocess.run(
-            ["git", "-C", str(self.root), "add", "-f", ".workspace/workflow.json"],
+            ["git", "-C", str(self.root), "add", "-f", ".workspace/config/workflow.json"],
             check=True,
         )
         preview = workspace_workflow.preview_result(self.root, self.overlay_config)

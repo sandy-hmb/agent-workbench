@@ -7,11 +7,12 @@ from pathlib import Path
 from workbench.work_items.query import WorkItemQuery, repository_roots, repository_context
 from workbench.work_items.store import WorkItemError
 from workbench.workspace.model import load_workspace, resolve_repository
+from workbench.workspace.paths import workspace_file
 
 
 def brief_result(root: Path, slug: str | None = None, *, task_id=None, check_code=False, deadline=None, repository=None, paths=None) -> dict:
     root = Path(root).resolve()
-    if repository and (root / '.workspace/workspace.json').exists():
+    if repository and workspace_file(root).exists():
         repository = resolve_repository(load_workspace(root).repositories, repository).path
     if slug:
         return WorkItemQuery(root, slug, deadline=deadline).continuation(task_id=task_id, check_code=check_code, repository=repository, paths=paths)

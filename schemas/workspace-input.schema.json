@@ -18,7 +18,7 @@
       "additionalProperties": true,
       "properties": {
         "major": {
-          "const": 3
+          "const": 4
         },
         "minor": {
           "type": "integer"

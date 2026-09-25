@@ -46,14 +46,14 @@ class RuleScopeTest(unittest.TestCase):
 
     def test_configured_workspace_facts_are_pointers_not_copied_text(self):
         from workbench.work_items.query import repository_context
-        state = self.root / '.workspace'; (state / 'docs/repositories').mkdir(parents=True)
+        state = self.root / '.workspace'; (state / 'config').mkdir(parents=True); (state / 'repositories').mkdir(parents=True)
         (state / 'AGENTS.md').write_text('# Workspace rule')
         (state / 'CONTEXT.md').write_text('FACT_BODY_MUST_NOT_BE_IN_OUTPUT')
-        (state / 'docs/repositories/service.md').write_text('PROFILE_BODY_MUST_NOT_BE_IN_OUTPUT')
-        (state / 'workspace.json').write_text(json.dumps({'version': {'major': 3, 'minor': 0}, 'workspace': {'name': 'fixture'},
+        (state / 'repositories/service.md').write_text('PROFILE_BODY_MUST_NOT_BE_IN_OUTPUT')
+        (state / 'config/workspace.json').write_text(json.dumps({'version': {'major': 4, 'minor': 0}, 'workspace': {'name': 'fixture'},
             'context': {}, 'branchPolicy': {}, 'extensions': {'providers': {}, 'config': {}},
             'repositories': [{'path': 'service', 'aliases': [], 'remote': None, 'category': 'backend', 'description': '',
-                              'instruction': 'docs/repositories/service.md', 'sourceInstruction': 'AGENTS.md'}]}))
+                              'instruction': 'repositories/service.md', 'sourceInstruction': 'AGENTS.md'}]}))
         value = repository_context(self.root, self.repo, paths=['b/file.py'])
         self.assertEqual({'workspace-context', 'repository-profile'}, {row['kind'] for row in value['facts']})
         self.assertNotIn('FACT_BODY_MUST_NOT_BE_IN_OUTPUT', json.dumps(value))

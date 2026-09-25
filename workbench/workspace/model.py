@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared schema, validation, and rendering for workspace.json version 2."""
+"""Shared schema, validation, and rendering for the current workspace layout."""
 
 from __future__ import annotations
 from workbench.resources import KIT_ROOT
@@ -18,7 +18,7 @@ from typing import Mapping, Sequence
 import re
 
 
-VERSION = 3
+VERSION = 4
 VERSION_VALUE = {"major": VERSION, "minor": 0}
 JSON_MAX_NESTING = 256
 BRANCH_TYPES = frozenset({"feature", "fix", "hotfix", "refactor", "docs", "chore"})
@@ -258,7 +258,7 @@ def workspace_schema_version(root: Path) -> int:
     state = state_root(root)
     config = workspace_file(root)
     if state.is_symlink() or not state.is_dir() or config.is_symlink() or not config.is_file():
-        raise WorkspaceError(".workspace/workspace.json 必须是普通文件且不能是符号链接")
+        raise WorkspaceError(".workspace/config/workspace.json 必须是普通文件且不能是符号链接")
     version = read_json(config).get("version")
     if (
         isinstance(version, dict)
@@ -444,7 +444,7 @@ def _repository(raw: object, index: int, root: Path) -> Repository:
             raise WorkspaceError(f"{label}.{field_name} 必须是字符串")
     if not raw["category"]:
         raise WorkspaceError(f"{label}.category 不能为空")
-    expected_instruction = f"docs/repositories/{raw['path']}.md"
+    expected_instruction = f"repositories/{raw['path']}.md"
     if raw["instruction"] != expected_instruction:
         raise WorkspaceError(
             f"{label}.instruction 必须精确为 {expected_instruction}"
@@ -582,7 +582,7 @@ def load_workspace(
         config = workspace_file(root)
         if config.is_symlink() or not config.is_file():
             raise WorkspaceError(
-                f".workspace/workspace.json 必须是普通文件且不能是符号链接：{config}"
+                f".workspace/config/workspace.json 必须是普通文件且不能是符号链接：{config}"
             )
     return parse_workspace(
         read_json(config), root, validate_extension_refs=validate_extension_refs

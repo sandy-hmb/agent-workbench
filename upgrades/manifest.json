@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.0.1",
+  "kitVersion": "2.1.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.1.0",
+      "summary": "2.1 将本地配置收纳到 .workspace/config/，仓 profile 移至 .workspace/repositories/；旧 v3 布局不迁移，请在新目录初始化或重新建立本地状态。",
+      "runbook": "docs/reference/local-workspace-layout.md"
+    },
     {
       "sinceVersion": "2.0.0",
       "summary": "2.0 仅支持新工作区与 Inspect 2；旧数据保留原状，不提供迁移。请在新目录初始化并同步更新工作台插件。",

@@ -63,6 +63,7 @@ from workbench.workspace.paths import (  # noqa: E402
     extension_sources_file,
     extensions_root,
     ignored_by_root_gitignore,
+    local_file,
     lock_file,
     state_root,
     workspace_file,
@@ -628,7 +629,7 @@ def _target_state(root: Path, config: Path) -> TargetState:
 
 
 def _preview_payload(root: Path, state: TargetState) -> dict[str, object]:
-    paths = {".workspace/workspace.json", str(lock_file(root).relative_to(root))}
+    paths = {str(workspace_file(root).relative_to(root)), str(lock_file(root).relative_to(root))}
     for spec in (*state.adapter_plan.create, *state.adapter_plan.remove):
         paths.update((spec.relative_path, spec.claude_path))
     adapters = {
@@ -706,7 +707,7 @@ def _require_ignored_outputs(root: Path, state: TargetState) -> None:
         for entry in state.adapter_plan.lock_entries
         for field in ("agentPath", "claudePath")
     )
-    state_paths = {".workspace/workspace.json", str(lock_file(root).relative_to(root))}
+    state_paths = {str(workspace_file(root).relative_to(root)), str(lock_file(root).relative_to(root))}
     targets = {".workspace/", *state_paths, *adapter_paths}
     for relative in targets:
         if not ignored_by_root_gitignore(root, relative):
@@ -1088,7 +1089,7 @@ def install_apply(root: Path, source: Path, expected_hash: str) -> int:
             "source": str(preview["source"]),
             "digest": str(preview["digest"]),
         }
-        local_path = state_root(root) / "workspace.local.json"
+        local_path = local_file(root)
         _safe_path(root, local_path)
         cache = cache_root(root)
         _safe_path(root, cache)

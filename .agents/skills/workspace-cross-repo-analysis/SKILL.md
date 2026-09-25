@@ -9,7 +9,7 @@ description: Analyze a change that spans registered repositories and report owne
 
 ## 输入与读取
 
-按需读取 `.workspace/workspace.json`、`.workspace/CONTEXT.md` 和相关 `.workspace/docs/repositories/<path>.md`；仓名或别名先用：
+按需读取 `.workspace/config/workspace.json`、`.workspace/CONTEXT.md` 和相关 `.workspace/repositories/<path>.md`；仓名或别名先用：
 
 ```bash
 python3 scripts/kit.py registry resolve <name> --json

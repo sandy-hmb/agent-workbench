@@ -75,14 +75,15 @@ class WorkspaceSubmitTest(unittest.TestCase):
         run_git("remote", "set-url", "origin", "https://example.test/service.git", cwd=self.service)
 
         state = self.root / ".workspace"
-        (state / "docs/repositories").mkdir(parents=True)
+        (state / "config").mkdir(parents=True)
+        (state / "repositories").mkdir(parents=True)
         (state / "items/demo-feature/testing").mkdir(parents=True)
         (state / "items/demo-feature/plans").mkdir(parents=True)
         (state / "items/demo-feature/artifacts/sql").mkdir(parents=True)
-        (state / "workspace.json").write_text(
+        (state / "config" / "workspace.json").write_text(
             json.dumps(
                 {
-                    "version": {"major": 3, "minor": 0},
+                    "version": {"major": 4, "minor": 0},
                     "workspace": {"name": "Demo"},
                     "context": {},
                     "branchPolicy": {
@@ -99,14 +100,14 @@ class WorkspaceSubmitTest(unittest.TestCase):
                             "remote": "https://example.test/service.git",
                             "category": "service",
                             "description": "Service",
-                            "instruction": "docs/repositories/service.md",
+                            "instruction": "repositories/service.md",
                         }
                     ],
                 }
             ),
             encoding="utf-8",
         )
-        (state / "workspace.local.json").write_text(
+        (state / "config" / "local.json").write_text(
             json.dumps({"branchOwner": "owner", "primaryRole": None, "extensions": {}}),
             encoding="utf-8",
         )
@@ -241,7 +242,7 @@ class WorkspaceSubmitTest(unittest.TestCase):
         self.assertIn("SUBMIT_STATUS_INVALID", error)
 
     def test_plan_rejects_missing_test_target(self):
-        workspace = self.root / ".workspace/workspace.json"
+        workspace = self.root / ".workspace/config/workspace.json"
         value = json.loads(workspace.read_text(encoding="utf-8"))
         value["branchPolicy"]["testTarget"] = None
         workspace.write_text(json.dumps(value), encoding="utf-8")

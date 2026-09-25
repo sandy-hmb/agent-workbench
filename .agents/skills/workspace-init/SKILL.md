@@ -9,7 +9,7 @@ description: Initialize a governance workspace or register a sibling repository 
 
 ## 固定流程
 
-1. 读取现有 `.workspace/workspace.json`（首次初始化可无），只加载当前配置和必要规范。首次初始化且用户尚未准备输入文件时，可先生成草稿：
+1. 读取现有 `.workspace/config/workspace.json`（首次初始化可无），只加载当前配置和必要规范。首次初始化且用户尚未准备输入文件时，可先生成草稿：
 
    ```bash
    python3 scripts/kit.py setup init draft --output ./workspace-input.json
@@ -24,7 +24,7 @@ description: Initialize a governance workspace or register a sibling repository 
    python3 scripts/kit.py setup add-repo plan --config <config>
    ```
 
-   每个仓 registry 中的 `instruction` 字段固定为 `docs/repositories/<path>.md`，运行时相对于 `.workspace` 解析；业务仓内的 `AGENTS.md`、`CLAUDE.md` 或 `README` 等补充规范登记在可选 `sourceInstruction`。个人设置来自 `.workspace/workspace.local.json`；`add-repo` 未提供 `local` 时继承现有值。
+   每个仓 registry 中的 `instruction` 字段固定为 `repositories/<path>.md`，运行时相对于 `.workspace` 解析；业务仓内的 `AGENTS.md`、`CLAUDE.md` 或 `README` 等补充规范登记在可选 `sourceInstruction`。个人设置来自 `.workspace/config/local.json`；`add-repo` 未提供 `local` 时继承现有值。
 
 ## 分层规范入口
 
@@ -56,7 +56,7 @@ description: Initialize a governance workspace or register a sibling repository 
 
    以上命令由 preview 的 `applyCommand` 完整返回。apply 只写被忽略的 `.workspace`，不再重复请求确认。
 
-   `init` 拒绝已有生成物。`add-repo apply` 从合并后的结构化 registry/context 重建并更新 `.workspace/workspace.json` 和 `.workspace/CONTEXT.md`，只创建新仓 profile；写入前会确认现有生成物一致，失配时拒绝全部写入。它不修改 `.workspace/items/`、`.workspace/AGENTS.md`、`.workspace/workspace.local.json` 或已有仓 profile。
+   `init` 拒绝已有生成物。`add-repo apply` 从合并后的结构化 registry/context 重建并更新 `.workspace/config/workspace.json` 和 `.workspace/CONTEXT.md`，只创建新仓 profile；写入前会确认现有生成物一致，失配时拒绝全部写入。它不修改 `.workspace/items/`、`.workspace/AGENTS.md`、`.workspace/config/local.json` 或已有仓 profile。
 
 ## 边界
 

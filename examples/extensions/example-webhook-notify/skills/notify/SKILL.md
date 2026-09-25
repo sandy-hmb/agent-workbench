@@ -12,7 +12,7 @@ name: notify
 
 ## 挂载到 Workflow
 
-触发时机完全由你在 `.workspace/workflow-input.json` 里决定，见[自定义工作流](../../../../../docs/guides/custom-workflows.md)的"添加 Stage"一节。示例挂载片段：
+触发时机完全由你在 `.workspace/config/workflow.draft.json` 里决定，见[自定义工作流](../../../../../docs/guides/custom-workflows.md)的"添加 Stage"一节。示例挂载片段：
 
 ```json
 {

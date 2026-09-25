@@ -28,7 +28,7 @@ def repository(path="service", remote="https://example.test/service.git", **over
         "remote": remote,
         "category": "backend",
         "description": path,
-        "instruction": f"docs/repositories/{path}.md",
+        "instruction": f"repositories/{path}.md",
     }
     value.update(overrides)
     return value
@@ -36,7 +36,7 @@ def repository(path="service", remote="https://example.test/service.git", **over
 
 def config(path: Path, repositories, **overrides):
     value = {
-        "version": {"major": 3, "minor": 0},
+        "version": {"major": 4, "minor": 0},
         "workspace": {"name": "Demo Workspace"},
         "local": {"branchOwner": "alice", "primaryRole": None, "extensions": {}},
         "context": {},
@@ -276,7 +276,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         self.assertEqual("test", combined.branch_policy.test_target)
         self.assertIsNone(local.branch_owner)
         self.assertEqual("service", additions.repositories[0].path)
-        self.assertEqual("docs/repositories/service.md", additions.repositories[0].instruction)
+        self.assertEqual("repositories/service.md", additions.repositories[0].instruction)
         self.assertEqual("repository", additions.repositories[0].category)
         self.assertEqual("", additions.repositories[0].description)
 
@@ -397,10 +397,10 @@ class WorkspaceSetupTest(unittest.TestCase):
             [
                 ".workspace/AGENTS.md",
                 ".workspace/CONTEXT.md",
-                ".workspace/docs/repositories/service.md",
+                ".workspace/config/local.json",
+                ".workspace/config/workspace.json",
                 ".workspace/extensions/.state/lock.json",
-                ".workspace/workspace.json",
-                ".workspace/workspace.local.json",
+                ".workspace/repositories/service.md",
             ],
             sorted(change["path"] for change in first["changes"]),
         )
@@ -487,7 +487,7 @@ class WorkspaceSetupTest(unittest.TestCase):
 
         self.assertEqual(before, snapshot(self.root))
         self.assertEqual(
-            {".workspace/CONTEXT.md", ".workspace/workspace.json"},
+            {".workspace/CONTEXT.md", ".workspace/config/workspace.json"},
             {change["path"] for change in value["changes"]},
         )
         self.assertEqual({"update"}, {change["action"] for change in value["changes"]})
@@ -534,7 +534,7 @@ class WorkspaceSetupTest(unittest.TestCase):
                     )
                 ),
             )
-        self.assertTrue((self.root / ".workspace/workspace.json").is_file())
+        self.assertTrue((self.root / ".workspace/config/workspace.json").is_file())
         self.assertTrue((self.root / ".workspace/items").is_dir())
 
     def test_json_error_uses_stderr_and_leaves_stdout_empty(self):
@@ -573,7 +573,7 @@ class WorkspaceSetupTest(unittest.TestCase):
             )
         self.assertTrue((self.parent / "one" / ".git").is_dir())
         self.assertFalse((self.parent / "missing").exists())
-        self.assertFalse((self.root / ".workspace/workspace.json").exists())
+        self.assertFalse((self.root / ".workspace/config/workspace.json").exists())
 
         conflict = self.parent / "conflict"
         subprocess.run(["git", "init", "-q", str(conflict)], check=True)
@@ -601,9 +601,9 @@ class WorkspaceSetupTest(unittest.TestCase):
             branchPolicy={"workBase": "trunk", "testTarget": "qa", "hotfixBase": "stable"},
         )
         self.apply_config("init", source)
-        existing_profile = (self.root / ".workspace/docs/repositories/service.md").read_bytes()
+        existing_profile = (self.root / ".workspace/repositories/service.md").read_bytes()
         existing_agents = (self.root / ".workspace/AGENTS.md").read_bytes()
-        existing_local = (self.root / ".workspace/workspace.local.json").read_bytes()
+        existing_local = (self.root / ".workspace/config/local.json").read_bytes()
         item = self.root / ".workspace/items/demo/README.md"
         item.parent.mkdir()
         item.write_text("feature\n", encoding="utf-8")
@@ -619,13 +619,13 @@ class WorkspaceSetupTest(unittest.TestCase):
         addition.write_text(json.dumps(addition_value), encoding="utf-8")
         self.apply_config("add-repo", addition)
 
-        registry = json.loads((self.root / ".workspace/workspace.json").read_text(encoding="utf-8"))
+        registry = json.loads((self.root / ".workspace/config/workspace.json").read_text(encoding="utf-8"))
         self.assertEqual(["service", "web"], [item["path"] for item in registry["repositories"]])
-        self.assertEqual(existing_profile, (self.root / ".workspace/docs/repositories/service.md").read_bytes())
+        self.assertEqual(existing_profile, (self.root / ".workspace/repositories/service.md").read_bytes())
         self.assertEqual(existing_agents, (self.root / ".workspace/AGENTS.md").read_bytes())
-        self.assertEqual(existing_local, (self.root / ".workspace/workspace.local.json").read_bytes())
+        self.assertEqual(existing_local, (self.root / ".workspace/config/local.json").read_bytes())
         self.assertEqual("feature\n", item.read_text(encoding="utf-8"))
-        self.assertIn("trunk", (self.root / ".workspace/docs/repositories/web.md").read_text(encoding="utf-8"))
+        self.assertIn("trunk", (self.root / ".workspace/repositories/web.md").read_text(encoding="utf-8"))
 
     def test_add_repo_explicit_primary_role_values_must_match_without_writes(self):
         initial = config(
@@ -678,14 +678,14 @@ class WorkspaceSetupTest(unittest.TestCase):
                 self.assertEqual("", stdout.getvalue())
                 self.assertIn("local 必须与现有本地配置一致", stderr.getvalue())
                 self.assertEqual(before, snapshot(self.root))
-        registry = json.loads((self.root / ".workspace/workspace.json").read_text(encoding="utf-8"))
+        registry = json.loads((self.root / ".workspace/config/workspace.json").read_text(encoding="utf-8"))
         self.assertEqual(["service"], [item["path"] for item in registry["repositories"]])
 
     def test_add_preview_and_apply_refuse_noncanonical_registry_without_changes(self):
         initial = config(self.root / "init.json", [repository()])
         self.apply_config("init", initial)
         addition = config(self.root / "add.json", [repository("web")])
-        registry = self.root / ".workspace/workspace.json"
+        registry = self.root / ".workspace/config/workspace.json"
         parsed_registry = json.loads(registry.read_text(encoding="utf-8"))
         registry.write_text(
             json.dumps(parsed_registry, ensure_ascii=False), encoding="utf-8"
@@ -717,16 +717,16 @@ class WorkspaceSetupTest(unittest.TestCase):
                 self.assertIn("--- current/", stderr.getvalue())
                 self.assertIn("+++ expected/", stderr.getvalue())
                 self.assertEqual(drifted, snapshot(self.root))
-        self.assertFalse((self.root / ".workspace/docs/repositories/web.md").exists())
+        self.assertFalse((self.root / ".workspace/repositories/web.md").exists())
 
     def test_add_preview_and_apply_refuse_drifted_context_and_profile(self):
         initial = config(self.root / "init.json", [repository()])
         self.apply_config("init", initial)
         addition = config(self.root / "add.json", [repository("web")])
-        registry_before = (self.root / ".workspace/workspace.json").read_bytes()
+        registry_before = (self.root / ".workspace/config/workspace.json").read_bytes()
         context = self.root / ".workspace/CONTEXT.md"
         expected_context = context.read_text(encoding="utf-8")
-        profile = self.root / ".workspace/docs/repositories/service.md"
+        profile = self.root / ".workspace/repositories/service.md"
         expected_profile = profile.read_text(encoding="utf-8")
 
         for path, manual in (
@@ -765,8 +765,8 @@ class WorkspaceSetupTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-        self.assertEqual(registry_before, (self.root / ".workspace/workspace.json").read_bytes())
-        self.assertFalse((self.root / ".workspace/docs/repositories/web.md").exists())
+        self.assertEqual(registry_before, (self.root / ".workspace/config/workspace.json").read_bytes())
+        self.assertFalse((self.root / ".workspace/repositories/web.md").exists())
 
     def test_init_refuses_existing_outputs_and_add_conflicts_without_changes(self):
         source = config(self.root / "init.json", [repository()])
@@ -814,7 +814,7 @@ class WorkspaceSetupTest(unittest.TestCase):
         source = config(self.root / "input.json", [repository()])
         preview_hash = self.preview("init", source)["previewHash"]
         (self.root / ".gitignore").write_text(
-            ".workspace/workspace.json\ninput.json\n", encoding="utf-8"
+            ".workspace/config/workspace.json\ninput.json\n", encoding="utf-8"
         )
         subprocess.run(["git", "-C", str(self.root), "add", ".gitignore"], check=True)
         subprocess.run(
@@ -863,10 +863,10 @@ class WorkspaceSetupTest(unittest.TestCase):
         for relative in (
             "AGENTS.md",
             "CONTEXT.md",
-            "workspace.json",
-            "workspace.local.json",
+            "config/workspace.json",
+            "config/local.json",
             "extensions/.state/lock.json",
-            "docs/repositories/service.md",
+            "repositories/service.md",
             "items",
             "extensions",
             "extensions/.state/cache",
@@ -942,11 +942,11 @@ class WorkspaceSetupTest(unittest.TestCase):
                 )
             self.assertEqual(before, snapshot(self.root))
         self.assertEqual("owned\n", context.read_text(encoding="utf-8"))
-        self.assertFalse((self.root / ".workspace/workspace.json").exists())
+        self.assertFalse((self.root / ".workspace/config/workspace.json").exists())
         self.assertFalse((self.root / ".workspace/docs").exists())
 
         context.unlink()
-        profile = self.root / ".workspace/docs/repositories/service.md"
+        profile = self.root / ".workspace/repositories/service.md"
         profile.parent.mkdir(parents=True)
         profile.write_text("owned\n", encoding="utf-8")
         for action, extra in (
@@ -963,15 +963,14 @@ class WorkspaceSetupTest(unittest.TestCase):
                 )
             self.assertEqual(before, snapshot(self.root))
         self.assertEqual("owned\n", profile.read_text(encoding="utf-8"))
-        self.assertFalse((self.root / ".workspace/workspace.json").exists())
+        self.assertFalse((self.root / ".workspace/config/workspace.json").exists())
         self.assertFalse((self.root / ".workspace/CONTEXT.md").exists())
         self.assertFalse((self.root / ".workspace/items").exists())
 
     def test_preview_and_apply_preflight_parent_types_before_any_write(self):
         source = config(self.root / "init.json", [repository()])
-        docs = self.root / ".workspace/docs"
-        docs.mkdir(parents=True)
-        repositories = docs / "repositories"
+        repositories = self.root / ".workspace/repositories"
+        repositories.parent.mkdir(parents=True)
         repositories.write_text("not a directory\n", encoding="utf-8")
 
         for action, extra in (
@@ -987,9 +986,9 @@ class WorkspaceSetupTest(unittest.TestCase):
                     ),
                 )
             self.assertEqual(before, snapshot(self.root))
-        self.assertFalse((self.root / ".workspace/workspace.json").exists())
+        self.assertFalse((self.root / ".workspace/config/workspace.json").exists())
         self.assertFalse((self.root / ".workspace/CONTEXT.md").exists())
-        self.assertFalse((docs / "items").exists())
+        self.assertFalse((self.root / ".workspace/items").exists())
 
     def test_add_repo_plan_and_clone_are_offline_and_do_not_register(self):
         initial = config(self.root / "init.json", [repository()])
@@ -1001,7 +1000,7 @@ class WorkspaceSetupTest(unittest.TestCase):
             self.root / "add.json",
             [repository("web", "https://example.test/web.git", aliases=["frontend"])],
         )
-        registry_before = (self.root / ".workspace/workspace.json").read_bytes()
+        registry_before = (self.root / ".workspace/config/workspace.json").read_bytes()
         root_before = snapshot(self.root)
         plan_output = io.StringIO()
         with contextlib.redirect_stdout(plan_output):
@@ -1022,8 +1021,8 @@ class WorkspaceSetupTest(unittest.TestCase):
                 ),
             )
         self.assertTrue((self.parent / "web" / ".git").is_dir())
-        self.assertEqual(registry_before, (self.root / ".workspace/workspace.json").read_bytes())
-        self.assertFalse((self.root / ".workspace/docs/repositories/web.md").exists())
+        self.assertEqual(registry_before, (self.root / ".workspace/config/workspace.json").read_bytes())
+        self.assertFalse((self.root / ".workspace/repositories/web.md").exists())
 
     def test_atomic_failure_removes_only_directories_created_by_apply(self):
         source = config(self.root / "init.json", [repository()])
@@ -1046,7 +1045,7 @@ class WorkspaceSetupTest(unittest.TestCase):
                 ),
             )
         self.assertFalse((self.root / "docs").exists())
-        self.assertFalse((self.root / ".workspace/workspace.json").exists())
+        self.assertFalse((self.root / ".workspace/config/workspace.json").exists())
         self.assertFalse((self.root / "CONTEXT.md").exists())
 
         docs = self.root / "docs"
@@ -1087,7 +1086,7 @@ class WorkspaceSetupTest(unittest.TestCase):
                         self.args("init", action, "--config", str(source), *extra)
                     ),
                 )
-            self.assertFalse((self.root / ".workspace/workspace.json").exists())
+            self.assertFalse((self.root / ".workspace/config/workspace.json").exists())
 
     def test_help_and_example_expose_complete_interface(self):
         output = io.StringIO()

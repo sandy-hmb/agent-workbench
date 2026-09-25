@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 STATE_DIRECTORY = ".workspace"
+CONFIG_DIRECTORY = "config"
 
 
 def kit_root(root: Path) -> Path:
@@ -18,12 +19,16 @@ def state_root(root: Path) -> Path:
     return kit_root(root) / STATE_DIRECTORY
 
 
+def config_root(root: Path) -> Path:
+    return state_root(root) / CONFIG_DIRECTORY
+
+
 def workspace_file(root: Path) -> Path:
-    return state_root(root) / "workspace.json"
+    return config_root(root) / "workspace.json"
 
 
 def local_file(root: Path) -> Path:
-    return state_root(root) / "workspace.local.json"
+    return config_root(root) / "local.json"
 
 
 def context_file(root: Path) -> Path:
@@ -51,7 +56,7 @@ def item_plan_relative(item: Path) -> str:
 
 
 def profiles_root(root: Path) -> Path:
-    return state_root(root) / "docs" / "repositories"
+    return state_root(root) / "repositories"
 
 
 def extensions_root(root: Path) -> Path:
@@ -75,7 +80,11 @@ def extension_sources_file(root: Path) -> Path:
 
 
 def workflow_file(root: Path) -> Path:
-    return state_root(root) / "workflow.json"
+    return config_root(root) / "workflow.json"
+
+
+def workflow_draft_file(root: Path) -> Path:
+    return config_root(root) / "workflow.draft.json"
 
 
 def workflow_runs_root(root: Path) -> Path:

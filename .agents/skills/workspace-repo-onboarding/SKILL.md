@@ -9,7 +9,7 @@ description: Inspect a registered sibling repository after clone and register or
 
 ## 固定流程
 
-1. 读取用户指定的 `workspace-input.json` 或 `new-repo.json`，只处理本轮配置列出的仓库；存在 `.workspace/workspace.json` 时可对照已登记仓，但不自动纳管其他兄弟目录。
+1. 读取用户指定的 `workspace-input.json` 或 `new-repo.json`，只处理本轮配置列出的仓库；存在 `.workspace/config/workspace.json` 时可对照已登记仓，但不自动纳管其他兄弟目录。
 2. 对每个目标仓解析实际路径，必须位于治理仓父目录下，且目标目录是独立 Git 仓。路径不明确或越界时停止。
 3. 检查业务仓根目录的 `AGENTS.md`：
    - 已存在且是普通文件：只读摘要关键规则，建议把该仓 `sourceInstruction` 设为 `AGENTS.md`，不得自动修改文件。

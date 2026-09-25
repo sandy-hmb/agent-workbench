@@ -6,13 +6,14 @@ from pathlib import Path
 from workbench.work_items.query import list_items
 from workbench.work_items.query import WorkItemQuery
 from workbench.workspace.model import load_workspace
+from workbench.workspace.paths import context_file, profiles_root, workspace_file
 from workbench.extensions.management import extension_status
 from workbench.extensions.runner import status_result as workflow_status
 
 
 def status_result(root: Path, *, context_sources=False, item_slug=None) -> dict:
     root = Path(root).resolve()
-    configured = (root / '.workspace/workspace.json').exists()
+    configured = workspace_file(root).exists()
     extensions = extension_status(root) if configured else {'activeIds': [], 'blockedCodes': []}
     try:
         workspace = load_workspace(root) if configured else None
@@ -30,8 +31,8 @@ def status_result(root: Path, *, context_sources=False, item_slug=None) -> dict:
     else:
         result.update(list_items(root))
     if context_sources:
-        result['contextSources'] = {'workspace': str(root / '.workspace/CONTEXT.md'),
-                                    'repositories': [str(root / '.workspace/docs/repositories' / (r.path + '.md')) for r in workspace.repositories] if workspace else []}
+        result['contextSources'] = {'workspace': str(context_file(root)),
+                                    'repositories': [str(profiles_root(root) / (r.path + '.md')) for r in workspace.repositories] if workspace else []}
     return result
 
 

@@ -78,7 +78,7 @@ class ExtensionHappyPathTest(unittest.TestCase):
             self.assertEqual([], activation["adapters"]["create"])
             apply(kit, extension_config, activation)
 
-            workflow_config = kit / ".workspace/workflow-input.json"
+            workflow_config = kit / ".workspace/config/workflow.draft.json"
             workflow_config.write_text(
                 json.dumps(
                     {

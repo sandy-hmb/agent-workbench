@@ -11,6 +11,7 @@ from workbench.work_items.documents import ROLES, LINK, content_roles, instructi
 from workbench.git import _git, git_fingerprint, branch_fingerprint
 from workbench.work_items.store import WorkItemError, digest, item_area, item_path, load_state, read_evidence, read_bytes, safe_path, text_digest
 from workbench.workspace.model import load_workspace, repository_path, resolve_repository
+from workbench.workspace.paths import context_file, workspace_file
 
 STAGE_SKILLS = {'item.design': 'workspace-item-design', 'item.implement': 'workspace-execute-plan',
                 'item.verify': 'workspace-verify', 'item.submit-test': 'workspace-submit-test',
@@ -27,7 +28,7 @@ def recorded_task_status(state: dict, task_id: str, evidence: dict | None) -> st
 
 def repository_roots(root: Path, state: dict, names=None) -> dict[str, Path]:
     result = {}
-    workspace = load_workspace(root) if (root / '.workspace/workspace.json').exists() else None
+    workspace = load_workspace(root) if workspace_file(root).exists() else None
     for binding in state['bindings']:
         name = binding['repository']
         if names is not None and name not in names:
@@ -43,14 +44,14 @@ def repository_roots(root: Path, state: dict, names=None) -> dict[str, Path]:
 
 
 def repository_context(root: Path, repository: Path, paths=None, task=None) -> dict:
-    configured = (root / '.workspace/workspace.json').exists()
+    configured = workspace_file(root).exists()
     facts = []
     source_instruction = None
     if configured:
         workspace = load_workspace(root)
         repo = resolve_repository(workspace.repositories, repository.name)
         source_instruction = repo.source_instruction
-        facts = [(root / '.workspace/CONTEXT.md', 'workspace-context', True),
+        facts = [(context_file(root), 'workspace-context', True),
                  (safe_path(root / '.workspace', repo.instruction), 'repository-profile', True)]
         if source_instruction and Path(source_instruction).name != 'AGENTS.md':
             facts.append((safe_path(repository, source_instruction), 'repository-reference', True))

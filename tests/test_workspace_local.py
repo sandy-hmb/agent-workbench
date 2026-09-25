@@ -17,8 +17,8 @@ from workbench.workspace.model import WorkspaceError  # noqa: E402
 class WorkspaceLocalTest(unittest.TestCase):
     def write(self, root: Path, value: object) -> Path:
         state = root / ".workspace"
-        state.mkdir(exist_ok=True)
-        path = state / "workspace.local.json"
+        (state / "config").mkdir(parents=True, exist_ok=True)
+        path = state / "config" / "local.json"
         path.write_text(json.dumps(value), encoding="utf-8")
         return path
 
@@ -88,7 +88,8 @@ class WorkspaceLocalTest(unittest.TestCase):
             state.mkdir()
             target = root / "outside.json"
             target.write_text("{}", encoding="utf-8")
-            (state / "workspace.local.json").symlink_to(target)
+            (state / "config").mkdir()
+            (state / "config" / "local.json").symlink_to(target)
             with self.assertRaisesRegex(WorkspaceError, "普通文件"):
                 load_local_settings(root)
 

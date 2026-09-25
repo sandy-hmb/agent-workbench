@@ -20,9 +20,9 @@ class ActionReliabilityTest(unittest.TestCase):
         (repository/'file.txt').write_text('fixture')
         subprocess.run(['git', '-C', str(repository), 'add', '.'], check=True)
         subprocess.run(['git', '-C', str(repository), '-c', 'user.name=Fixture', '-c', 'user.email=test@example.test', 'commit', '-qm', 'fixture'], check=True)
-        config = self.root / '.workspace/workspace.json'
+        config = self.root / '.workspace/config/workspace.json'
         data = json.loads(config.read_text())
-        data['repositories'] = [{'path':'service','aliases':[],'remote':None,'category':'service','description':'fixture','instruction':'docs/repositories/service.md'}]
+        data['repositories'] = [{'path':'service','aliases':[],'remote':None,'category':'service','description':'fixture','instruction':'repositories/service.md'}]
         config.write_text(json.dumps(data))
         self.root = self.root.resolve()
         commands.create(self.root, 'linked', title='Linked', repositories=['service'])

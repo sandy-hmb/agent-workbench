@@ -51,7 +51,7 @@ class UpdateIsolationTest(unittest.TestCase):
             (state / "docs").mkdir(exist_ok=True)
             (state / "docs" / "local-note.md").write_text("local only\n", encoding="utf-8")
             (state / "extensions" / ".state" / "cache" / "local-note.txt").write_text("local cache\n", encoding="utf-8")
-            (state / "workflow.json").write_text(
+            (state / "config" / "workflow.json").write_text(
                 json.dumps(
                     {"schemaVersion": {"major": 1, "minor": 0}, "workflow": "item-development", "stages": []}
                 )
@@ -76,7 +76,7 @@ class UpdateIsolationTest(unittest.TestCase):
                 encoding="utf-8",
             )
             before = state_snapshot(state)
-            self.assertIn("workspace.json", before)
+            self.assertIn("config/workspace.json", before)
             self.assertIn("extensions/.state/lock.json", before)
             self.assertIn("docs", before)
             self.assertEqual("", git_status(user))

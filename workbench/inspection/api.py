@@ -9,7 +9,7 @@ from workbench.work_items.query import list_items
 from workbench.work_items.query import WorkItemQuery
 from workbench.work_items.store import WorkItemError, digest, item_path, read_bytes, safe_path, text_digest
 from workbench.workspace.model import load_workspace, repository_path, effective_branch_policy
-from workbench.workspace.paths import workflow_file, workflow_runs_root
+from workbench.workspace.paths import workflow_file, workflow_runs_root, workspace_file
 
 API_MAJOR = 2
 API_MINOR = 1
@@ -36,7 +36,7 @@ def _page(items, offset, limit):
 
 
 def workspace(root):
-    model = load_workspace(root) if (root / '.workspace/workspace.json').exists() else None
+    model = load_workspace(root) if workspace_file(root).exists() else None
     repos = [{'id': root.name, 'role': 'kit', 'absolutePath': str(root), 'aliases': [], 'category': 'kit', 'description': '工作流 Kit', 'availability': 'present', 'effectiveBranchPolicy': None}]
     if model:
         for repo in model.repositories:
@@ -139,7 +139,7 @@ def handoff(root, slug, check_code=False, deadline=None):
 def workflow(root):
     from workbench.extensions.management import extension_status
     enabled = workflow_file(root).is_file()
-    extension = extension_status(root) if (root / '.workspace/workspace.json').exists() else {'activeIds': []}
+    extension = extension_status(root) if workspace_file(root).exists() else {'activeIds': []}
     result = {'enabled': enabled, 'configState': 'enabled' if enabled else 'disabled', 'extensions': [{'id': name} for name in extension.get('activeIds', [])]}
     if enabled:
         from workbench.extensions.runner import _resolve
