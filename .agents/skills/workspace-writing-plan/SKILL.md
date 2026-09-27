@@ -19,7 +19,7 @@ description: Prepare independent executable tasks when a change needs explicit d
 - 行为、声明式或持久化的验证性质。
 - 测试工作目录、精确命令、通过条件；非平凡行为写最小失败场景。
 
-步骤只保留本任务易遗漏或有顺序要求的动作，不复制通用 TDD 和证据教程。持久化变化需要真实结构、迁移或写入检查。声明式改动选择最小有效检查，不机械新增测试。
+步骤只写易遗漏或有顺序要求的动作，不复制通用教程；持久化变化需检查真实结构、迁移或写入，声明式改动选最小有效检查。新增 fallback、adapter、provider、兼容分支或删旧路径时补 Old path、Disposition、Reason、Verification。
 
 在整体验证区承接跨任务回归；跨仓行为明确最终验收入口，各仓局部通过不能代替整体验收。外部待验证写清 R、事项、负责方和完成条件，随后通过 item delivery 登记，不阻塞无关本地任务。
 

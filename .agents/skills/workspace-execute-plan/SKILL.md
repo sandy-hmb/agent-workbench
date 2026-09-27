@@ -11,7 +11,7 @@ description: Execute approved work continuously with targeted validation and aut
 
 1. 读取当前任务正文和 sources 指向的 R/D，直接依赖只展开必要结果。按 instructionContext.rules 的 scope 应用规范，facts 是事实来源；同会话按路径、版本和作用范围复用未变内容，新会话重新读取。普通工作项可加 --repo/--path 定位目录规范，小改无须建立计划。必需入口缺失时先处理诊断；目录变化后补查对应作用域。
 2. 行为变化先写最小失败测试，确认失败源于目标行为缺失；编译失败、环境异常和未执行不能作为有效 RED。实现最小修改并定向验证。声明式变化使用最小有效检查，持久化变化覆盖真实结构或写入。
-3. 核对检查执行数、跳过数、退出码、实际 diff 和交付路径。失败先复现、定位一个根因并验证最小修复，不弱化断言规避失败。
+3. 核对检查执行数、跳过数、退出码、实际 diff 和交付路径。Bug/失败/回归先复现，沿 owner/数据流找根因，再最小修复并回归；无法复现时说明原因，外部等待用 block、证据不足保留 unknown，不猜测性补丁。
 4. 取得 `verify snapshot <slug> --task T01 --json`，按实际结果调用 `verify record`。格式见 workspace-verify 的证据参考。脚本更新完成状态和摘要，不手工勾选计划。
 5. record 的 nextStep 返回阶段、下一任务和阻塞摘要；有下一任务时直接 brief --task 展开它。无需先查询完整工作区和同一份接手摘要。状态变化或新会话才重新获取所需上下文；完成后做整体复核与整体验证。
 

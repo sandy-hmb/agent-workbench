@@ -20,7 +20,7 @@
 }
 ```
 
-逐任务使用 scope=task、taskId=T01，codeState 只包含目标仓；整体验证包含全部涉及仓。result 为 passed/failed；尚未执行的环境等待使用 item block；整体验证通过必须 reviewResult=passed。检查类型为测试、行为检查、集成、结构、迁移、静态检查或编译；性质必须足以覆盖任务。
+逐任务使用 scope=task、taskId=T01，codeState 只包含目标仓；整体验证包含全部涉及仓。result 为 passed/failed；环境等待用 item block，整体验证通过必须 reviewResult=passed。检查类型为测试、行为检查、集成、结构、迁移、静态检查或编译；性质必须足以覆盖任务。涉及旧路径时，在 verificationScope 或检查结果说明主路径、残留引用和兼容边界。
 
 可选 artifactRefs 为 `{path,sha256,bytes,type}` 数组，path 相对 WorkItem，实际文件哈希必须一致。不要放密钥或完整敏感日志。
 

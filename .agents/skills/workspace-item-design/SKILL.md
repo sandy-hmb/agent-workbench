@@ -5,7 +5,7 @@ description: Classify a change and prepare concrete requirements and design for 
 
 # 需求与设计
 
-先查事实，再提出影响业务结果的关键问题。明确目标、验收、非目标及约束；无需重新询问已确定事项。
+先查事实，再提出影响业务结果的关键问题。明确目标、验收、非目标及约束；无需重新询问已确定事项。目标不清或范围可能扩张时，回复中临时列出 Goal、Success Evidence、Stop Condition、Non-goals；小改不落文件。
 
 ## 选择记录强度
 
@@ -19,7 +19,7 @@ description: Classify a change and prepare concrete requirements and design for 
 
 按对应模板写内容：Requirements 维护完整业务规格、稳定 R 编号、角色条件、触发、可观察结果和反例；Design 维护完整技术方案、稳定 D 决策、选择理由、复用与新增职责、数据和接口、兼容回退及验证。
 
-关键验收选择能证明要求的观察入口。例如隐私约束检查接口响应，页面不显示仅证明展示行为。只记录会改变方案的假设，写明依据、验证方法及失败影响。可以通过仓库核实的事实自行调查。
+验收选择能证明要求的观察入口；只记录会改变方案的假设及依据、验证和失败影响。涉及 fallback、adapter、provider、兼容分支或旧路径删除时说明处置，其他任务不加治理段落。
 
 主设计保留完整方案与关键结论；字段字典、请求样例等较长细节按需放 references/ 并引用 D。在批准范围内自行选择文件组织，不为拆附件额外确认。前端交接用 workspace-api-contract。
 

@@ -9,7 +9,7 @@ description: Record actual validation and delivery facts, then complete an accep
 
 ## 验证
 
-从当前需求验收、仓规则、manifest、CI 和已有测试核实检查入口。任务验证覆盖当前行为，整体验证覆盖必要回归与需求符合性。检查测试确实执行；零执行、跳过目标测试或仅编译不能证明行为完成。
+从当前需求验收、仓规则、manifest、CI 和已有测试核实检查入口。任务验证覆盖当前行为，整体验证覆盖必要回归与需求符合性。零执行、跳过目标测试或仅编译不能证明完成。新增或替换旧路径时检查主路径、残留引用和兼容边界，其他任务不加检查。
 
 运行检查后，用 `verify snapshot <slug> --json` 取得当前代码状态；逐任务加 `--task T01`。证据记录格式按需读取 [证据输入](references/evidence.md)。普通需求只需一次整体验证。
 

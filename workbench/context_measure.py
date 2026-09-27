@@ -7,14 +7,23 @@ import sys
 from pathlib import Path
 from workbench.resources import KIT_ROOT
 
-RULES = ['AGENTS.md', *[f'.agents/skills/{name}/SKILL.md' for name in ['workspace-item-design','workspace-writing-plan','workspace-execute-plan','workspace-verify']], '.agents/skills/workspace-verify/references/evidence.md']
+DEFAULT_RULES = ['AGENTS.md', *[f'.agents/skills/{name}/SKILL.md' for name in ['workspace-item-design','workspace-writing-plan','workspace-execute-plan','workspace-verify']]]
+TASK_REFERENCE_RULES = ['.agents/skills/workspace-verify/references/evidence.md']
+RULES = [*DEFAULT_RULES, *TASK_REFERENCE_RULES]
 BASELINE = 13561
+DEFAULT_RULE_TOKEN_BUDGET = 5200
+TASK_REFERENCE_TOKEN_BUDGET = 700
+RULE_TOKEN_BUDGET = 5700
 
 
 def estimate_tokens(text: str) -> dict:
     cjk = sum(any(a <= ord(c) <= b for a, b in [(0x3000,0x303F),(0x3040,0x30FF),(0x3400,0x4DBF),(0x4E00,0x9FFF),(0xFF00,0xFFEF)]) for c in text)
     other = sum(len(c.encode()) for c in text if not any(a <= ord(c) <= b for a,b in [(0x3000,0x303F),(0x3040,0x30FF),(0x3400,0x4DBF),(0x4E00,0x9FFF),(0xFF00,0xFFEF)]))
     return {'bytes': len(text.encode()), 'chars': len(text), 'cjkChars': cjk, 'estTokens': cjk + (other + 3)//4}
+
+
+def _rule_rows(root: Path, paths: list[str]) -> list[dict]:
+    return [{'path': name, **estimate_tokens((root / name).read_text())} for name in paths]
 
 
 def _sources(root: Path, slug, payload, skill: str) -> list[dict]:
@@ -96,16 +105,23 @@ def scenario_report(root: Path, item=None, task=None, repository=None, paths=Non
 
 def build_report(root: Path, item=None, task=None, repository=None, paths=None):
     root = root.resolve()
-    rules = [{'path': name, **estimate_tokens((root/name).read_text())} for name in RULES]
+    default_rules = _rule_rows(root, DEFAULT_RULES)
+    task_reference_rules = _rule_rows(root, TASK_REFERENCE_RULES)
+    rules = [*default_rules, *task_reference_rules]
     queries = [['status','--json']] if item is None else [['brief',item,'--json'], *([['brief',item,'--task',task,'--json']] if task else [])]
     commands = []
     for arguments in queries:
         result = subprocess.run([sys.executable,'-B',str(root/'scripts/kit.py'),*arguments],cwd=root,capture_output=True,text=True,timeout=30)
         commands.append({'arguments': arguments, 'exitCode': result.returncode, **estimate_tokens(result.stdout)})
-    total = sum(row['estTokens'] for row in rules)
+    default_total = sum(row['estTokens'] for row in default_rules)
+    task_reference_total = sum(row['estTokens'] for row in task_reference_rules)
+    total = default_total + task_reference_total
     return {'schemaVersion':2,'tokenModel':'CJK 1 char/token; other UTF-8 bytes/4 estimate, not billed usage',
-            'rules':rules,'totalRuleEstTokens':total,'baselineRuleEstTokens':BASELINE,
-            'targetMet':total <= 9000 and rules[0]['estTokens'] <= 1200,'commands':commands,
+            'rules':rules,'defaultRuleEstTokens':default_total,'taskReferenceEstTokens':task_reference_total,
+            'totalRuleEstTokens':total,'baselineRuleEstTokens':BASELINE,
+            'defaultRuleTokenBudget':DEFAULT_RULE_TOKEN_BUDGET,
+            'taskReferenceTokenBudget':TASK_REFERENCE_TOKEN_BUDGET,'ruleTokenBudget':RULE_TOKEN_BUDGET,
+            'targetMet':default_total <= DEFAULT_RULE_TOKEN_BUDGET and task_reference_total <= TASK_REFERENCE_TOKEN_BUDGET and total <= RULE_TOKEN_BUDGET and rules[0]['estTokens'] <= 1200,'commands':commands,
             'scenarios': scenario_report(root, item, task, repository, paths),
             'limitations': '测量 CLI 输出和声明需读取的来源；不含模型生成、历史会话、测试日志、工具内部读取或实际计费。连续任务模拟同会话按路径/版本/作用范围复用，新会话重新读取。'}
 
