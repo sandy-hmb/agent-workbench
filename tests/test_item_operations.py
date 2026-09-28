@@ -22,7 +22,7 @@ class ItemOperationsTest(ItemFixture, unittest.TestCase):
 
     def test_noop_update_and_render_leave_versions_and_mtimes_unchanged(self):
         self.review(); self.record()
-        paths = [self.item / 'state.json', self.item / 'README.md', self.item / 'verification.md']
+        paths = [self.item / '.state/state.json', self.item / 'README.md']
         before = [(p.read_bytes(), p.stat().st_mtime_ns) for p in paths]
         self.assertFalse(self.update({'title': self.state()['title']})['changed'])
         commands.render(self.root, 'demo')
@@ -120,7 +120,7 @@ class ItemOperationsTest(ItemFixture, unittest.TestCase):
         self.review(); self.record()
         checks = [{'id': f'C{i}', 'requirement': 'R1', 'description': f'check-{i}', 'owner': '测试', 'status': 'passed' if i < 22 else 'pending', 'evidence': 'result' if i < 22 else ''} for i in range(25)]
         commands.delivery(self.root, 'demo', {'externalChecks': checks}, expected_revision=self.state()['stateRevision'])
-        summary = (self.item / 'verification.md').read_text()
+        summary = (self.item / 'README.md').read_text()
         self.assertIn('check-24', summary)
         self.assertIn('共 25', summary)
         self.assertIn('其余 5', summary)

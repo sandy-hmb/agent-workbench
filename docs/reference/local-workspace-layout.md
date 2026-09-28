@@ -15,17 +15,19 @@
   repositories/
     <repository>.md            # Kit 生成的仓详细事实（按需存在）
   items/<slug>/
-    state.json
     README.md
     change.md
     requirements.md
     design.md
     plan.md
-    verification.md
-    evidence/
+    .state/
+      state.json
+      lock
+      evidence/
+      history/
+      inputs/
     references/
     artifacts/
-    history/
   extensions/
     <extension-id>/
     .state/                    # lock、输入和缓存，Kit 管理
@@ -36,8 +38,18 @@
 
 `workspace-input.json` 是初始化前的临时输入，不是工作区事实来源。初始化完成后可以删除它；下一次重新初始化时再生成新的输入。
 
-Markdown 只保存内容；`state.json` 是生命周期、审批、任务和交付的唯一可变事实源。`verify record` 记录实际结果并自动更新 README 与验证摘要。详细历史、日志和附件只在需要追溯时读取。
+Markdown 只保存内容；`.state/state.json` 是生命周期、审批、任务和交付的唯一可变事实源。`verify record` 记录实际结果并更新 README 的验证摘要。证据、锁和历史属于 Kit 实现目录，详细内容只在需要追溯时读取。
 
 工作区配置主版本为 4。维护 Kit 时工作项根为 `docs/development/items/`，共用同一状态与验证逻辑。备份或恢复时保留整套 `.workspace/`，再核对登记仓库和版本。
+
+已有 WorkItem 的机器状态可显式迁移到 `.state/`。先预览全部变更，再执行预览返回的带备份命令：
+
+```bash
+python3 scripts/kit.py item storage-migrate preview --root . --all --json
+python3 scripts/kit.py item storage-migrate apply --root . --all \
+  --plan-hash <planHash> --backup-dir <backupDir>
+```
+
+迁移不会转换需求内容或业务状态；旧 `verification.md`、临时验证输入和冲突前原始文件会进入备份或 `.state/inputs/legacy/`。
 
 升级后可用 `setup refresh preview/apply` 重新生成 CONTEXT.md 和仓 profile；它不会修改 WorkItem、Extension 或 Run。

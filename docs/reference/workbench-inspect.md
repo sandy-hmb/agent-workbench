@@ -1,4 +1,4 @@
-# Inspect 2.2
+# Inspect 2.3
 
 通过 `kit.py inspect --root <kit> --api-major 2 --json <operation>` 只读查询。仅支持 major=2；旧客户端和旧 WorkItem 明确拒绝，不自动转换数据。
 
@@ -17,7 +17,7 @@
 | search | query、可选 repo/status/offset/limit | 当前文档匹配片段 |
 | workflow / runs / run | 对应筛选或 id | 已配置扩展与实际执行记录 |
 
-任务视图包含 summary、tasks、progression、documents、stateRevision。documents 每项有 role、path、documentRevision；客户端按角色定位，不猜目录、不本地兜底读取。
+任务视图包含 summary、tasks、progression、documents、stateRevision。documents 每项有 role、path、documentRevision；客户端按角色定位，不猜目录、不本地兜底读取。验证摘要已合入 README，documents 不再返回独立的 `verification.md`；验证事实仍通过 `verification` operation 获取。
 
 summary.completionAction 指示可请求完成及阻塞原因；实际写入仍由 `item complete --state-revision` 再次核对。默认 verification.applicability=not_checked，显式 check-code 才检查当前代码。
 

@@ -31,7 +31,7 @@ class WorkItemV2Test(ItemFixture, unittest.TestCase):
         result = actions.complete(self.root, 'demo', expected_revision=self.state()['stateRevision'])
         self.assertEqual('done', result['state']['lifecycle'])
         self.assertFalse((self.item / 'plan.md').exists())
-        self.assertIn('(README.md)', (self.item / 'verification.md').read_text())
+        self.assertIn('验证摘要', (self.item / 'README.md').read_text())
 
     def test_task_record_updates_progress_without_checkbox(self):
         self.plan()
@@ -123,7 +123,7 @@ class WorkItemV2Test(ItemFixture, unittest.TestCase):
         reader = WorkItemQuery(self.root, 'demo')
         self.assertEqual([], reader.task_states())
         self.assertEqual([], reader.decision()['readyTasks'])
-        self.assertIn('上次整体验证：unknown', (self.item / 'verification.md').read_text())
+        self.assertIn('上次整体验证：unknown', (self.item / 'README.md').read_text())
 
     def test_deleting_plan_cannot_hide_unfinished_registered_tasks(self):
         self.plan(); self.review()

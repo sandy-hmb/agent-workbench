@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.2.1",
+  "kitVersion": "2.3.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.3.0",
+      "summary": "2.3 将 WorkItem 机器状态收进 .state/，并把验证摘要合入 README。更新后先运行 item storage-migrate preview --all，再按预览命令备份并迁移现有 WorkItem。",
+      "runbook": "docs/reference/local-workspace-layout.md"
+    },
     {
       "sinceVersion": "2.2.0",
       "summary": "2.2 将 Extension 期望配置移至 .workspace/config/extensions.draft.json；旧 .state/input.json 不再读取。更新后先运行 setup refresh preview，再按 preview 更新生成视图与 Extension lock。",

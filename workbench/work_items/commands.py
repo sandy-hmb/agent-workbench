@@ -13,7 +13,7 @@ from workbench.work_items.documents import content_roles
 from workbench.work_items.query import WorkItemQuery, repository_roots
 from workbench.git import _git
 from workbench.work_items.store import (WorkItemError, DIGEST_RE, SCHEMA_VERSION, atomic_write, canonical, check_revision,
-                           digest, item_lock, item_path, load_state, read_bytes, read_json, safe_path,
+                           digest, ensure_modern_storage, has_modern_storage, history_root, item_lock, item_path, load_state, read_bytes, read_json, safe_path, state_path,
                            save_state, stamp, write_evidence)
 from workbench.workspace.model import effective_branch_policy, load_workspace, resolve_repository
 from workbench.workspace.paths import workspace_file
@@ -49,6 +49,7 @@ def create(root: Path, slug: str, *, title: str, repositories: list[str], summar
         _git(location, ['check-ref-format', '--branch', work_branch], 5, 65536)
         bindings.append({'repository': name, 'workBranch': work_branch, 'baseBranch': base or current or work_branch})
     path.mkdir(parents=True)
+    ensure_modern_storage(path)
     state = {'schemaVersion': SCHEMA_VERSION, 'slug': slug, 'title': title or slug, 'summary': summary,
              'lifecycle': 'active', 'activity': activity, 'risk': risk, 'documentKind': document_kind,
              'iteration': 'i01', 'bindings': bindings, 'reviews': {}, 'tasks': {}, 'currentTasks': [], 'maxTaskNumber': 0,
@@ -349,12 +350,14 @@ def next_iteration(root: Path, slug: str, *, expected_revision: str) -> dict:
         check_revision(state, expected_revision)
         if state['lifecycle'] not in {'done', 'cancelled'}:
             raise WorkItemError('ITERATION_UNFINISHED', '当前迭代尚未完成')
-        archive = safe_path(directory, 'history/' + state['iteration'])
-        stage = safe_path(directory, 'history/.' + state['iteration'] + '-pending')
+        history = history_root(directory, for_write=has_modern_storage(directory))
+        archive = safe_path(history, state['iteration'])
+        stage = safe_path(history, '.' + state['iteration'] + '-pending')
         if not archive.exists():
             stage.mkdir(parents=True, exist_ok=True)
-            for source in [*directory.glob('*.md'), directory / 'state.json']:
-                atomic_write(stage / source.name, read_bytes(safe_path(directory, source.name)))
+            for source in directory.glob('*.md'):
+                atomic_write(safe_path(stage, source.name), read_bytes(source))
+            atomic_write(safe_path(stage, 'state.json'), read_bytes(state_path(directory)))
             for name in ('references', 'artifacts'):
                 folder = safe_path(directory, name)
                 if folder.exists():
@@ -366,10 +369,11 @@ def next_iteration(root: Path, slug: str, *, expected_revision: str) -> dict:
                                 continue
                             atomic_write(safe_path(stage, relative), read_bytes(safe))
             stage.rename(archive)
-        archived = read_json(archive / 'state.json')
+        archived = read_json(safe_path(archive, state_path(directory).relative_to(directory).as_posix()))
         if archived['stateRevision'] != state['stateRevision']:
             raise WorkItemError('ARCHIVE_CONFLICT', '已有归档与当前状态不一致')
-        state['history'].append({'iteration': state['iteration'], 'path': 'history/' + state['iteration']})
+        history_path = history.relative_to(directory).as_posix()
+        state['history'].append({'iteration': state['iteration'], 'path': history_path + '/' + state['iteration']})
         state.update(iteration=f"i{int(state['iteration'][1:]) + 1:02d}", lifecycle='active', reviews={}, currentTasks=[], verification=None, evidence=[], blockers=[], cancellation=None)
         state = save_state(directory, state)
     return _finish(root, slug, state)
@@ -519,8 +523,6 @@ def render(root: Path, slug: str) -> dict:
     for role in content_roles(state):
         if reader.document(role):
             lines.append(f'- [{role}]({role}.md)')
-    if state['verification']:
-        lines.append('- [验证摘要](verification.md)')
     for name in ('references', 'artifacts'):
         directory = safe_path(reader.path, name)
         if directory.exists():
@@ -544,23 +546,21 @@ def render(root: Path, slug: str) -> dict:
         lines.append('| ' + ' | '.join(one(x) for x in [binding['repository'], row.get('version', '未记录'), row.get('submission', '未执行'), row.get('deployment', '未确认'), row.get('acceptance', '未确认')]) + ' |')
         if workflow_refs(row):
             lines.append(f"- {binding['repository']} Workflow 依据：{workflow_refs(row)}")
-    if state['history']:
-        lines += ['', '## 历史', '', *[f"- [{row['iteration']}]({row['path']}/README.md)" for row in state['history']]]
-    changed = atomic_write(reader.path / 'README.md', ('\n'.join(lines) + '\n').encode())
-    if state['verification'] or state['evidence'] or (reader.path / 'verification.md').exists():
+    if state['verification'] or state['evidence'] or state['history']:
         verification = reader.verification()
-        lines = ['# 验证摘要', '', '<!-- Generated by Kit. Evidence is authoritative. -->', '',
-                 f"- 上次整体验证：{verification['recordedResult']}", '- 当前代码适用性：读取时另行核对',
-                 '- [README 交付状态](README.md)', '', '## 当前任务', '']
+        lines += ['', '## 验证摘要', '',
+                  f"- 上次整体验证：{verification['recordedResult']}",
+                  '- 当前代码适用性：读取时另行核对']
         task_states = sorted(reader.task_states(), key=lambda row: (row['completed'], int(row['id'][1:])))
         lines += [f"- {task['id']}：{task['status']}" for task in task_states[:30]] or ['- 本次活动使用整体验证']
         if len(task_states) > 30:
-            lines += [f"- 共 {len(task_states)} 项，展示 30 项，其余 {len(task_states)-30} 项见 `kit.py inspect projection {slug} --view task`。"]
-        lines += ['', '## 待外部验收', '']
+            lines.append(f'- 共 {len(task_states)} 项，展示 30 项，其余 {len(task_states)-30} 项见 `kit.py inspect projection {slug} --view task`。')
+        lines += ['', '### 待外部验收', '']
         external = sorted(state['externalChecks'], key=lambda row: (row['status'] in {'passed','waived'}, row['id']))
         lines += [f"- {one(c['requirement'])}：{one(c['description'])}；{one(c['owner'])}；{c['status']}" + (f"；Workflow 依据：{workflow_refs(c)}" if workflow_refs(c) else '') for c in external[:20]] or ['- 无已登记待办']
         if len(external) > 20:
-            lines += [f"- 共 {len(external)} 项，展示 20 项，其余 {len(external)-20} 项见 `kit.py inspect projection {slug} --view flow`。"]
-        lines += ['', f"详细结果：`kit.py verify evidence {slug}`；历史记录：`kit.py verify history {slug}`。"]
-        changed = atomic_write(reader.path / 'verification.md', ('\n'.join(lines) + '\n').encode()) or changed
+            lines.append(f'- 共 {len(external)} 项，展示 20 项，其余 {len(external)-20} 项见 `kit.py inspect projection {slug} --view flow`。')
+    if state['history']:
+        lines += ['', '## 历史', '', *[f"- [{row['iteration']}]({row['path']}/README.md)" for row in state['history']]]
+    changed = atomic_write(reader.path / 'README.md', ('\n'.join(lines) + '\n').encode())
     return {'itemSlug': slug, 'rendered': True, 'changed': changed}

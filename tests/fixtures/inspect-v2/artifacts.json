@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 2
+    "minor": 3
   },
   "operation": "artifacts",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -22,7 +22,7 @@
     "counts": {
       "total": 1
     },
-    "collectionRevision": "sha256:9f3997b29dc271080cf06d32f0aee006082c23bf9e7d0962b7784617ecf82b98",
+    "collectionRevision": "sha256:279cf29a6597ebe5a7685d5b807225ffbb41c907e8fa8555350759196317c741",
     "page": {
       "offset": 0,
       "limit": 50,
@@ -30,5 +30,5 @@
       "hasMore": false
     }
   },
-  "responseRevision": "sha256:ca976d48402c77842c9511c76e7e32843f416fc4feedc4d59b0ce870a1b13912"
+  "responseRevision": "sha256:03f6cc5cc4491ef2221495d40ff8d048c9700bb34f700f1db60260f2a0ea1953"
 }

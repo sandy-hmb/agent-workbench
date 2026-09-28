@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from workbench.work_items.documents import ROLES, LINK, content_roles, instructions, parse_tasks, source
 from workbench.git import _git, git_fingerprint, branch_fingerprint
-from workbench.work_items.store import WorkItemError, digest, item_area, item_path, load_state, read_evidence, read_bytes, safe_path, text_digest
+from workbench.work_items.store import WorkItemError, digest, item_area, item_path, load_state, read_evidence, read_bytes, safe_path, state_path, text_digest
 from workbench.workspace.model import load_workspace, repository_path, resolve_repository
 from workbench.workspace.paths import context_file, workspace_file
 
@@ -534,7 +534,7 @@ def list_items(root: Path, status: str | None = None) -> dict:
         for path in sorted(area.iterdir()):
             if not path.is_dir() or path.is_symlink():
                 continue
-            if not (path / 'state.json').exists():
+            if not state_path(path).is_file():
                 unsupported += 1
                 continue
             try:

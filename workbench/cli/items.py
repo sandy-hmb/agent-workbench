@@ -14,6 +14,7 @@ from workbench.work_items.store import WorkItemError, SLUG_RE, item_area, item_p
 ITEM_STATUSES = frozenset({'active', 'paused', 'done', 'cancelled'})
 
 from workbench.work_items.query import item_summary, list_items, resolve_items
+from workbench.work_items import migration
 
 
 def build_parser():
@@ -27,6 +28,17 @@ def build_parser():
     create.add_argument('--activity', default='develop'); create.add_argument('--branch')
     listing = commands.add_parser('list'); listing.add_argument('--status', choices=sorted(ITEM_STATUSES))
     resolve = commands.add_parser('resolve'); resolve.add_argument('--repo', required=True); resolve.add_argument('--branch', required=True)
+    storage = commands.add_parser('storage-migrate')
+    storage_commands = storage.add_subparsers(dest='storage_command', required=True)
+    storage_preview = storage_commands.add_parser('preview')
+    storage_apply = storage_commands.add_parser('apply')
+    for command in (storage_preview, storage_apply):
+        command.add_argument('--slug')
+        command.add_argument('--all', action='store_true')
+        command.add_argument('--root', type=Path, default=Path.cwd())
+        command.add_argument('--json', action='store_true')
+    storage_apply.add_argument('--plan-hash', required=True)
+    storage_apply.add_argument('--backup-dir', type=Path, required=True)
     for name in ['approval', 'update', 'block', 'unblock', 'cancel', 'delivery', 'complete', 'pause', 'resume', 'next-iteration']:
         command = commands.add_parser(name)
         command.add_argument('slug'); command.add_argument('--state-revision', required=True)
@@ -50,7 +62,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         root = args.root.resolve()
-        if args.command == 'create':
+        if args.command == 'storage-migrate':
+            if args.storage_command == 'preview':
+                result = migration.preview(root, slug=args.slug, all_items=args.all)
+            else:
+                result = migration.apply(root, args.plan_hash, args.backup_dir, slug=args.slug, all_items=args.all)
+        elif args.command == 'create':
             result = actions.create(root, args.slug, title=args.title, summary=args.summary, repositories=args.repo,
                                     document_kind=args.document_kind, risk=args.risk_tier, activity=args.activity, branch=args.branch)
         elif args.command == 'list': result = list_items(root, args.status)

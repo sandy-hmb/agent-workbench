@@ -12,7 +12,7 @@ from workbench.workspace.model import load_workspace, repository_path, effective
 from workbench.workspace.paths import workflow_file, workflow_runs_root, workspace_file
 
 API_MAJOR = 2
-API_MINOR = 2
+API_MINOR = 3
 MAX_RESPONSE = 8 * 1024 * 1024
 OPERATIONS = ['workspace', 'items', 'projection', 'document', 'artifacts', 'verification', 'evidence', 'handoff', 'search', 'workflow', 'runs', 'run']
 

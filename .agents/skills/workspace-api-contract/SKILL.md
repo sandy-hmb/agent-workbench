@@ -44,7 +44,7 @@ description: Create or update API integration notes for workspace work items tha
 
 ## 测试期文档
 
-开发自测、正式提测或修复联调问题时，实际证据进入 `evidence/` 并由脚本生成 `verification.md`。只有联调记录需要独立维护时才创建 `testing/api-integration.md`，并从证据引用，不作为第二份前端指南。内容包含：
+开发自测、正式提测或修复联调问题时，实际证据进入 Kit 管理的 `.state/evidence/` 并由脚本更新 README 验证摘要。联调交付说明统一放 `artifacts/`；不再创建 `testing/api-integration.md` 作为第三类正式目录。内容包含：
 
 - 验证范围：关联页面、接口、主要场景和反向兼容场景。
 - 执行记录：只记录已获授权并实际执行的命令、请求或人工检查。

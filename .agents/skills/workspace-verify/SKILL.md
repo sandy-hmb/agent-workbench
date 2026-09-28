@@ -17,13 +17,13 @@ description: Record actual validation and delivery facts, then complete an accep
 python3 scripts/kit.py verify record <slug> --input evidence.json --state-revision <stateRevision> --json
 ```
 
-记录成功自动更新任务完成事实或整体验证指针，并生成摘要。失败也记录实际结论；最新失败覆盖旧成功。状态已提交而摘要未生成时执行 `verify render <slug>`，不重复执行检查。历史和日志只在需要时通过 evidence/history 展开。
+记录成功自动更新任务完成事实或整体验证指针，并更新 README 验证摘要。失败也记录实际结论；最新失败覆盖旧成功。状态已提交而摘要未生成时执行 `verify render <slug>`，不重复执行检查。历史和日志只在需要时通过 evidence/history 展开。
 
 ## 外部验收与交付
 
 通过 `item delivery <slug> --input delivery.json --state-revision <stateRevision>` 记录逐仓版本、提测、部署、验收及依据；未知不猜。未完成外部事项写明 R、描述、负责人和条件。关闭时提供实际证据；范围调整用 waived 并说明理由，不静默丢弃待办。
 
-README 和 verification.md 均由脚本生成。需要发布顺序、开关、观察指标、回退条件时，交付说明放 artifacts/ 并链接已有设计，不另维护状态副本。前端指南复用原文件。
+README 由脚本生成并包含验证摘要。需要发布顺序、开关、观察指标、回退条件时，交付说明放 artifacts/ 并链接已有设计，不另维护状态副本。前端指南复用原文件。
 
 ## 完成
 

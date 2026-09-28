@@ -626,6 +626,7 @@ def markdown_files(root: Path, item_slug: str | None = None) -> Iterable[Path]:
             directories[:] = [
                 name
                 for name in directories
+                if name != ".state"
                 if not (current_path.name == "testing" and name in {"archive", "evidence"})
                 if not (item_slug is not None and current_path in {root / "docs/development/items", items_root(root)} and name != item_slug)
                 if _safe_directory(root, current_path / name, required=True)

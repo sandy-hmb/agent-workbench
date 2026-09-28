@@ -28,7 +28,7 @@ python3 scripts/kit.py verify snapshot payment-retry --json
 python3 scripts/kit.py verify record payment-retry --input evidence.json --state-revision <stateRevision> --json
 ```
 
-逐任务 snapshot 加 `--task T01`；record 输入使用 scope=task。完整格式见[证据输入](../../.agents/skills/workspace-verify/references/evidence.md)。状态与摘要自动更新，不勾选计划、不手工改 README。摘要生成失败只运行 `verify render`。
+逐任务 snapshot 加 `--task T01`；record 输入使用 scope=task。完整格式见[证据输入](../../.agents/skills/workspace-verify/references/evidence.md)。状态与 README 验证摘要自动更新，不勾选计划、不手工改 README。摘要生成失败只运行 `verify render`。
 
 记录通过不等于当前代码有效；接手时按需 `brief <slug> --check-code`。代码不匹配时重新验证，不能把旧结果当作当前通过。
 

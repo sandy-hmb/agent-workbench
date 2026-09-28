@@ -24,7 +24,7 @@ def snapshot_result(root: Path, slug: str, task_id=None):
 
 def summary_text(root: Path, slug: str, item: Path, **_kwargs):
     # Action callers only request the current generated view; no mutation here.
-    path = item / 'verification.md'
+    path = item / 'README.md'
     return path.read_text() if path.is_file() else ''
 
 
@@ -32,7 +32,7 @@ def build_parser():
     parser = CommandParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     snapshot = commands.add_parser('snapshot'); snapshot.add_argument('--task')
-    record = commands.add_parser('record'); record.add_argument('--input', type=Path, required=True); record.add_argument('--state-revision', required=True)
+    record = commands.add_parser('record'); record.add_argument('--input', type=Path, required=True, help='JSON 文件路径，或使用 - 从 stdin 读取'); record.add_argument('--state-revision', required=True)
     evidence = commands.add_parser('evidence'); evidence.add_argument('--task'); evidence.add_argument('--id')
     history = commands.add_parser('history'); history.add_argument('--task'); history.add_argument('--iteration'); history.add_argument('--offset', type=int, default=0); history.add_argument('--limit', type=int, default=20)
     commands.add_parser('render')

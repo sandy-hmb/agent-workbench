@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 2
+    "minor": 3
   },
   "operation": "search",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -15,7 +15,7 @@
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-25T07:22:55.408563+00:00",
+        "lastUpdated": "2026-09-28T05:39:56.065102+00:00",
         "path": "change.md",
         "line": 1,
         "heading": null,
@@ -25,33 +25,23 @@
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-25T07:22:55.408563+00:00",
+        "lastUpdated": "2026-09-28T05:39:56.065102+00:00",
         "path": "README.md",
         "line": 1,
         "heading": null,
         "snippet": "# Demo"
-      },
-      {
-        "slug": "demo",
-        "title": "Demo",
-        "status": "active",
-        "lastUpdated": "2026-09-25T07:22:55.408563+00:00",
-        "path": "verification.md",
-        "line": 17,
-        "heading": null,
-        "snippet": "详细结果：`kit.py verify evidence demo`；历史记录：`kit.py verify history demo`。"
       }
     ],
     "counts": {
-      "total": 3
+      "total": 2
     },
-    "collectionRevision": "sha256:738e670c3cfd90198d4ce55ed7c4824a6e3a439319e472a4c24f1e7aca8968f1",
+    "collectionRevision": "sha256:b1d02586afda7eb390d579204fde1fa8a476e2d768e1ca50d20296d2dc147095",
     "page": {
       "offset": 0,
       "limit": 20,
-      "total": 3,
+      "total": 2,
       "hasMore": false
     }
   },
-  "responseRevision": "sha256:2bc84776c12aafc88dec98ab212a02177d2cce43d62b3a822b23dd0e194b31e9"
+  "responseRevision": "sha256:44cd3466e24b1f0a6198f605ebf9fbb3e7763cf98b7b9468de65cd072d2a75f8"
 }

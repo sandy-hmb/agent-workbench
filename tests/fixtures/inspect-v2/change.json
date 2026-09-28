@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 2
+    "minor": 3
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "change",
     "slug": "demo",
-    "stateRevision": "sha256:d6a574b300c3964b42fd67efebd54ac7947a4814caad21fa677797fe38a92bb0",
+    "stateRevision": "sha256:1901450d5ce0ff02908af5d25e9e298e2c71b2b510e30ff5794d2d2ab15544d3",
     "repositories": [
       {
         "baseBranch": "main",
@@ -25,5 +25,5 @@
       "source": "item-bindings"
     }
   },
-  "responseRevision": "sha256:5d1f05362bde018ae15d1e76bce54c5e7ff0015a902f4ec437c9ccbad98741be"
+  "responseRevision": "sha256:62ccf973e99b049c4eb00701bbcd35de756b15b09939ca89cb52cffa3984a443"
 }

@@ -37,7 +37,7 @@ class WorkspacePathsTest(unittest.TestCase):
         import workbench.workspace.paths as paths
         with tempfile.TemporaryDirectory() as temp:
             item = Path(temp).resolve()
-            for role in ('requirements', 'design', 'plan', 'verification'):
+            for role in ('requirements', 'design', 'plan'):
                 self.assertEqual(item / (role + '.md'), paths.item_document_file(item, role))
             (item / 'design').mkdir()
             (item / 'design/design.md').write_text('# ignored old record')

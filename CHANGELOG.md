@@ -2,6 +2,12 @@
 
 ## 未发布
 
+## 2.3.0 - 2026-09-28
+
+- WorkItem 的状态、锁、不可变证据和历史归入 `.state/`；新增带预览、哈希和完整备份的显式存储迁移命令。
+- 验证摘要合入 README，不再生成独立 `verification.md`；Inspect 2.3 与 IntelliJ 工作台继续通过 verification 查询读取事实。
+- `verify record --input -` 支持 stdin，references、artifacts 与机器证据的职责进一步收敛。
+
 ## 2.2.1 - 2026-09-25
 
 - 修正交付物按需读取：任务视图不再附带 artifacts 列表，统一通过 Inspect artifacts 分页查询；修正嵌套 CLI 的 `--root` 参数归一化。

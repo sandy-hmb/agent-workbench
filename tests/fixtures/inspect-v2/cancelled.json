@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 2
+    "minor": 3
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "task",
     "slug": "demo",
-    "stateRevision": "sha256:222fc9136f8e66a6e2efa332031239b2a0f669629c6c1d2ab0ebfb445bf03b96",
+    "stateRevision": "sha256:51e3a4c8755186ed07416d0a2c0b99b3867bd7f882a1b5164ee5a2de20a90512",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:222fc9136f8e66a6e2efa332031239b2a0f669629c6c1d2ab0ebfb445bf03b96",
-      "updatedAt": "2026-09-25T07:22:56.328973+00:00",
+      "stateRevision": "sha256:51e3a4c8755186ed07416d0a2c0b99b3867bd7f882a1b5164ee5a2de20a90512",
+      "updatedAt": "2026-09-28T05:39:57.952177+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -40,7 +40,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:89237d5a5d78fc647b4346b4a74d3dd1f0d58437acc871f886927e70de44bae8",
+        "evidenceId": "sha256:63d061e65deda06e0b1e4d362dd1b788e02af1328a728850936d71dd86112af8",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -64,23 +64,16 @@
         {
           "role": "readme",
           "path": "README.md",
-          "documentRevision": "sha256:3008bc3936e65b34b97a257b2230c8c67e9da7e4889bd90d09696106415adea7",
-          "bytes": 508,
-          "lineCount": 28
-        },
-        {
-          "role": "verification",
-          "path": "verification.md",
-          "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
-          "bytes": 357,
-          "lineCount": 17
+          "documentRevision": "sha256:49cd2b073110022c668c976c0a5204971b866394e334ce5d59f147eea66aa8d4",
+          "bytes": 631,
+          "lineCount": 37
         }
       ],
       "artifactSummary": {
         "total": 1,
         "readable": 1,
         "unreadable": 0,
-        "collectionRevision": "sha256:9f3997b29dc271080cf06d32f0aee006082c23bf9e7d0962b7784617ecf82b98"
+        "collectionRevision": "sha256:279cf29a6597ebe5a7685d5b807225ffbb41c907e8fa8555350759196317c741"
       },
       "delivery": {},
       "executionBlockers": [
@@ -89,7 +82,7 @@
           "id": "B01",
           "owner": "测试负责人",
           "reason": "等待验收环境",
-          "recordedAt": "2026-09-25T07:22:56.257672+00:00",
+          "recordedAt": "2026-09-28T05:39:57.816826+00:00",
           "resolution": null,
           "status": "open",
           "taskIds": []
@@ -97,7 +90,7 @@
       ],
       "cancellation": {
         "reason": "目标已被替代",
-        "recordedAt": "2026-09-25T07:22:56.328961+00:00"
+        "recordedAt": "2026-09-28T05:39:57.952122+00:00"
       },
       "currentStage": null,
       "executionDecision": "BLOCKED",
@@ -140,16 +133,9 @@
       {
         "role": "readme",
         "path": "README.md",
-        "documentRevision": "sha256:3008bc3936e65b34b97a257b2230c8c67e9da7e4889bd90d09696106415adea7",
-        "bytes": 508,
-        "lineCount": 28
-      },
-      {
-        "role": "verification",
-        "path": "verification.md",
-        "documentRevision": "sha256:25451ba4702ca430ec609c3567c50f96b6fa5a2614b78750c65593b4016ad3ba",
-        "bytes": 357,
-        "lineCount": 17
+        "documentRevision": "sha256:49cd2b073110022c668c976c0a5204971b866394e334ce5d59f147eea66aa8d4",
+        "bytes": 631,
+        "lineCount": 37
       }
     ],
     "tasks": [
@@ -173,12 +159,12 @@
           }
         ],
         "status": "completed",
-        "evidenceId": "sha256:000ebbd45c30701660f28d793105827584b0fa2a241c0491ed9bbafc1d328f7f",
+        "evidenceId": "sha256:044554e7e2fec29fa635243e82a9c6a0350475c61da9851903db69bd45e3d16d",
         "completed": true,
         "waitingFor": [],
         "executionBlocked": true
       }
     ]
   },
-  "responseRevision": "sha256:9e3d3b68480c74e64b9aeb8257049d58f089f2753bbbbf72860658940443ce38"
+  "responseRevision": "sha256:f358f20b5d1b1f28a8c7bbc8202b428ef8e3ad50175d31c6060bee30d378930e"
 }

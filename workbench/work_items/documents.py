@@ -7,7 +7,7 @@ from workbench.work_items.store import WorkItemError, read_bytes, safe_path, tex
 from workbench.workspace.paths import workspace_file
 
 ROLES = {'change': 'change.md', 'requirements': 'requirements.md', 'design': 'design.md', 'plan': 'plan.md',
-         'readme': 'README.md', 'verification': 'verification.md'}
+         'readme': 'README.md'}
 TASK_HEADING = re.compile(r'^### (T\d{2,})\s+(.+?)\s*$')
 LINK = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
 KINDS = {'行为', '声明式', '持久化'}

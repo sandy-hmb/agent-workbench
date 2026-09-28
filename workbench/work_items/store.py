@@ -72,6 +72,55 @@ def item_path(root: Path, slug: str) -> Path:
     return safe_path(item_area(root), slug)
 
 
+def modern_state_root(item: Path) -> Path:
+    """Return the Kit-owned implementation directory for a WorkItem."""
+    return safe_path(Path(item), '.state')
+
+
+def has_modern_storage(item: Path) -> bool:
+    root = modern_state_root(item)
+    return root.is_dir()
+
+
+def state_path(item: Path, *, for_write: bool = False) -> Path:
+    item = Path(item)
+    modern = safe_path(item, '.state/state.json')
+    if for_write or modern.is_file():
+        return modern
+    return safe_path(item, 'state.json')
+
+
+def lock_path(item: Path, *, for_write: bool = False) -> Path:
+    item = Path(item)
+    if for_write or has_modern_storage(item):
+        return safe_path(item, '.state/lock')
+    return safe_path(item, '.state.lock')
+
+
+def evidence_root(item: Path, *, for_write: bool = False) -> Path:
+    item = Path(item)
+    if for_write or has_modern_storage(item):
+        return safe_path(item, '.state/evidence')
+    return safe_path(item, 'evidence')
+
+
+def history_root(item: Path, *, for_write: bool = False) -> Path:
+    item = Path(item)
+    if for_write or has_modern_storage(item):
+        return safe_path(item, '.state/history')
+    return safe_path(item, 'history')
+
+
+def inputs_root(item: Path) -> Path:
+    return safe_path(item, '.state/inputs')
+
+
+def ensure_modern_storage(item: Path) -> Path:
+    root = modern_state_root(item)
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def read_bytes(path: Path, limit: int = MAX_BYTES) -> bytes:
     if path.is_symlink() or not path.is_file():
         raise WorkItemError('FILE_UNAVAILABLE', f'不是可读普通文件：{path}')
@@ -119,7 +168,7 @@ def atomic_write(path: Path, data: bytes) -> bool:
 
 @contextmanager
 def item_lock(item: Path):
-    path = safe_path(item, '.state.lock')
+    path = lock_path(item, for_write=has_modern_storage(item))
     if not item.is_dir():
         raise WorkItemError('ITEM_NOT_FOUND', str(item))
     fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, 'O_NOFOLLOW', 0), 0o600)
@@ -187,7 +236,7 @@ def validate_state(state: dict, item: Path) -> None:
 
 
 def load_state(item: Path) -> dict:
-    state = read_json(safe_path(item, 'state.json'))
+    state = read_json(state_path(item))
     validate_state(state, item)
     return state
 
@@ -199,7 +248,7 @@ def save_state(item: Path, state: dict) -> dict:
     data = canonical(state) + b'\n'
     if len(data) > MAX_BYTES:
         raise WorkItemError('STATE_LIMIT', '状态超过上限，请结束并归档当前迭代')
-    atomic_write(safe_path(item, 'state.json'), data)
+    atomic_write(state_path(item, for_write=has_modern_storage(item)), data)
     return state
 
 
@@ -211,12 +260,15 @@ def check_revision(state: dict, expected: str | None) -> None:
 def evidence_path(item: Path, identifier: str) -> Path:
     if not DIGEST_RE.fullmatch(identifier):
         raise WorkItemError('EVIDENCE_INVALID', '证据 ID 无效')
+    modern = safe_path(item, '.state/evidence/' + identifier[7:] + '.json')
+    if modern.is_file() or has_modern_storage(item):
+        return modern
     return safe_path(item, 'evidence/' + identifier[7:] + '.json')
 
 
 def write_evidence(item: Path, record: dict) -> str:
     identifier = digest(record)
-    path = evidence_path(item, identifier)
+    path = safe_path(evidence_root(item, for_write=has_modern_storage(item)), identifier[7:] + '.json')
     data = canonical(record) + b'\n'
     if len(data) > MAX_BYTES:
         raise WorkItemError('EVIDENCE_LIMIT', '证据过大，请通过文件引用保存完整日志')

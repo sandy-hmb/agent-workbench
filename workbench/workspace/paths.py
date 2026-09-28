@@ -39,7 +39,7 @@ def items_root(root: Path) -> Path:
     return state_root(root) / "items"
 
 
-DOCUMENT_ROLES = {role: role + '.md' for role in ('requirements', 'design', 'plan', 'verification')}
+DOCUMENT_ROLES = {role: role + '.md' for role in ('requirements', 'design', 'plan')}
 
 
 def item_document_file(item: Path, role: str) -> Path:
