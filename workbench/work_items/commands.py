@@ -369,7 +369,7 @@ def next_iteration(root: Path, slug: str, *, expected_revision: str) -> dict:
                                 continue
                             atomic_write(safe_path(stage, relative), read_bytes(safe))
             stage.rename(archive)
-        archived = read_json(safe_path(archive, state_path(directory).relative_to(directory).as_posix()))
+        archived = read_json(safe_path(archive, 'state.json'))
         if archived['stateRevision'] != state['stateRevision']:
             raise WorkItemError('ARCHIVE_CONFLICT', '已有归档与当前状态不一致')
         history_path = history.relative_to(directory).as_posix()
