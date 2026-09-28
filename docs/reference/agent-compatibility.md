@@ -25,4 +25,4 @@ Kit 的默认路径始终是单 Agent。需要宿主协调多个 Agent 时，使
 
 接入层负责将 Kit 根、WorkItem、iteration、task、实际仓路径和宿主 Agent 关联起来，并在派发前排除同一 checkout 的并发写入者。Kit 只保留需求、审批、依赖和验证证据：宿主 Agent 的结束通知、会话标题或 commit 不能直接完成任务。接入层不可用时，先确认没有运行中的写入者，再从当前 `brief` 退回单 Agent。
 
-Paseo 接入的公开实现位于独立的 `agent-workbench-paseo` 项目。它组合官方 `paseo`、`paseo-advisor`、`paseo-committee`、`paseo-handoff`、`paseo-help` 和 `paseo-plugin` Skill，不修改这些宿主提供的 Skill，也不把 Paseo 配置加入公共 Kit。
+专属宿主接入必须位于独立项目。接入项目可以组合宿主提供的编排能力、Profile、插件或 Agent 生命周期，但不修改宿主提供的 Skill，也不把宿主配置加入公共 Kit。
