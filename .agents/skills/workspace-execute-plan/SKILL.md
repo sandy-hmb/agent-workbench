@@ -25,6 +25,16 @@ description: Execute approved work continuously with targeted validation and aut
 
 按需子 Agent 只用于有明确收益的独立任务或审查；获授权后读取 references/subagent-execution.md。未经授权不引入 worktree、并行、远端 Git、部署或外部环境。
 
+## 多 Agent 宿主接入
+
+默认当前 Agent 连续执行。宿主提供子 Agent 时，主 Agent 仍是 WorkItem 的唯一协调者：负责计划、授权范围、依赖、结果接纳和 `verify record`；实现 worker 只处理一个已准备好的任务。只读 advisor 或 committee 只能给出意见，不能编辑、批准或记录完成；用户明确要求转交整项责任时才使用 handoff。
+
+派发前核对当前 `brief --task`、实际分支、直接依赖和写入范围。`readyTasks` 只表示 Kit 的依赖和阻塞条件已满足，不表示该任务尚未被宿主 Agent 派发。Paseo 等宿主的运行关联、模型和 Agent ID 由可选接入层维护，不进入 WorkItem 状态；接入层必须先排除仍在运行或待验收的同一任务和同一实际 checkout 写入者。
+
+同一实际 checkout 在实现、回收、必要修复和验证完成前只允许一个写入者，主 Agent 也算写入者。不同仓的独立任务可按授权并行；同仓任务默认串行。worker 返回、Agent idle、commit 或宿主完成通知都不是 Kit 完成事实：主 Agent 先核对实际 diff 与检查，再按本 Skill 的证据流程记录。
+
+宿主不可用或运行关系无法核实时，先确认没有仍会写入的 worker，再退回单 Agent 继续。不要猜测性重新派发、停止、reset、stash 或覆盖用户改动。
+
 ## 开发阻塞
 
 未执行检查但在等待环境、权限或决策时，使用 `item block <slug> --reason <原因> --owner <负责方> --condition <解除条件> --state-revision <stateRevision>`；只影响某项任务时加 `--task T01`。依赖等待由脚本推导，不重复登记。解除条件满足后使用 `item unblock --blocker B01 --reason <实际依据>`，不会生成测试通过或任务完成。

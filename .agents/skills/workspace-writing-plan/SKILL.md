@@ -9,6 +9,8 @@ description: Prepare independent executable tasks when a change needs explicit d
 
 读取当前需求、设计、目标仓规则及相关代码，使用 templates/item/plan.md。按可独立验证的行为拆分，同仓服务同一结果的测试、实现与配置归同一任务。跨仓任务分别声明唯一目标仓，通过真实契约连接。
 
+同一实际 checkout 中，若多个编码步骤必须在全部完成后才能统一编译或测试，则将这些步骤和统一验证放在同一个可验证任务中。不要把“尚未允许运行测试”的编码步骤拆成相互依赖的已完成任务，否则依赖方无法取得有效证据。不同仓只有在接口、数据或发布顺序确实独立时才拆为可并行任务；并行计划必须说明每个写入者的 checkout。
+
 ## 每项任务
 
 使用 `### T01 标题`，编号高于当前 WorkItem 已用最大编号，不使用完成复选框。任务包含：
@@ -27,6 +29,6 @@ description: Prepare independent executable tasks when a change needs explicit d
 
 逐项检查 R→D→任务→验证的语义覆盖、接口与依赖、路径和命令。运行 brief 确认计划可解析。计划正文不依赖历史会话，引用权威文档，不复制全文。
 
-将实际计划、目标仓、基线、分支和执行方式一起展示。默认单 Agent；已有授权内的组织细节自行处理。重大需求计划单独审阅，普通方案可一次审阅包含计划的完整包。批准后使用 `item approval --role plan --decision approved --reason <依据> --state-revision <stateRevision>` 登记任务，再转 workspace-execute-plan 连续推进。
+将实际计划、目标仓、基线、分支和执行方式一起展示。默认单 Agent；已有授权内的组织细节自行处理。选择多 Agent 时，计划标出主协调、实现 worker 或只读审查的角色，不把宿主 Agent ID、模型或聊天会话写入计划；运行关联由接入层临时管理。重大需求计划单独审阅，普通方案可一次审阅包含计划的完整包。批准后使用 `item approval --role plan --decision approved --reason <依据> --state-revision <stateRevision>` 登记任务，再转 workspace-execute-plan 连续推进。
 
 事实漂移且范围方案不变时修正内容；改变范围、任务边界或验证强度时沿需求设计的变更分类规则处理。

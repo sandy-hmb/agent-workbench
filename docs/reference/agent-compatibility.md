@@ -18,3 +18,11 @@
 ## 不依赖宿主的续接
 
 任意 Agent 可调用 `python3 scripts/kit.py brief <slug> --root <kit-root> --json`，按 sources 读取必要规则并从 nextActions 继续。执行前增加 --check-code 核对当前版本；没有原生 Skill 或子 Agent 能力仍可完成默认路径。宿主自行保留项目、WorkItem、任务标识，每次显式传入；Kit 不保存聊天会话、模型或宿主标识。
+
+## 可选多 Agent 接入
+
+Kit 的默认路径始终是单 Agent。需要宿主协调多个 Agent 时，使用独立接入项目提供的 Skill 或插件；它必须消费现有 `kit.py brief`、`kit.py inspect` 和 `verify` 接口，不能手写 `.workspace` 或 WorkItem `state.json`。
+
+接入层负责将 Kit 根、WorkItem、iteration、task、实际仓路径和宿主 Agent 关联起来，并在派发前排除同一 checkout 的并发写入者。Kit 只保留需求、审批、依赖和验证证据：宿主 Agent 的结束通知、会话标题或 commit 不能直接完成任务。接入层不可用时，先确认没有运行中的写入者，再从当前 `brief` 退回单 Agent。
+
+Paseo 接入的公开实现位于独立的 `agent-workbench-paseo` 项目。它组合官方 `paseo`、`paseo-advisor`、`paseo-committee`、`paseo-handoff`、`paseo-help` 和 `paseo-plugin` Skill，不修改这些宿主提供的 Skill，也不把 Paseo 配置加入公共 Kit。
