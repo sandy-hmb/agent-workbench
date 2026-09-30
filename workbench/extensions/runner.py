@@ -689,11 +689,17 @@ def _assert_plan_hash(item: Mapping[str, object], expected_hash: str) -> None:
 def _assert_predecessors(
     root: Path, run: Mapping[str, object], previous: Sequence[str]
 ) -> None:
-    _, overlay, _, actions = _resolve(root)
+    _, overlay, resolved, actions = _resolve(root)
     current = {stage.id: stage for stage in overlay.stages}
     records = run["stages"]
     assert isinstance(records, dict)
-    for stage_id in previous:
+    pending, ancestors = list(previous), set()
+    while pending:
+        stage_id = pending.pop()
+        if stage_id not in ancestors:
+            ancestors.add(stage_id)
+            pending.extend(resolved.direct_predecessors.get(stage_id, ()))
+    for stage_id in sorted(ancestors):
         record = records.get(stage_id)
         stage = current[stage_id]
         expected = _stage_fingerprint(stage, actions[stage.uses], run)

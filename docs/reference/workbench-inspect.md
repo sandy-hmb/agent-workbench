@@ -21,6 +21,10 @@
 
 summary.completionAction 指示可请求完成及阻塞原因；实际写入仍由 `item complete --state-revision` 再次核对。默认 verification.applicability=not_checked，显式 check-code 才检查当前代码。
 
+`executionDecision` 的 `RUN` 表示活动项继续执行 `currentStage`/`nextActions`，包含实施、验证、交付和收尾；任务全部完成不代表工作项完成。`COMPLETE` 仅表示生命周期 `done`；活动项存在阻塞，或生命周期为 `paused`/`cancelled` 时为 `BLOCKED`。查询返回 `RUN` 或 `completionAction.available=true` 均不保证完成写入成功，完成入口仍核对当前代码、分支、验收引用等事实。
+
+`verification.pendingExternalChecks` 返回验收清单，消费者按 `status` 区分未关闭项与 `passed`/`waived` 项。活动或暂停项的已关闭 Workflow 引用失效时，查询复制出 `status=pending`，并附 `recordedStatus`（原持久化状态）和 `reason`（失效原因）；这些字段不写入 `state.json`，不能将查询派生字段原样作为 delivery 输入。summary、flow 和 verification 使用相同有效状态，已结束轮次保留历史结论。`evidenceRefs.status` 也是显示快照，不能取代真实尝试；查询不执行 Action 或自动关闭验收。
+
 查询不执行测试、Git 写操作、Provider 或 Action。单文本最多 1 MiB、响应最多 8 MiB，普通请求 10 秒、代码核对 30 秒；列表最多 200 项，搜索最多 50 项。非法路径、符号链接、未知版本或超限不能伪装为空成功。
 
 summary 中的 executionBlockers 和 cancellation 分别展示开发阻塞与取消结论。任务包含 executionBlocked 与 waitingFor；readyTasks 排除实际阻塞和依赖未完成任务。取消项不出现在默认未完成视图。

@@ -85,7 +85,7 @@ def projection(root, slug, view, task_id=None, check_code=False, deadline=None):
         base.update(repositories=[{**b, 'absolutePath': str(reader.roots()[b['repository']])} for b in reader.state['bindings']],
                     comparison={'kind': 'merge-base', 'source': 'item-bindings'})
     elif view == 'flow':
-        base.update(status=reader.state['lifecycle'], delivery={'repositories': reader.state['delivery'], 'externalChecks': reader.state['externalChecks']},
+        base.update(status=reader.state['lifecycle'], delivery={'repositories': reader.state['delivery'], 'externalChecks': reader.external_checks()},
                     verification=reader.verification(), workflow=workflow(root),
                     executionBlockers=reader.state['blockers'], cancellation=reader.state['cancellation'])
     else: raise WorkItemError('INSPECT_ARGUMENT_INVALID', '未知视图')

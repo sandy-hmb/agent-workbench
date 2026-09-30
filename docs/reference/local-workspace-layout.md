@@ -1,6 +1,6 @@
 # 本地工作区布局
 
-`.workspace/` 属于使用者，公共更新不会覆盖，整个目录应被 Git 忽略。当前布局只接受 workspace v4 和 WorkItem；旧目录不会被读取、转换或覆盖。
+`.workspace/` 属于使用者，公共更新不会覆盖，整个目录应被 Git 忽略。当前布局接受 workspace v4 和 WorkItem；旧 feature 与旧 workspace 配置不转换。当前 WorkItem 的存储布局可按下文显式迁移。
 
 ```text
 .workspace/

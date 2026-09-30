@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from workbench.cli.brief import _diagnostic_lines, _item_lines, _verification_text
 from workbench.work_items.query import list_items
 from workbench.work_items.query import WorkItemQuery
 from workbench.workspace.model import load_workspace
@@ -36,6 +37,42 @@ def status_result(root: Path, *, context_sources=False, item_slug=None) -> dict:
     return result
 
 
+def status_text(value: dict) -> str:
+    extensions, workflow = value['extensions'], value['workflow']
+    lines = [f"工作区：{value['workspace']['name']}", f"模式：{value['mode']}",
+             'Extension：' + ('、'.join(extensions.get('activeIds', [])) or '无已启用扩展'),
+             'Workflow：' + ('已启用' if workflow.get('enabled') else '未启用')]
+    for label, section in [('Extension', extensions), ('Workflow', workflow)]:
+        if section.get('blockedCodes'):
+            lines.append(label + ' 阻塞：' + '、'.join(section['blockedCodes']))
+    for key, label in [('runs', 'Run 数量'), ('actions', 'Action 数量'), ('pending', '待执行'),
+                       ('failed', '失败'), ('interrupted', '待核对'), ('running', '执行中')]:
+        if key in workflow:
+            lines.append(f'{label}：{workflow[key]}')
+    if 'nextStage' in workflow:
+        lines.append('Workflow 下一阶段：' + (workflow['nextStage'] or '无下一阶段'))
+    selected = value.get('item')
+    items = [selected] if selected is not None else value['items']
+    lines.append(f'工作项数量：{len(items)}' + ('（所选项）' if selected is not None else ''))
+    if not items:
+        lines.append('暂无工作项')
+    for item in items:
+        progress = item['progress']
+        line = f"- {item['slug']} / {item['title']}；记录进度：{progress['completed']}/{progress['total']}"
+        if selected is None:
+            line += f"；状态：{item['status']}；活动：{item['activity']}；" + _verification_text(item['verification'])
+        lines.append(line)
+        if item.get('openBlockerCount'):
+            lines.append(f"  未解除开发阻塞：{item['openBlockerCount']}")
+    if selected is not None:
+        lines += _item_lines(selected)
+    lines += _diagnostic_lines(value.get('diagnostics', []))
+    if context := value.get('contextSources'):
+        lines += ['上下文来源：', '  - 工作区：' + context['workspace']]
+        lines += [f'  - 仓库：{path}' for path in context['repositories']] or ['  - 无仓库上下文来源']
+    return '\n'.join(lines)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path.cwd()); parser.add_argument('--item')
@@ -46,9 +83,12 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        print(json.dumps(status_result(args.root, context_sources=args.context_sources, item_slug=args.item), ensure_ascii=False))
+        value = status_result(args.root, context_sources=args.context_sources, item_slug=args.item)
+        print(json.dumps(value, ensure_ascii=False) if args.json else status_text(value))
         return 0
     except (ValueError, OSError) as exc:
-        print(json.dumps({'error': getattr(exc, 'code', 'STATUS_ERROR'), 'message': str(exc)}, ensure_ascii=False)); return 1
+        error = {'error': getattr(exc, 'code', 'STATUS_ERROR'), 'message': str(exc)}
+        print(json.dumps(error, ensure_ascii=False) if args.json else f"错误：{error['error']}；{error['message']}")
+        return 1
 
 if __name__ == '__main__': raise SystemExit(main())

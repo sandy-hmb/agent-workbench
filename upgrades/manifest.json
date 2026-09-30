@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.3.0",
+  "kitVersion": "2.4.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.4.0",
+      "summary": "2.4 的 brief/status 默认输出可读文本，自动化调用请显式加 --json；使用 verify collect 采集任务证据时，重新生成带 taskId 的 verify snapshot --task 快照。",
+      "runbook": "docs/guides/cheat-sheet.md"
+    },
     {
       "sinceVersion": "2.3.0",
       "summary": "2.3 将 WorkItem 机器状态收进 .state/，并把验证摘要合入 README。更新后先运行 item storage-migrate preview --all，再按预览命令备份并迁移现有 WorkItem。",

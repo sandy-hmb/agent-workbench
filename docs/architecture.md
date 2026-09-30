@@ -6,7 +6,7 @@ Kit 将 Markdown 内容、可变运行状态和不可变验证证据分开管理
 
 每个 WorkItem 的 `.state/state.json` 保存身份、当前活动、审批、任务编号高水位、证据指针、交付与归档入口。需求、设计、任务定义不复制进 JSON。README 是唯一可重建用户视图。
 
-item_store 负责路径、哈希、安全读写和锁；item_documents 解析当前文档；item_engine 在一个请求中按需加载事实、计算阶段与完成条件；item_actions 实现受控修改。CLI 和 Inspect 不互调，不另建完成判定。
+work_items/store.py 负责路径、哈希、安全读写和锁；documents.py 解析当前文档；query.py 按请求加载事实、计算阶段与完成条件；commands.py 实现受控修改。CLI 和 Inspect 不互调，不另建完成判定。
 
 证据先写成自包含的不可变 JSON，再原子更新唯一 `.state/state.json`。提交前中断不产生完成事实，提交后摘要失败不撤销真实结果。重复提交同一输入和状态版本返回原结果。最新失败覆盖旧通过。
 
@@ -26,9 +26,11 @@ status 返回轻量列表；brief 定向读取指定 WorkItem 或任务。Inspec
 
 未启用时不创建 Run。Provider 处理已定义能力，Action 挂在 Core Stage 前后。命令执行尝试是唯一执行事实，阶段视图即时派生。requestId 防重复调度；中断或结果未知先 reconcile，再按实际结果 retry。哈希只防输入漂移，不代表新增授权。
 
+必要 Action 通过 externalChecks 显式登记，使用 evidenceRefs 关联实际尝试。通过项按当前轮次、仓绑定、配置、最新结果及前置依赖链核对；失效时投影为待验收，不改写原记录。验收写入与完成入口复用 Extension 共享锁，避免与 Action 执行或配置更新交错。普通附加动作不自动成为完成门禁。
+
 ## 版本边界
 
-新版不读取旧 Markdown 状态、旧目录和旧证据协议，不提供迁移。旧本地数据保留原状，用户在新目录初始化。公共工作区配置、WorkItem、Inspect 和 Extension 各自版本明确，不将不同格式的版本号混为一谈。
+不支持旧 feature、旧 workspace 配置和旧证据协议，它们保持原状并在新目录初始化。当前 WorkItem 的根层机器状态可以通过显式 storage-migrate 预览、备份后迁入 .state/，不转换业务内容或状态语义。公共工作区配置、WorkItem、Inspect 和 Extension 分别定义版本。
 
 ## 包与公开边界
 

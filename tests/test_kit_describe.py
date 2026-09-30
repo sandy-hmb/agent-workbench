@@ -48,6 +48,9 @@ class KitDescribeTest(unittest.TestCase):
         self.assertIn("--check-code", brief["parameters"]["options"])
         verify = by_name["verify"]
         self.assertIn("snapshot", verify["parameters"]["subcommands"])
+        collect = verify["parameters"]["subcommands"]["collect"]
+        for option in ("--snapshot", "--junit", "--command", "--working-directory", "--exit-status", "--task", "--artifact", "--json"):
+            self.assertIn(option, collect["options"])
 
     def test_describe_reports_empty_extension_actions_without_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

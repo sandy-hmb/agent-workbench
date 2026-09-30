@@ -5,19 +5,20 @@ import json
 import re
 import shutil
 import copy
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from datetime import datetime
 from pathlib import Path
 
 from workbench.work_items.documents import content_roles
 from workbench.work_items.query import WorkItemQuery, repository_roots
 from workbench.git import _git
+from workbench.resources import KIT_ROOT
 from workbench.work_items.store import (WorkItemError, DIGEST_RE, SCHEMA_VERSION, atomic_write, canonical, check_revision,
                            digest, ensure_modern_storage, has_modern_storage, history_root, item_lock, item_path, load_state, read_bytes, read_json, safe_path, state_path,
                            save_state, stamp, write_evidence)
 from workbench.workspace.model import effective_branch_policy, load_workspace, resolve_repository
 from workbench.workspace.paths import workspace_file
-from workbench.work_items.references import validate_evidence_refs
+from workbench.work_items.references import validate_evidence_refs, validate_workflow_check, workflow_checks_lock, merge_check_refs
 from workbench.validation import object_fields, text, array
 
 
@@ -31,6 +32,17 @@ def create(root: Path, slug: str, *, title: str, repositories: list[str], summar
         raise WorkItemError('ITEM_INVALID', '仓库、文档类型或风险无效')
     if risk == 'major' and document_kind != 'requirements':
         raise WorkItemError('ITEM_INVALID', '重大风险需要复杂文档模式')
+    if not isinstance(activity, str) or not re.fullmatch(r'[a-z][a-z0-9-]*', activity):
+        raise WorkItemError('ITEM_INVALID', 'activity 必须为小写字母开头的小写字母、数字或连字符', '$.activity')
+    template = KIT_ROOT / 'templates/item' / (document_kind + '.md')
+    if document_kind == 'change' and activity in {'repair', 'investigate', 'takeover', 'acceptance'}:
+        template = template.parent / 'activities' / (activity + '.md')
+    try:
+        content = template.read_text(encoding='utf-8')
+        values = {'title': title or slug, 'summary': summary}
+        initial = re.sub(r'\{(title|summary)\}', lambda match: values[match[1]], content).encode('utf-8')
+    except (OSError, UnicodeError) as exc:
+        raise WorkItemError('ITEM_TEMPLATE_INVALID', f'无法读取或编码工作项模板：{template}；{exc}') from exc
     bindings = []
     workspace = load_workspace(root) if workspace_file(root).exists() else None
     for name in dict.fromkeys(repositories):
@@ -56,10 +68,7 @@ def create(root: Path, slug: str, *, title: str, repositories: list[str], summar
              'verification': None, 'evidence': [], 'delivery': {}, 'externalChecks': [], 'history': [],
              'updatedAt': stamp(), 'stateRevision': '', 'blockers': [], 'cancellation': None, 'changes': []}
     filename = document_kind + '.md'
-    initial = (f'# {title or slug}\n\n## 目标\n\n{summary}\n\n## 范围与验收\n\n'
-               '## 方案与工作项\n' if document_kind == 'change' else
-               f'# {title or slug} 需求\n\n**目标：** {summary}\n\n## 范围与边界\n\n## 功能需求与验收\n\n### R1 可观察行为\n\n## 非目标\n')
-    atomic_write(path / filename, initial.encode())
+    atomic_write(path / filename, initial)
     state = save_state(path, state)
     render(root, slug)
     return {'path': str(path.relative_to(root)), 'state': state}
@@ -263,9 +272,10 @@ def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> d
 
 def complete(root: Path, slug: str, *, expected_revision: str) -> dict:
     directory = item_path(root, slug)
-    with item_lock(directory):
+    with item_lock(directory), ExitStack() as locks:
         state = load_state(directory)
         check_revision(state, expected_revision)
+        locks.enter_context(workflow_checks_lock(root, state['externalChecks']))
         reader = WorkItemQuery(root, slug, state=state)
         if not reader.decision(execution=True, check_code=True)['canComplete']:
             raise WorkItemError('ITEM_NOT_READY', '仍有审阅、任务、验证或外部验收未完成')
@@ -297,15 +307,20 @@ def delivery(root: Path, slug: str, changes: dict, *, expected_revision: str) ->
         object_fields(changes['repositories'], field='$.repositories')
     if 'externalChecks' in changes:
         array(changes['externalChecks'], '$.externalChecks')
+    changes = copy.deepcopy(changes)
     directory = item_path(root, slug)
-    with item_lock(directory):
+    with item_lock(directory), ExitStack() as locks:
         state = load_state(directory)
         check_revision(state, expected_revision)
+        if state['lifecycle'] in {'active', 'paused'} and 'externalChecks' in changes:
+            locks.enter_context(workflow_checks_lock(root, [*state['externalChecks'], *changes['externalChecks']]))
         before = copy.deepcopy(state)
         if 'externalChecks' in changes:
             checks = changes['externalChecks']
             seen = set()
-            previously_open = {row['id'] for row in state['externalChecks'] if row['status'] not in {'passed', 'waived'}}
+            previous_checks = {row['id']: row for row in state['externalChecks']}
+            previously_open = {row['id'] for row in WorkItemQuery(root, slug, state=state).external_checks()
+                               if row['status'] not in {'passed', 'waived'}}
             for index, check in enumerate(checks):
                 fields = {'id', 'requirement', 'description', 'owner', 'status', 'evidence', 'evidenceRefs'}
                 object_fields(check, allowed=fields, required=fields - {'evidenceRefs'}, field=f'$.externalChecks[{index}]')
@@ -316,12 +331,18 @@ def delivery(root: Path, slug: str, changes: dict, *, expected_revision: str) ->
                     raise WorkItemError('DELIVERY_INVALID', '外部验收编号或状态无效')
                 if check['status'] in {'passed', 'waived'} and not check['evidence'].strip():
                     raise WorkItemError('DELIVERY_INVALID', '关闭验收需要实际依据或范围调整理由')
-                if 'evidenceRefs' in check:
+                previous_refs = previous_checks.get(check['id'], {}).get('evidenceRefs')
+                if previous_refs:
+                    check['evidenceRefs'] = merge_check_refs(root, slug, previous_refs, check.get('evidenceRefs', []),
+                                                           f'$.externalChecks[{index}].evidenceRefs')
+                elif 'evidenceRefs' in check:
                     check['evidenceRefs'] = validate_evidence_refs(root, slug, check['evidenceRefs'], f'$.externalChecks[{index}].evidenceRefs')
+                if state['lifecycle'] in {'active', 'paused'}:
+                    validate_workflow_check(root, state, check)
                 if state['lifecycle'] in {'done', 'cancelled'} and check['status'] not in {'passed', 'waived'} and check['id'] not in previously_open:
                     raise WorkItemError('ITERATION_REQUIRED', '已结束轮次不能新增或重开未完成验收，请通过 next-iteration 处理')
                 seen.add(check['id'])
-            if {c['id'] for c in state['externalChecks'] if c['status'] not in {'passed', 'waived'}} - seen:
+            if previously_open - seen:
                 raise WorkItemError('DELIVERY_INVALID', '不能静默丢弃未关闭的外部验收')
             state['externalChecks'] = checks
         for name, row in changes.get('repositories', {}).items():
@@ -556,8 +577,8 @@ def render(root: Path, slug: str) -> dict:
         if len(task_states) > 30:
             lines.append(f'- 共 {len(task_states)} 项，展示 30 项，其余 {len(task_states)-30} 项见 `kit.py inspect projection {slug} --view task`。')
         lines += ['', '### 待外部验收', '']
-        external = sorted(state['externalChecks'], key=lambda row: (row['status'] in {'passed','waived'}, row['id']))
-        lines += [f"- {one(c['requirement'])}：{one(c['description'])}；{one(c['owner'])}；{c['status']}" + (f"；Workflow 依据：{workflow_refs(c)}" if workflow_refs(c) else '') for c in external[:20]] or ['- 无已登记待办']
+        external = sorted(verification['pendingExternalChecks'], key=lambda row: (row['status'] in {'passed','waived'}, row['id']))
+        lines += [f"- {one(c['requirement'])}：{one(c['description'])}；{one(c['owner'])}；{c['status']}" + (f"；{one(c['reason'])}" if c.get('reason') else '') + (f"；Workflow 依据：{workflow_refs(c)}" if workflow_refs(c) else '') for c in external[:20]] or ['- 无已登记待办']
         if len(external) > 20:
             lines.append(f'- 共 {len(external)} 项，展示 20 项，其余 {len(external)-20} 项见 `kit.py inspect projection {slug} --view flow`。')
     if state['history']:

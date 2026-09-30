@@ -6,6 +6,6 @@ Kit 2 使用唯一新版 WorkItem 格式、workspace 配置主版本 4 与 Inspe
 
 Markdown 保存业务与技术内容。`.state/state.json` 保存审批、任务证据引用和交付事实。README 自动生成并包含验证摘要；任务没有可编辑完成复选框。
 
-生命周期只有 active、paused、done。currentStage、readyTasks、nextActions 从当前事实计算，不另外持久化。Core Stage 锚点继续用于按需 Extension，不代表每个工作项必须走满全部阶段。
+生命周期为 active、paused、done、cancelled。currentStage、readyTasks、nextActions 从当前事实计算，不另外持久化。executionDecision 的 RUN 表示继续 nextActions 对应的当前阶段，包括验证、交付和收尾；BLOCKED 表示先解除阻塞；COMPLETE 仅表示生命周期 done。Core Stage 锚点用于按需 Extension，不代表每个工作项必须走满全部阶段。
 
 日常入口与例子见[第一个需求](../guides/first-item.md)，数据职责见[架构](../architecture.md)。已知 slug 直接 brief，未知目标才 status，不设置全局活动需求。

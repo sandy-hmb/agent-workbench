@@ -12,6 +12,7 @@ from workbench.git import _git, git_fingerprint, branch_fingerprint
 from workbench.work_items.store import WorkItemError, digest, item_area, item_path, load_state, read_evidence, read_bytes, safe_path, state_path, text_digest
 from workbench.workspace.model import load_workspace, repository_path, resolve_repository
 from workbench.workspace.paths import context_file, workspace_file
+from workbench.work_items.references import validate_workflow_check
 
 STAGE_SKILLS = {'item.design': 'workspace-item-design', 'item.implement': 'workspace-execute-plan',
                 'item.verify': 'workspace-verify', 'item.submit-test': 'workspace-submit-test',
@@ -100,6 +101,7 @@ class WorkItemQuery:
         self._references = {}
         self._artifact_documents = None
         self._artifact_collection_revision = None
+        self._external_checks = None
         self.deadline = deadline
 
     def remaining(self, maximum: float = 25) -> float:
@@ -333,11 +335,25 @@ class WorkItemQuery:
             results.append(row)
         return results
 
+    def external_checks(self) -> list[dict]:
+        if self._external_checks is None:
+            self._external_checks = []
+            for check in self.state['externalChecks']:
+                self.remaining()
+                effective = dict(check)
+                if self.state['lifecycle'] in {'active', 'paused'}:
+                    try:
+                        validate_workflow_check(self.root, self.state, check)
+                    except WorkItemError as exc:
+                        effective.update(status='pending', recordedStatus=check['status'], reason=str(exc))
+                self._external_checks.append(effective)
+        return self._external_checks
+
     def verification(self, *, check_code: bool = False, browse: bool = False) -> dict:
         record = self.evidence(self.state['verification'])
         result = {'recordedResult': record['result'] if record else 'unknown', 'evidenceId': self.state['verification'],
                   'applicability': 'not_checked', 'verificationScope': record.get('verificationScope', '') if record else '',
-                  'pendingExternalChecks': self.state['externalChecks'], 'repositoryStates': []}
+                  'pendingExternalChecks': self.external_checks(), 'repositoryStates': []}
         if record is None:
             result['applicability'] = 'missing'
         elif record['iteration'] != self.state['iteration'] or record['basisRevision'] != self.basis_revision():
@@ -382,7 +398,7 @@ class WorkItemQuery:
         if execution and any(branch['state'] != 'matched' for branch in self.branches(repository_names)):
             blocks.append('WORKING_BRANCH_MISMATCH')
         verification = self.verification(check_code=check_code)
-        external = [c for c in self.state['externalChecks'] if c['status'] not in {'passed', 'waived'}]
+        external = [c for c in verification['pendingExternalChecks'] if c['status'] not in {'passed', 'waived'}]
         if blocks:
             stage = 'item.design' if any(x.startswith('REVIEW') for x in blocks) else 'item.prepare-branch'
         elif tasks and len(completed) != len(tasks):
@@ -395,9 +411,13 @@ class WorkItemQuery:
             stage = 'item.complete'
         if execution_blocks['itemBlocked'] or (execution_blocks['records'] and not ready):
             blocks.append('EXECUTION_BLOCKED')
+        if stage == 'item.submit-test' and any(check.get('recordedStatus') for check in external):
+            blocks.append('WORKFLOW_CHECK_INVALID')
         can_complete = not blocks and not execution_blocks['records'] and stage == 'item.complete' and verification['applicability'] == 'valid'
         next_actions = [{'stage': stage, 'runbook': '.agents/skills/' + STAGE_SKILLS[stage] + '/SKILL.md'}]
-        return {'currentStage': stage, 'executionDecision': 'BLOCKED' if blocks else 'RUN' if stage == 'item.implement' else 'COMPLETE',
+        if 'WORKFLOW_CHECK_INVALID' in blocks:
+            next_actions[0]['runbook'] = '.agents/skills/workspace-item-workflow/SKILL.md'
+        return {'currentStage': stage, 'executionDecision': 'BLOCKED' if blocks else 'RUN',
                 'blockers': blocks, 'readyTasks': ready if not blocks else [], 'nextActions': next_actions, 'canComplete': can_complete}
 
     def summary(self, *, check_code=False) -> dict:

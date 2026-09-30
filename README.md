@@ -1,8 +1,8 @@
-# agent-workbench 2.2
+# agent-workbench
 
-面向本地编码 Agent 的多仓开发工作流工具。它把仓库上下文、需求记录、离线验证和可选本地 Extension 放在同一套可检查的约定中，而每个业务仓仍是独立 Git 仓。
+面向不同编码 Agent 的通用开发工作流。管理需求、设计、任务、验证和交付，支持跨会话接手与多仓协作；各业务仓保持独立，团队流程通过可选本地 Extension 扩展。
 
-2.3 支持 workspace 配置 major 4 和 Inspect 2.3；配套 IntelliJ 插件为 1.2.0。WorkItem 的机器状态位于 `.state/`，README 包含验证摘要；旧布局可通过显式迁移命令转换。共享配置、本机配置和可编辑草稿位于 `.workspace/config/`，完整布局见[本地工作区布局](docs/reference/local-workspace-layout.md)。
+2.4 支持 workspace 配置 major 4 和 Inspect 2.3；配套 IntelliJ 插件为 1.2.0。WorkItem 的机器状态位于 `.state/`，README 包含验证摘要；旧布局可通过显式迁移命令转换。共享配置、本机配置和可编辑草稿位于 `.workspace/config/`，完整布局见[本地工作区布局](docs/reference/local-workspace-layout.md)。
 
 运行条件：Python 3.10+、Git 2.23+，不安装第三方运行依赖。Linux 和 macOS 已在 CI 中验证；其他平台尚未验证。
 
@@ -56,7 +56,7 @@ python3 scripts/kit.py doctor --root .
 
 ## 更新与验证
 
-公共文件更新先使用[workspace-update](.agents/skills/workspace-update/SKILL.md)生成兼容性计划（`workspace_update.py plan`）；它不会覆盖 `.workspace/`。仓内离线检查如下：
+公共文件更新先使用[workspace-update](.agents/skills/workspace-update/SKILL.md)生成兼容性计划（`kit.py update plan`）；它不会覆盖 `.workspace/`。仓内离线检查如下：
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py'

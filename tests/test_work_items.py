@@ -33,6 +33,28 @@ class WorkItemV2Test(ItemFixture, unittest.TestCase):
         self.assertFalse((self.item / 'plan.md').exists())
         self.assertIn('验证摘要', (self.item / 'README.md').read_text())
 
+    def test_only_a_finished_item_reports_complete_to_consumers(self):
+        self.plan(); self.review()
+        self.assertEqual('RUN', WorkItemQuery(self.root, 'demo').decision()['executionDecision'])
+        self.record('T01')
+        decision = WorkItemQuery(self.root, 'demo').decision()
+        self.assertEqual('item.verify', decision['currentStage'])
+        self.assertEqual('RUN', decision['executionDecision'])
+        self.assertFalse(decision['canComplete'])
+        self.record()
+        self.assertEqual('RUN', WorkItemQuery(self.root, 'demo').decision(check_code=True)['executionDecision'])
+        actions.delivery(self.root, 'demo', {'externalChecks': [{'id': 'acceptance', 'requirement': 'R1',
+            'description': '等待验收', 'owner': '测试', 'status': 'pending', 'evidence': ''}]},
+            expected_revision=self.state()['stateRevision'])
+        decision = WorkItemQuery(self.root, 'demo').decision(check_code=True)
+        self.assertEqual('item.submit-test', decision['currentStage'])
+        self.assertEqual('RUN', decision['executionDecision'])
+        self.assertFalse(decision['canComplete'])
+        checks = self.state()['externalChecks']; checks[0].update(status='passed', evidence='验收回执')
+        actions.delivery(self.root, 'demo', {'externalChecks': checks}, expected_revision=self.state()['stateRevision'])
+        actions.complete(self.root, 'demo', expected_revision=self.state()['stateRevision'])
+        self.assertEqual('COMPLETE', WorkItemQuery(self.root, 'demo').decision()['executionDecision'])
+
     def test_task_record_updates_progress_without_checkbox(self):
         self.plan()
         self.review()

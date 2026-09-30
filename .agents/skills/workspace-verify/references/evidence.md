@@ -34,3 +34,5 @@
 ```
 
 externalChecks 更新提交当前完整清单；passed/waived 必须填写 evidence。repositories 按仓合并，不提交不变仓。验证记录不能自行关闭外部待办。
+
+必要 Action 先登记 pending；成功后人工验收为 passed，附 `"evidenceRefs":[{"kind":"workflow","runId":"...","requestId":"...","stage":"..."}]`，引用当前轮次、绑定和配置下最新成功尝试。引用中 status 仅为快照，省略旧引用仍保留。running 等待或查询；退出后 unknown 才 reconcile。waived 附范围理由并引用最新已结束尝试。Action 成功不自动关闭验收；失效项不能丢弃。无引用人工验收不变。

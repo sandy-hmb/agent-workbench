@@ -5,7 +5,7 @@ description: Execute approved work continuously with targeted validation and aut
 
 # 实施执行
 
-已知任务直接使用 `kit.py brief <slug> --task T01 --json`；只知道 WorkItem 时使用 `kit.py brief <slug> --json` 接手。检查审批、当前实际分支和范围。普通活动没有独立计划时直接执行已批准 change.md；有任务时使用 `brief <slug> --task T01 --json`。
+使用 `kit.py brief <slug> --json` 接手，已知任务加 `--task T01`。检查审批、实际分支和范围；普通活动没有独立计划时沿已批准 change.md 执行。
 
 ## 执行循环
 
@@ -23,17 +23,7 @@ description: Execute approved work continuously with targeted validation and aut
 
 一次一个任务不是会话边界。结束前重读 brief；仍有已授权可执行工作就继续，全部完成或真实阻塞才停止。只汇报已证实结果、未完成项和必要决策。
 
-按需子 Agent 只用于有明确收益的独立任务或审查；获授权后读取 references/subagent-execution.md。未经授权不引入 worktree、并行、远端 Git、部署或外部环境。
-
-## 多 Agent 宿主接入
-
-默认当前 Agent 连续执行。宿主提供子 Agent 时，主 Agent 仍是 WorkItem 的唯一协调者：负责计划、授权范围、依赖、结果接纳和 `verify record`；实现 worker 只处理一个已准备好的任务。只读 advisor 或 committee 只能给出意见，不能编辑、批准或记录完成；用户明确要求转交整项责任时才使用 handoff。
-
-派发前核对当前 `brief --task`、实际分支、直接依赖和写入范围。`readyTasks` 只表示 Kit 的依赖和阻塞条件已满足，不表示该任务尚未被宿主 Agent 派发。多 Agent 宿主的运行关联、模型和 Agent ID 由可选接入层维护，不进入 WorkItem 状态；接入层必须先排除仍在运行或待验收的同一任务和同一实际 checkout 写入者。
-
-同一实际 checkout 在实现、回收、必要修复和验证完成前只允许一个写入者，主 Agent 也算写入者。不同仓的独立任务可按授权并行；同仓任务默认串行。worker 返回、Agent idle、commit 或宿主完成通知都不是 Kit 完成事实：主 Agent 先核对实际 diff 与检查，再按本 Skill 的证据流程记录。
-
-宿主不可用或运行关系无法核实时，先确认没有仍会写入的 worker，再退回单 Agent 继续。不要猜测性重新派发、停止、reset、stash 或覆盖用户改动。
+默认当前 Agent 连续执行。子 Agent 仅用于已授权且有明确收益的独立任务或审查；使用前读取 [协作边界](references/subagent-execution.md)。同一 checkout 只允许一个写入者，主 Agent 核对实际结果后统一记证据。未经授权不引入 worktree、并行、远端 Git、部署或外部环境。
 
 ## 开发阻塞
 

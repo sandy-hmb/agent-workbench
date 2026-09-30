@@ -31,17 +31,22 @@ def _run(func, argv):
 
 
 class KitForwardingTest(unittest.TestCase):
-    def test_status_json_forwarding_matches_direct_call(self):
-        forwarded_code, forwarded_out, forwarded_err = _run(
-            kit.main, ["status", "--root", str(ROOT), "--json"]
-        )
-        direct_code, direct_out, direct_err = _run(
-            workspace_status.main, ["--root", str(ROOT), "--json"]
-        )
-        self.assertEqual(forwarded_code, direct_code)
-        self.assertEqual(forwarded_out, direct_out)
-        self.assertEqual(forwarded_err, direct_err)
-        json.loads(forwarded_out)
+    def test_status_text_and_json_forwarding_match_direct_call(self):
+        for flags in ([], ["--json"]):
+            with self.subTest(flags=flags):
+                forwarded_code, forwarded_out, forwarded_err = _run(
+                    kit.main, ["status", "--root", str(ROOT), *flags]
+                )
+                direct_code, direct_out, direct_err = _run(
+                    workspace_status.main, ["--root", str(ROOT), *flags]
+                )
+                self.assertEqual(forwarded_code, direct_code)
+                self.assertEqual(forwarded_out, direct_out)
+                self.assertEqual(forwarded_err, direct_err)
+                if flags:
+                    json.loads(forwarded_out)
+                else:
+                    self.assertIn('工作区：', forwarded_out)
 
     def test_doctor_help_forwarding_matches_direct_call_byte_for_byte(self):
         forwarded_code, forwarded_out, forwarded_err = _run(

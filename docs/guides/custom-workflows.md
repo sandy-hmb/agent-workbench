@@ -132,3 +132,61 @@ python3 scripts/kit.py workflow retry --workflow-run-id <workflowRunId> --stage-
 ```
 
 重新执行仍需已有授权覆盖目标与实际影响。去重只保证 Kit 对同一请求不重复调度，不证明任意外部系统恰好执行一次。
+
+## 必要 Action 与验收
+
+必要 Action 在执行前通过 `item delivery` 登记为 `externalChecks` 的 `pending` 项。下例假定只有这一项；已有检查时，两个输入都须合并当前完整清单，不能丢弃尚未关闭或引用已失效的项。
+
+`delivery.pending.json`：
+
+```json
+{
+  "externalChecks": [{
+    "id": "integration", "requirement": "R1",
+    "description": "联调符合接口契约", "owner": "测试负责人",
+    "status": "pending", "evidence": ""
+  }]
+}
+```
+
+```bash
+python3 scripts/kit.py item delivery <itemSlug> --root . \
+  --input delivery.pending.json --state-revision <stateRevision> --json
+python3 scripts/kit.py workflow start --root . --item-slug <itemSlug> --json
+python3 scripts/kit.py workflow plan --root . --workflow-run-id <workflowRunId> \
+  --after item.implement --json
+```
+
+本例沿用[本地 Extension](local-extensions.md#manifest) 中没有 `command` 的 `team-delivery/integration-test`。读取 plan 返回的 `skillPath` 并实际执行联调；成功后通过 `finish` 记录实际结果：
+
+```bash
+python3 scripts/kit.py workflow finish --root . --workflow-run-id <workflowRunId> \
+  --stage-id team-delivery.integration-test --plan-hash <planHash> \
+  --status succeeded --summary "联调已执行，报告已生成" --json
+```
+
+取回 `finish` 返回的实际 `requestId`，核对报告后显式提交 `passed`、验收依据和 `evidenceRefs`。以下 `<requestId>` 使用该返回值。`delivery.accepted.json`：
+
+```json
+{
+  "externalChecks": [{
+    "id": "integration", "requirement": "R1",
+    "description": "联调符合接口契约", "owner": "测试负责人",
+    "status": "passed", "evidence": "已人工核对联调报告，接口契约符合 R1",
+    "evidenceRefs": [{
+      "kind": "workflow", "runId": "<workflowRunId>",
+      "requestId": "<requestId>", "stage": "team-delivery.integration-test"
+    }]
+  }]
+}
+```
+
+```bash
+python3 scripts/kit.py brief <itemSlug> --root . --json
+python3 scripts/kit.py item delivery <itemSlug> --root . \
+  --input delivery.accepted.json --state-revision <stateRevision> --json
+```
+
+每次写入使用最新 `stateRevision`；引用必须指向当前轮次、仓绑定和 Action 配置下该 Stage 的最新成功尝试，前置依赖链也须有效。重试后替换为最新 `requestId`。`evidenceRefs.status` 可省略，只是显示快照，系统读取真实尝试；省略全部或部分引用时，按 Stage 与仓库保留旧关联。同一 Stage/仓库可换为新 Run 的结果，但旧 Run 的最新尝试为 running/unknown 时必须先处理，不能用新 Run 绕过。
+
+请求仍为 `running` 时等待或查询 `workflow result`，不能覆盖执行中的结果。只有执行者退出且查询为 `unknown` 时，才核对目标并通过上述 `workflow reconcile` 记录依据；明确结果后才能重试或验收。已审阅的范围调整可记为 `waived`，附理由并引用最新已结束尝试；不能豁免未知结果。Action 成功不会自动关闭验收或完成 WorkItem。未登记为必要检查的附加 Action，以及没有 Workflow 引用的人工验收，保持原有行为。

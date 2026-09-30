@@ -26,6 +26,9 @@ class InspectV2Test(unittest.TestCase):
         self.assertEqual(2,response['apiVersion']['major'])
         data=response['data']
         self.assertEqual('completed',data['tasks'][0]['status'])
+        self.assertEqual('active',data['summary']['status'])
+        self.assertEqual('item.verify',data['summary']['currentStage'])
+        self.assertEqual('RUN',data['summary']['executionDecision'])
         self.assertNotIn('trusted',data['tasks'][0])
         self.assertNotIn('trustedProgress',data['summary'])
         self.assertEqual('change.md',next(d['path'] for d in data['documents'] if d['role']=='change'))

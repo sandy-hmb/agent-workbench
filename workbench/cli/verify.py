@@ -9,6 +9,7 @@ import workbench.work_items.commands as item_actions
 from workbench.work_items.query import WorkItemQuery
 from workbench.work_items.store import WorkItemError, MAX_BYTES, item_path, read_json
 from workbench.work_items.evidence import get_evidence, history_page
+from workbench.work_items.collector import collect_result
 
 
 def snapshot_result(root: Path, slug: str, task_id=None):
@@ -19,7 +20,7 @@ def snapshot_result(root: Path, slug: str, task_id=None):
     else:
         states = reader.code_state()
     reader.assert_unchanged()
-    return {'itemSlug': slug, 'stateRevision': reader.state['stateRevision'], 'codeState': states}
+    return {'itemSlug': slug, 'stateRevision': reader.state['stateRevision'], 'codeState': states, 'taskId': task_id}
 
 
 def summary_text(root: Path, slug: str, item: Path, **_kwargs):
@@ -32,6 +33,14 @@ def build_parser():
     parser = CommandParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     snapshot = commands.add_parser('snapshot'); snapshot.add_argument('--task')
+    collect = commands.add_parser('collect')
+    collect.add_argument('--snapshot', type=Path, required=True)
+    collect.add_argument('--junit', action='append', required=True)
+    collect.add_argument('--artifact', action='append', default=[])
+    collect.add_argument('--command', dest='check_command', required=True)
+    collect.add_argument('--working-directory', required=True)
+    collect.add_argument('--exit-status', type=int, required=True)
+    collect.add_argument('--task')
     record = commands.add_parser('record'); record.add_argument('--input', type=Path, required=True, help='JSON 文件路径，或使用 - 从 stdin 读取'); record.add_argument('--state-revision', required=True)
     evidence = commands.add_parser('evidence'); evidence.add_argument('--task'); evidence.add_argument('--id')
     history = commands.add_parser('history'); history.add_argument('--task'); history.add_argument('--iteration'); history.add_argument('--offset', type=int, default=0); history.add_argument('--limit', type=int, default=20)
@@ -46,6 +55,11 @@ def main(argv=None):
     try:
         item = item_path(args.root, args.item)
         if args.command == 'snapshot': result = snapshot_result(args.root, args.item, args.task)
+        elif args.command == 'collect':
+            result = collect_result(args.root, args.item, snapshot=args.snapshot, junit=args.junit,
+                                    artifacts=args.artifact, command=args.check_command,
+                                    working_directory=args.working_directory, exit_status=args.exit_status,
+                                    task_id=args.task)
         elif args.command == 'record':
             if str(args.input) == '-':
                 data = sys.stdin.buffer.read(MAX_BYTES + 1)

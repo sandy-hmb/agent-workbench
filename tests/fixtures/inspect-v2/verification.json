@@ -10,13 +10,13 @@
   "status": "ok",
   "data": {
     "recordedResult": "passed",
-    "evidenceId": "sha256:63d061e65deda06e0b1e4d362dd1b788e02af1328a728850936d71dd86112af8",
+    "evidenceId": "sha256:4e04c3c89404ee8f523788aa84c7d0cf86d343beac70fdc2ad9798db88f99a11",
     "applicability": "not_checked",
     "verificationScope": "",
     "pendingExternalChecks": [],
     "repositoryStates": [],
     "slug": "demo",
-    "stateRevision": "sha256:1901450d5ce0ff02908af5d25e9e298e2c71b2b510e30ff5794d2d2ab15544d3",
+    "stateRevision": "sha256:9b4de36e235b5a8d15d756dd9a4239c1241a48fac7bdc4bdf49b37481d92062f",
     "record": {
       "basisRevision": "sha256:78b6d7138dc2a0d31dcd2fb3c410671dc82c78fee1cd1a4b2a008b7e622a268e",
       "checks": [
@@ -32,29 +32,29 @@
         }
       ],
       "codeState": {
-        "kit": "sha256:3a73290e79f3db20a55d125c685ddb9dd1c39f5e99da13d7660639f7d5b72bc4"
+        "kit": "sha256:a3a38faf2989d4b1f8ecebdaad3dc2698f4b465784f34f0227f96c914541637e"
       },
       "itemSlug": "demo",
       "iteration": "i01",
-      "receipt": "sha256:e8b6a2481f2394782159db4b1389201612b58c29bf1072bf973158282da29d3f",
+      "receipt": "sha256:d208657ab868acff6129b3800c0823891a01897c2fd2e03f4e65795c6122ed13",
       "recordedAt": "2026-09-25T10:00:00+08:00",
       "result": "passed",
       "reviewResult": "passed",
       "schemaVersion": 1,
       "scope": "item",
       "taskId": null,
-      "id": "sha256:63d061e65deda06e0b1e4d362dd1b788e02af1328a728850936d71dd86112af8"
+      "id": "sha256:4e04c3c89404ee8f523788aa84c7d0cf86d343beac70fdc2ad9798db88f99a11"
     },
     "tasks": [
       {
         "id": "T01",
         "status": "completed",
-        "evidenceId": "sha256:044554e7e2fec29fa635243e82a9c6a0350475c61da9851903db69bd45e3d16d"
+        "evidenceId": "sha256:188f5bccc2a904137498909998c6686c2326a1916e4036ad1df906061715cc06"
       }
     ],
     "progression": {
       "currentStage": "item.complete",
-      "executionDecision": "COMPLETE",
+      "executionDecision": "RUN",
       "blockers": [],
       "readyTasks": [],
       "nextActions": [
@@ -66,5 +66,5 @@
       "canComplete": false
     }
   },
-  "responseRevision": "sha256:3280d63b0262514a9b3350b7b43bf1ac49785392893b36c312a98e0f8ce82ece"
+  "responseRevision": "sha256:6dc8ea0cd3cd6d121bac4c2728867d4b9a3040f345252b7076e840e3b4bb59ff"
 }

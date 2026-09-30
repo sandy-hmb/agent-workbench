@@ -2,11 +2,13 @@
 
 小改直接处理并给出定向验证结果。普通需求用 change.md 一次审阅目标、方案、工作项和验收；重大需求使用 requirements.md、design.md、plan.md 分阶段审阅。跨仓本身不提高风险。
 
+`brief` 和 `status` 默认输出简洁中文文本；自动化、工作台和插件消费这两个命令时显式加 `--json`，继续读取既有 JSON 字段与错误对象。查询保持只读，记录通过、当前代码适用性和生命周期完成分别展示。
+
 创建普通需求：
 
 ```bash
 python3 scripts/kit.py item create payment-retry --repo service --title "支付重试" --summary "处理瞬时失败" --json
-python3 scripts/kit.py brief payment-retry --json
+python3 scripts/kit.py brief payment-retry
 ```
 
 重大需求创建时增加 `--document-kind requirements --risk-tier major`。编辑实际内容、检查覆盖和关键取舍后，请用户审阅。批准后记录对应版本：
@@ -16,6 +18,8 @@ python3 scripts/kit.py item approval payment-retry --decision approved --reason 
 ```
 
 重大需求用 `--role requirements`、`--role design`、`--role plan` 分别审阅。普通需求存在真实依赖时也可增加 plan.md，与方案一次批准。任务使用 `### T01 标题`，完整字段见计划模板；同 WorkItem 内编号持续递增。
+
+创建时可用 `--activity repair`、`investigate`、`takeover` 或 `acceptance`，分别从症状与复现、调查事实、接手风险或交付验收开始。change 模式使用 Kit 自带的对应活动模板；默认 `develop` 和其他合法自定义活动使用通用 `change.md`，requirements 模式始终使用 `requirements.md`。活动名须匹配 `^[a-z][a-z0-9-]*$`。模板只替换标题和摘要，摘要中的花括号按原文保留。活动仅选择初始正文，不改变生命周期、审批和验证门禁，也不重写已有工作项。
 
 ## 实施与验证
 

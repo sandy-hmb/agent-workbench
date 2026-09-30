@@ -202,7 +202,7 @@ python3 scripts/kit.py extension doctor --root . --json
 
 `effects` 只用于审阅预期影响，不是操作系统级权限隔离。任何网络、Git、文件写入、部署或外部系统操作都仍须在执行前取得当前会话授权。
 
-升级公共 Kit 前，使用 `workspace_update.py plan` 检查 Extension 兼容性；不要手工修改 lock。
+升级公共 Kit 前，使用 `kit.py update plan` 检查 Extension 兼容性；不要手工修改 lock。
 
 ## 直接体验示例
 
