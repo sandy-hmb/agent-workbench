@@ -2,8 +2,6 @@
 
 ## 未发布
 
-## 未发布
-
 ## 2.5.0 - 2026-09-30
 
 - 新增显式 `standalone: true` 的 Skill-only Action 发现与解析入口；`action list/resolve` 和 `describe --json` 只返回短元数据与精确 Skill 路径，不创建 Workflow Run 或执行命令。
