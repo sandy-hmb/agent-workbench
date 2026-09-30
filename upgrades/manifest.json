@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.4.0",
+  "kitVersion": "2.5.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.5.0",
+      "summary": "2.5 新增显式 standalone Skill-only Action 的 action list/resolve 发现入口；独立 Action 不生成 Provider Adapter，实际使用时按 resolve 返回的 Skill 路径按需读取。",
+      "runbook": "docs/guides/local-extensions.md"
+    },
     {
       "sinceVersion": "2.4.0",
       "summary": "2.4 的 brief/status 默认输出可读文本，自动化调用请显式加 --json；使用 verify collect 采集任务证据时，重新生成带 taskId 的 verify snapshot --task 快照。",

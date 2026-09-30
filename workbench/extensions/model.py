@@ -110,6 +110,7 @@ class ActionDeclaration:
     command: tuple[str, ...] | None = None
     environment: tuple[str, ...] | None = None
     extension_id: str = ""
+    standalone: bool = False
 
     @property
     def ref(self) -> str:
@@ -131,6 +132,8 @@ class ActionDeclaration:
             result["command"] = list(self.command)
         if self.environment is not None:
             result["environment"] = list(self.environment)
+        if self.standalone:
+            result["standalone"] = True
         return result
 
 
@@ -410,7 +413,7 @@ def load_manifest(path: Path) -> ExtensionManifest:
         if not isinstance(item, dict):
             raise ExtensionError("action declaration must be object")
         allowed_action = {
-            "id", "apiVersion", "skill", "confirmation", "command", "environment", "effects",
+            "id", "apiVersion", "skill", "confirmation", "command", "environment", "effects", "standalone",
         }
         if set(item) - allowed_action or not {"id", "apiVersion", "skill", "effects"} <= set(item):
             raise ExtensionError("action declaration fields are invalid")
@@ -426,6 +429,11 @@ def load_manifest(path: Path) -> ExtensionManifest:
         if not set(action_effects) <= set(effects):
             raise ExtensionError("action effects must be contained by extension effects")
         confirmation_title, confirmation_summary = _confirmation(item.get("confirmation"))
+        standalone = item.get("standalone", False)
+        if type(standalone) is not bool:
+            raise ExtensionError("action standalone must be boolean")
+        if standalone and item.get("command") is not None:
+            raise ExtensionError("standalone action must be Skill-only without command")
         actions.append(
             ActionDeclaration(
                 action,
@@ -437,6 +445,7 @@ def load_manifest(path: Path) -> ExtensionManifest:
                 _command(item.get("command")),
                 _environment(item.get("environment")),
                 extension_id,
+                standalone,
             )
         )
     requires_raw = raw["requires"]
@@ -578,7 +587,7 @@ def normalize_extensions_lock(value: object) -> dict[str, object]:
             if not isinstance(action, dict) or not {
                 "id", "apiVersion", "skill", "confirmation",
             } <= set(action) or set(action) - {
-                "id", "apiVersion", "skill", "confirmation",
+                "id", "apiVersion", "skill", "confirmation", "standalone",
             }:
                 raise ExtensionError("locked action fields are invalid")
             if (
@@ -592,6 +601,8 @@ def normalize_extensions_lock(value: object) -> dict[str, object]:
             ):
                 raise ExtensionError("locked action is invalid")
             _confirmation(action["confirmation"])
+            if "standalone" in action and type(action["standalone"]) is not bool:
+                raise ExtensionError("locked action standalone must be boolean")
             names.add(action["id"])
             actions.append(dict(action))
         adapters = []

@@ -23,6 +23,7 @@ COMMANDS = {
     "registry": ("workbench.workspace.registry", "解析 workspace.json 中注册的仓库"),
     "provider": ("workbench.extensions.providers", "探测并运行绑定的本地 Extension Provider"),
     "extension": ("workbench.extensions.management", "预览、激活、校验本地 Extension"),
+    "action": ("workbench.cli.actions", "发现和解析已启用的独立工具 Action"),
     "workflow": ("workbench.extensions.runner", "解析并执行自定义工作流 Action"),
     "context": ("workbench.workspace.context", "按显式上下文条件路由请求"),
     "item": ("workbench.cli.items", "创建、调整、审批与结束工作项"),

@@ -31,7 +31,8 @@
         "confirmation": {"$ref": "#/$defs/confirmation"},
         "command": {"$ref": "#/$defs/command"},
         "environment": {"$ref": "#/$defs/environment"},
-        "effects": {"$ref": "#/$defs/effects"}
+        "effects": {"$ref": "#/$defs/effects"},
+        "standalone": {"type": "boolean"}
       }
     }
   },

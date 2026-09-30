@@ -176,6 +176,8 @@ def _action_rows(manifest: ExtensionManifest) -> list[dict[str, object]]:
             "apiVersion": action.api_version,
             "skill": action.skill,
         }
+        if action.standalone:
+            row["standalone"] = True
         if action.confirmation_title is not None:
             row["confirmation"] = {
                 "title": action.confirmation_title,

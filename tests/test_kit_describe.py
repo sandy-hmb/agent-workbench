@@ -46,6 +46,9 @@ class KitDescribeTest(unittest.TestCase):
         brief = by_name["brief"]
         self.assertIn("--task", brief["parameters"]["options"])
         self.assertIn("--check-code", brief["parameters"]["options"])
+        action = by_name["action"]
+        self.assertIn("list", action["parameters"]["subcommands"])
+        self.assertIn("resolve", action["parameters"]["subcommands"])
         verify = by_name["verify"]
         self.assertIn("snapshot", verify["parameters"]["subcommands"])
         collect = verify["parameters"]["subcommands"]["collect"]

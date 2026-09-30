@@ -66,6 +66,7 @@ apply 会同时更新 `.workspace/config/workspace.json`、`.workspace/extension
 
 - 一个 capability 的默认绑定和单个仓级覆盖各只能指向一个 Provider。当前 Core capability 只有 `branch.naming` 和 `context.term-router`。
 - manifest v2 可以声明任意命名 Action；Action 不绑定 capability，也不会生成全局 `local-*` Adapter。通过 `workspace-item-workflow` 在对应 Stage 按需读取它。
+- Skill-only Action 可显式声明 `standalone: true`，通过 `python3 scripts/kit.py action list --root . --json` 和 `action resolve <extension>/<action> --root . --json` 独立发现。入口只读已激活 Action 的短元数据和精确 Skill 路径，不启动命令、MCP、Provider 或 Workflow Run；实际使用时再读取 Skill。带 `command` 的 Action 不得声明 standalone，继续使用 `workspace-item-workflow`。
 - 需要输出 work item 相关文件的 Extension，在其 `SKILL.md` 声明具体位置、文件归属及重跑方式；不定义统一的扩展文档目录。只有交接需要时，需求主文档保留该产物入口链接。
 - 不手工修改受管 `local-*` Adapter。内容、管理标记或符号链接失配时，先运行 doctor；系统会拒绝删除或覆盖未受管路径。
 - 停用 Extension 前，若 `.workspace/config/local.json` 的 `extensions` 仍包含该 Extension 配置，preview 会拒绝。先显式移除该本地配置；系统不自动删除本地配置。

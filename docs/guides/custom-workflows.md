@@ -16,6 +16,8 @@ item.complete
 
 `item.analyze` 和 `item.submit-test` 可以按需求或仓配置跳过，但它们的 before/after 边界仍可承载自定义 Stage。
 
+普通 Action 仍然通过本指南挂在 Core Stage 前后，依赖 Workflow Run、Stage、确认和验收。需要在没有 WorkItem、Run 或 Stage 时按需使用的工具，应声明 Skill-only `standalone: true` 并使用 `kit.py action list/resolve`；该入口只返回元数据和精确 Skill 路径，不执行 Action。
+
 ## 添加 Stage
 
 先激活含有 Action 的 Extension，再在 `.workspace/config/workflow.draft.json` 写入 Overlay：

@@ -7,6 +7,15 @@ Extension 有两种声明：
 - **Provider**：替换 Core 已主动调用的能力。当前只有 `branch.naming` 和 `context.term-router`。
 - **Action**：团队自由命名的操作，例如测试、部署、扫描或通知。Action 不需要公共 Kit 预先登记名称。
 
+需要在没有 WorkItem、Run 或 Stage 时按需使用的 Skill-only Action，可以显式声明 `"standalone": true`，并省略 `command`。只读发现入口为：
+
+```bash
+python3 scripts/kit.py action list --root . --json
+python3 scripts/kit.py action resolve <extension>/<action> --root . --json
+```
+
+入口只返回短元数据、精确 Skill 路径、资源目录、effects、确认摘要、非敏感配置和 Extension digest，不启动命令、MCP、Provider 或 Workflow Run。Agent 只有在用户实际需要时才读取返回的 Skill 和资源。命令型或未声明 standalone 的 Action 仍只能通过 Workflow Stage 使用。
+
 ## 准备来源
 
 团队可把源码保存在任意已有私有业务仓，例如：
@@ -165,7 +174,7 @@ python3 scripts/kit.py extension preview \
   --root . --config .workspace/config/extensions.draft.json --json
 ```
 
-确认后使用返回的 `applyCommand`。apply 更新 `.workspace/config/workspace.json` 与 `extensions/.state/lock.json`。只有 Provider Skill 会生成 `local-*` Adapter；Action Skill 保留在 Extension 目录，直到 Workflow 到达该 Action 才按需读取。
+确认后使用返回的 `applyCommand`。apply 更新 `.workspace/config/workspace.json` 与 `extensions/.state/lock.json`。只有 Provider Skill 会生成 `local-*` Adapter；普通 Action Skill 保留在 Extension 目录，直到 Workflow 到达该 Action 才按需读取。显式 `standalone: true` 的 Skill-only Action 可通过 `action list/resolve` 从 Extension 目录按需发现和读取。
 
 Provider 可显式调用：
 

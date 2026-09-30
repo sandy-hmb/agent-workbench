@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "standalone-extension",
+  "version": "1.0.0",
+  "kitApi": 1,
+  "provides": [],
+  "actions": [
+    {
+      "id": "query",
+      "apiVersion": 1,
+      "skill": "query",
+      "standalone": true,
+      "confirmation": {
+        "title": "Query the external system",
+        "summary": "Read the external system through the configured tool."
+      },
+      "effects": ["network"]
+    }
+  ],
+  "requires": [],
+  "effects": ["network"]
+}

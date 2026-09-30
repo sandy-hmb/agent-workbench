@@ -25,6 +25,7 @@ COMMAND_RUNBOOKS = {
     "registry": "docs/guides/first-item.md",
     "provider": "docs/guides/local-extensions.md",
     "extension": ".agents/skills/workspace-extension/SKILL.md",
+    "action": "docs/guides/local-extensions.md",
     "workflow": "docs/guides/custom-workflows.md",
     "context": "docs/guides/local-extensions.md",
     "item": "docs/guides/first-item.md",
@@ -59,7 +60,7 @@ def _describe_parser(parser: argparse.ArgumentParser) -> dict[str, object]:
     return {"options": options, "subcommands": subcommands}
 
 
-def _active_extension_actions(root: Path) -> list[dict[str, str]]:
+def _active_extension_actions(root: Path) -> list[dict[str, object]]:
     from workbench.workspace.paths import lock_file
 
     lock_path = lock_file(Path(root))
@@ -96,6 +97,7 @@ def _active_extension_actions(root: Path) -> list[dict[str, str]]:
                     "id": f"{extension_id}/{action.action}",
                     "summary": action.confirmation_summary or "",
                     "skill": str(skill_path.relative_to(Path(root).resolve())),
+                    "standalone": action.standalone,
                 }
             )
     return result
@@ -115,9 +117,11 @@ def describe_result(root: Path) -> dict[str, object]:
                 "parameters": _describe_parser(module.build_parser()),
             }
         )
+    extension_actions = _active_extension_actions(Path(root).resolve())
     return {
         "commands": commands,
-        "extensionActions": _active_extension_actions(Path(root).resolve()),
+        "extensionActions": extension_actions,
+        "standaloneActions": [row for row in extension_actions if row.get("standalone")],
     }
 
 

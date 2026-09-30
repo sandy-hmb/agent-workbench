@@ -7,6 +7,8 @@ description: Resolve and run user-defined workflow Actions at explicit work item
 
 用于在功能开发流程的 Core Stage 前后发现和续接本地自定义 Action。它只负责流程编排，不替代 `workspace-item-design`、`workspace-verify` 或 `workspace-submit-test` 的具体工作。
 
+本 Skill 处理普通 Workflow Action。显式声明 `standalone: true` 且没有 `command` 的 Skill-only Action 使用 `python3 scripts/kit.py action list/resolve` 按需发现；独立解析不创建 Run、不执行 Action，也不绕过本 Skill 对命令型或阶段型 Action 的约束。
+
 ## 先判断是否启用
 
 先运行：

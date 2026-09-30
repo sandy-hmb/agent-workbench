@@ -2,6 +2,13 @@
 
 ## 未发布
 
+## 未发布
+
+## 2.5.0 - 2026-09-30
+
+- 新增显式 `standalone: true` 的 Skill-only Action 发现与解析入口；`action list/resolve` 和 `describe --json` 只返回短元数据与精确 Skill 路径，不创建 Workflow Run 或执行命令。
+- standalone Action 继续复用 Extension 激活、lock、digest、路径和配置校验；命令型 Action 仍只能通过 Workflow Stage 使用。
+
 ## 2.4.0 - 2026-09-30
 
 - 新增只读 verify collect，从 JUnit 明细与已核对快照生成待人工审阅的验证草稿、计数和附件哈希；保留既有 record 审阅与完成门禁，不执行测试命令或写状态。

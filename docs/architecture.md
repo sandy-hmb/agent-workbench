@@ -28,6 +28,8 @@ status 返回轻量列表；brief 定向读取指定 WorkItem 或任务。Inspec
 
 必要 Action 通过 externalChecks 显式登记，使用 evidenceRefs 关联实际尝试。通过项按当前轮次、仓绑定、配置、最新结果及前置依赖链核对；失效时投影为待验收，不改写原记录。验收写入与完成入口复用 Extension 共享锁，避免与 Action 执行或配置更新交错。普通附加动作不自动成为完成门禁。
 
+显式声明 `standalone: true` 的 Skill-only Action 还可以通过 `kit.py action list/resolve` 独立发现和解析。该入口复用激活 lock、digest、路径和配置校验，只返回短元数据与精确 Skill 位置，不创建 Run 或执行命令；命令型 Action 仍受 Workflow Stage 约束。
+
 ## 版本边界
 
 不支持旧 feature、旧 workspace 配置和旧证据协议，它们保持原状并在新目录初始化。当前 WorkItem 的根层机器状态可以通过显式 storage-migrate 预览、备份后迁入 .state/，不转换业务内容或状态语义。公共工作区配置、WorkItem、Inspect 和 Extension 分别定义版本。

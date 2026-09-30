@@ -63,6 +63,26 @@ class ExtensionModelTest(unittest.TestCase):
         self.assertEqual(("DEPLOY_TOKEN",), deploy.environment)
         self.assertEqual(("network", "process.exec"), deploy.effects)
 
+    def test_standalone_action_is_skill_only(self):
+        manifest = json.loads((ACTION_FIXTURE / "workspace-extension.json").read_text(encoding="utf-8"))
+        manifest["actions"][0]["standalone"] = True
+        manifest["actions"][0].pop("command", None)
+        manifest["actions"][0].pop("environment", None)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "action-extension"
+            root.mkdir()
+            (root / "skills/integration-test").mkdir(parents=True)
+            (root / "skills/integration-test/SKILL.md").write_text("---\nname: integration-test\n---\n", encoding="utf-8")
+            (root / "skills/deploy-test").mkdir(parents=True)
+            (root / "skills/deploy-test/SKILL.md").write_text("---\nname: deploy-test\n---\n", encoding="utf-8")
+            path = root / "workspace-extension.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertTrue(load_manifest(path).actions[0].standalone)
+            manifest["actions"][0]["command"] = ["python3", "commands/deploy.py"]
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ExtensionError, "Skill-only"):
+                load_manifest(path)
+
     def test_removed_capability_and_action_effects_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "e"

@@ -2,7 +2,7 @@
 
 面向不同编码 Agent 的通用开发工作流。管理需求、设计、任务、验证和交付，支持跨会话接手与多仓协作；各业务仓保持独立，团队流程通过可选本地 Extension 扩展。
 
-2.4 支持 workspace 配置 major 4 和 Inspect 2.3；配套 IntelliJ 插件为 1.2.0。WorkItem 的机器状态位于 `.state/`，README 包含验证摘要；旧布局可通过显式迁移命令转换。共享配置、本机配置和可编辑草稿位于 `.workspace/config/`，完整布局见[本地工作区布局](docs/reference/local-workspace-layout.md)。
+2.5 支持 workspace 配置 major 4 和 Inspect 2.3；配套 IntelliJ 插件为 1.2.0。WorkItem 的机器状态位于 `.state/`，README 包含验证摘要；旧布局可通过显式迁移命令转换。共享配置、本机配置和可编辑草稿位于 `.workspace/config/`，完整布局见[本地工作区布局](docs/reference/local-workspace-layout.md)。
 
 运行条件：Python 3.10+、Git 2.23+，不安装第三方运行依赖。Linux 和 macOS 已在 CI 中验证；其他平台尚未验证。
 
