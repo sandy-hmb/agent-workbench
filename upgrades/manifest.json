@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.5.0",
+  "kitVersion": "2.6.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.6.0",
+      "summary": "2.6 为 standalone Skill-only Action 生成受管 local-* Skill Adapter。升级后运行 extension preview/doctor；旧 lock 缺少 Adapter 时使用 preview 返回的 applyCommand 补建。",
+      "runbook": "docs/guides/local-extensions.md"
+    },
     {
       "sinceVersion": "2.5.0",
       "summary": "2.5 新增显式 standalone Skill-only Action 的 action list/resolve 发现入口；独立 Action 不生成 Provider Adapter，实际使用时按 resolve 返回的 Skill 路径按需读取。",

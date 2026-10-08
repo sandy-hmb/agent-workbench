@@ -210,9 +210,56 @@ def _skill_bytes(manifest: ExtensionManifest, skill: str) -> bytes:
     if path.is_symlink() or not path.is_file():
         raise _error(f"Extension Skill 不安全：{path}")
     try:
-        return path.read_bytes()
+        source = path.read_bytes()
     except OSError as exc:
         raise _error(f"无法读取 Extension Skill：{path}") from exc
+    actions = [action for action in manifest.actions if action.standalone and action.skill == skill]
+    if not actions:
+        return source
+    description = ""
+    try:
+        text = source.decode("utf-8")
+        in_frontmatter = False
+        for line in text.splitlines():
+            if line.strip() == "---":
+                in_frontmatter = not in_frontmatter
+                continue
+            if in_frontmatter and line.startswith("description:"):
+                description = line.split(":", 1)[1].strip()
+                break
+    except UnicodeError as exc:
+        raise _error(f"Extension Skill 编码无效：{path}") from exc
+    description = description or actions[0].confirmation_summary or f"Use {manifest.id} tools on demand."
+    description = " ".join(description.split())
+    wrapper_name = _adapter_name(manifest.id, skill)
+    lines = [
+        "---",
+        f"name: {wrapper_name}",
+        f"description: {description}",
+        "---",
+        "",
+        f"# {description}",
+        "",
+        "This managed entry is a discovery wrapper. Resolve the requested Action from the workspace root before reading or using its Skill.",
+        "",
+        "```bash",
+    ]
+    for action in actions:
+        lines.append(f"python3 scripts/kit.py action resolve {action.ref} --json")
+    lines.extend(
+        [
+            "```",
+            "",
+            "Stop if resolve fails. After it succeeds, read the returned skillPath and use resourceRoot for relative references. The Adapter does not contain the Action rules, runtime configuration, credentials, or business resources.",
+            "",
+            "Available Actions:",
+        ]
+    )
+    lines.extend(
+        f"- `{action.ref}`: {action.confirmation_summary or description}"
+        for action in actions
+    )
+    return ("\n".join(lines) + "\n").encode("utf-8")
 
 
 def _spec(manifest: ExtensionManifest, skill: str, source_digest: str) -> AdapterSpec:

@@ -4,6 +4,10 @@
 
 - 已激活的 standalone Skill-only Action 会生成受管 `local-*` Agent Skill 和 Claude 相对链接，支持会话技能发现。旧 standalone lock 在重新 preview/apply 后补建入口，Provider/Action 同名路径拒绝覆盖。
 
+## 2.6.0 - 2026-10-08
+
+- 已激活的 standalone Skill-only Action 会生成受管 `local-*` Agent Skill 和 Claude 相对链接，支持会话技能发现。旧 standalone lock 在重新 preview/apply 后补建入口，Provider/Action 同名路径拒绝覆盖。
+
 ## 2.5.0 - 2026-09-30
 
 - 新增显式 `standalone: true` 的 Skill-only Action 发现与解析入口；`action list/resolve` 和 `describe --json` 只返回短元数据与精确 Skill 路径，不创建 Workflow Run 或执行命令。

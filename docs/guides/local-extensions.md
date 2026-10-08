@@ -63,7 +63,7 @@ python3 scripts/kit.py extension preview \
   --root . --config .workspace/config/extensions.draft.json --json
 ```
 
-确认后执行 preview 返回的 `applyCommand`；因为是 Action（不是 Provider），apply 不会生成任何 `local-*` Skill Adapter。用 doctor 确认无 drift：
+确认后执行 preview 返回的 `applyCommand`；普通 Action 不生成 `local-*` Skill Adapter，显式 `standalone: true` 的 Skill-only Action 会生成受管入口。用 doctor 确认无 drift：
 
 ```bash
 python3 scripts/kit.py extension doctor --root . --json
@@ -178,7 +178,7 @@ python3 scripts/kit.py extension preview \
 
 无需新增 manifest 字段。Adapter 沿用 `.agents/skills/local-<extension>-<skill>/`、Claude 相对链接以及原 lock/marker/digest 格式；Provider 和 standalone Action 使用同一 Skill 时会报错，不能覆盖。旧版本已激活 standalone Action 的 lock 缺少 Adapter 时，doctor 会报告 `ADAPTER_DRIFT`，使用当前 `extension preview` 和其返回的 `applyCommand` 补建即可。不要手工复制 Skill 或修改 lock。新建或重新打开会话后由宿主刷新 Skill inventory；Kit 不保证某个自然语言请求必然选中 Skill。
 
-Adapter 沿用现有 Skill 文件安装方式，保留源 Skill 的 frontmatter 名称、用途和正文，不合并 AGENTS/CONTEXT，也不包含运行时配置或凭据。扩展 Skill 应先通过 `action resolve <extension>/<action>` 取得当前配置、`skillPath` 与 `resourceRoot`，再读取原扩展目录中的附件；不能把 Adapter 目录当成扩展资源根。实际 MCP 操作仍由 Agent 按现有授权执行。
+standalone Adapter 使用 namespaced `local-<extension>-<skill>` frontmatter 和短 wrapper，不复制源 Skill 正文、references、运行时配置或凭据。wrapper 要求先通过 `action resolve <extension>/<action>` 取得当前配置、`skillPath` 与 `resourceRoot`，再读取原扩展目录中的 Skill 和附件；不能把 Adapter 目录当成扩展资源根。实际 MCP 操作仍由 Agent 按现有授权执行。
 
 Provider 可显式调用：
 
