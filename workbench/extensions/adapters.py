@@ -165,6 +165,17 @@ def _adapter_name(extension_id: str, skill: str) -> str:
     return f"local-{extension_id}-{skill}"
 
 
+def managed_skill_names(manifest: ExtensionManifest) -> tuple[str, ...]:
+    provider_skills = {provider.skill for provider in manifest.provides}
+    standalone_skills = {action.skill for action in manifest.actions if action.standalone}
+    conflict = provider_skills & standalone_skills
+    if conflict:
+        raise _error(
+            f"Provider 与 standalone Action 生成同名 Adapter：{manifest.id}/{sorted(conflict)[0]}"
+        )
+    return tuple(sorted(provider_skills | standalone_skills))
+
+
 def _marker(spec: AdapterSpec) -> dict[str, str]:
     return {
         "managedBy": MANAGED_BY,
@@ -348,7 +359,7 @@ def adapter_plan(
             raise _error(f"重复激活 Extension：{manifest.id}")
         seen_extensions.add(manifest.id)
         source_digest = extension_digest(manifest.root)
-        for skill in sorted({provider.skill for provider in manifest.provides}):
+        for skill in managed_skill_names(manifest):
             spec = _spec(manifest, skill, source_digest)
             if spec.relative_path in desired:
                 raise _error(f"重复 Adapter 目标：{spec.relative_path}")

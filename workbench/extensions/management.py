@@ -46,6 +46,7 @@ from workbench.extensions.adapters import (  # noqa: E402
     AdapterPlan,
     adapter_plan,
     apply_adapter_plan,
+    managed_skill_names,
 )
 from workbench.workspace.model import (  # noqa: E402
     Workspace,
@@ -591,7 +592,7 @@ def _lock_for_desired(desired: DesiredState, plan: AdapterPlan) -> dict[str, obj
     extensions = []
     for manifest in desired.manifests:
         adapters = []
-        for skill in sorted({provider.skill for provider in manifest.provides}):
+        for skill in managed_skill_names(manifest):
             path = f".agents/skills/local-{manifest.id}-{skill}"
             adapters.append(by_path[path])
         extensions.append(
