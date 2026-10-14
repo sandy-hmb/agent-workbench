@@ -32,6 +32,33 @@ class InspectV2Test(unittest.TestCase):
         self.assertNotIn('trusted',data['tasks'][0])
         self.assertNotIn('trustedProgress',data['summary'])
         self.assertEqual('change.md',next(d['path'] for d in data['documents'] if d['role']=='change'))
+
+    def test_handoff_has_compact_scope_revisions_and_legacy_fields(self):
+        self.fixture.plan(); self.fixture.review()
+        code, response = self.cli('handoff', 'demo')
+        self.assertEqual(0, code)
+        data = response['data']
+        self.assertIn('content', data)
+        self.assertIn('estimatedTokens', data)
+        self.assertIn('sources', data)
+        self.assertIn('stateRevision', data)
+        self.assertIn('progression', data)
+        self.assertEqual('develop', data['scope']['activity'])
+        self.assertEqual(['kit'], [row['repository'] for row in data['scope']['repositories']])
+        self.assertTrue(all(row['documentRevision'].startswith('sha256:') for row in data['sources']))
+        self.assertLessEqual(data['contentBytes'], data['contentLimitBytes'])
+        self.assertLessEqual(data['contentLimitBytes'], 2 * 1024)
+        self.assertIn('change.md', data['content'])
+        self.assertNotIn('依据：R1', data['content'])
+
+    def test_handoff_budget_keeps_explicit_details_entrypoint(self):
+        self.fixture.plan(); self.fixture.review()
+        with mock.patch.object(inspect, 'HANDOFF_CONTENT_MAX_BYTES', 256):
+            pack = inspect.handoff(self.root, 'demo')
+        self.assertTrue(pack['contentTruncated'])
+        self.assertLessEqual(pack['contentBytes'], pack['contentLimitBytes'])
+        self.assertEqual('kit.py brief demo --json', pack['detailsEntrypoint'])
+        self.assertIn(pack['detailsEntrypoint'], pack['content'])
     def test_list_does_not_hash_code_or_load_document_bodies(self):
         with mock.patch.object(inspect.WorkItemQuery,'code_state',side_effect=AssertionError('unrelated git')):
             self.assertEqual('demo',inspect.list_items(self.root)['items'][0]['slug'])

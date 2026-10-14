@@ -14,6 +14,7 @@ from workbench.workspace.paths import workflow_file, workflow_runs_root, workspa
 API_MAJOR = 2
 API_MINOR = 3
 MAX_RESPONSE = 8 * 1024 * 1024
+HANDOFF_CONTENT_MAX_BYTES = 2 * 1024
 OPERATIONS = ['workspace', 'items', 'projection', 'document', 'artifacts', 'verification', 'evidence', 'handoff', 'search', 'workflow', 'runs', 'run']
 
 
@@ -127,20 +128,93 @@ def verification(root, slug, check_code=False, deadline=None):
     return result
 
 
+def _compact_rows(rows, keys):
+    return [{key: row[key] for key in keys if key in row} for row in rows]
+
+
+def _handoff_content(slug, scope, current, blocking, next_actions, sources):
+    lines = [f'# {slug} 接手',
+             '',
+             f"- 范围：{scope.get('activity') or '-'} / 风险 {scope.get('riskTier') or '-'} / 迭代 {scope.get('iteration') or '-'}",
+             f"- 生命周期：{scope.get('lifecycle') or '-'}",
+             '- 仓绑定：' + ('、'.join(
+                 f"{row.get('repository', '-')} ({row.get('workBranch') or '-'} <- {row.get('baseBranch') or '-'})"
+                 for row in scope.get('repositories', [])) or '无'),
+             f"- 当前阶段：{current.get('stage') or '-'}",
+             f"- 当前任务：{json.dumps(current.get('task'), ensure_ascii=False)}",
+             f"- 阻塞：{json.dumps(blocking, ensure_ascii=False)}",
+             f"- 下一步：{json.dumps(next_actions, ensure_ascii=False)}",
+             '',
+             '文档引用：']
+    lines.extend(f"- [{source.get('kind')}]({source.get('path')}) {source.get('documentRevision')}"
+                 for source in sources)
+    lines.extend(['', f"完整入口：kit.py brief {slug} --json"])
+    content = '\n'.join(lines)
+    encoded = content.encode('utf-8')
+    if len(encoded) <= HANDOFF_CONTENT_MAX_BYTES:
+        return content, False
+    # Keep a complete, actionable entry point instead of silently slicing content.
+    fallback = '\n'.join([
+        f'# {slug} 接手',
+        '',
+        f"- 当前阶段：{current.get('stage') or '-'}",
+        f"- 当前任务：{json.dumps(current.get('task'), ensure_ascii=False)}",
+        '- 接手摘要超出预算，详情入口：',
+        f'  `kit.py brief {slug} --json`',
+    ])
+    if len(fallback.encode('utf-8')) > HANDOFF_CONTENT_MAX_BYTES:
+        fallback = f'接手摘要超出预算，详情入口：kit.py brief {slug} --json'
+    return fallback, True
+
+
 def handoff(root, slug, check_code=False, deadline=None):
     from workbench.context_measure import estimate_tokens
-    brief = WorkItemQuery(root, slug, deadline=deadline).continuation(check_code=check_code)
-    sources = [{'kind': d['role'], 'path': d['path'], 'documentRevision': d['documentRevision'], 'startLine': 1} for d in brief['documents']]
-    content = '# ' + slug + ' 接手\n\n' + '\n'.join(f'- {key}：{json.dumps(brief.get(key), ensure_ascii=False)}' for key in ['iteration', 'activity', 'lifecycle', 'currentStage', 'currentTask', 'blockers', 'nextActions'])
-    content += '\n\n文档：\n' + '\n'.join(f"- [{s['kind']}]({s['path']})" for s in sources)
-    for label, rows in [('开发阻塞', brief.get('executionBlockers', [])), ('待外部验收', brief.get('verification', {}).get('pendingExternalChecks', []))]:
-        opened = [row for row in rows if row.get('status') not in {'resolved', 'passed', 'waived'}]
-        if opened:
-            content += '\n\n' + label + '：\n' + '\n'.join('- ' + json.dumps(row, ensure_ascii=False) for row in opened[:10])
-            if len(opened) > 10:
-                content += f'\n其余 {len(opened)-10} 项使用 kit.py brief {slug} 查看。'
-    return {'slug': slug, 'content': content, 'estimatedTokens': estimate_tokens(content)['estTokens'], 'sources': sources,
-            'stateRevision': brief['stateRevision'], 'progression': {key: brief[key] for key in ['currentStage', 'nextActions', 'blockers']}}
+    reader = WorkItemQuery(root, slug, deadline=deadline)
+    brief = reader.continuation(check_code=check_code)
+    sources = [{
+        'kind': document['role'],
+        'path': document['path'],
+        'documentRevision': document['documentRevision'],
+        'startLine': 1,
+        **({'endLine': document['lineCount']} if document.get('lineCount') else {}),
+    } for document in brief['documents']]
+    repositories = _compact_rows(
+        brief.get('repositoryContext', []),
+        ('repository', 'baseBranch', 'workBranch', 'currentBranch', 'state'),
+    )
+    scope = {
+        'activity': brief.get('activity'),
+        'riskTier': brief.get('riskTier'),
+        'lifecycle': brief.get('lifecycle'),
+        'iteration': brief.get('iteration'),
+        'repositories': repositories or _compact_rows(reader.state.get('bindings', []), ('repository', 'baseBranch', 'workBranch')),
+    }
+    current = {'stage': brief.get('currentStage'), 'task': brief.get('currentTask')}
+    opened_execution = [row for row in brief.get('executionBlockers', []) if row.get('status') not in {'resolved', 'passed', 'waived'}]
+    opened_external = [row for row in brief.get('verification', {}).get('pendingExternalChecks', [])
+                       if row.get('status') not in {'resolved', 'passed', 'waived'}]
+    blocking = {
+        'workflow': brief.get('blockers', []),
+        'execution': _compact_rows(opened_execution[:10], ('id', 'reason', 'owner', 'condition', 'status', 'taskIds')),
+        'external': _compact_rows(opened_external[:10], ('id', 'requirement', 'description', 'owner', 'status')),
+    }
+    content, truncated = _handoff_content(slug, scope, current, blocking, brief.get('nextActions', []), sources)
+    return {
+        'slug': slug,
+        'content': content,
+        'estimatedTokens': estimate_tokens(content)['estTokens'],
+        'contentBytes': len(content.encode('utf-8')),
+        'contentLimitBytes': HANDOFF_CONTENT_MAX_BYTES,
+        'contentTruncated': truncated,
+        'detailsEntrypoint': f'kit.py brief {slug} --json',
+        'scope': scope,
+        'current': current,
+        'blocking': blocking,
+        'nextActions': brief.get('nextActions', []),
+        'sources': sources,
+        'stateRevision': brief['stateRevision'],
+        'progression': {key: brief[key] for key in ['currentStage', 'nextActions', 'blockers']},
+    }
 
 
 def workflow(root):
