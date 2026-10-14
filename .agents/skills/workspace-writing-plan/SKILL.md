@@ -29,6 +29,6 @@ description: Prepare independent executable tasks when a change needs explicit d
 
 逐项检查 R→D→任务→验证的语义覆盖、接口与依赖、路径和命令。运行 brief 确认计划可解析。计划正文不依赖历史会话，引用权威文档，不复制全文。
 
-将实际计划、目标仓、基线、分支和执行方式一起展示。默认单 Agent；已有授权内的组织细节自行处理。选择多 Agent 时，计划标出主协调、实现 worker 或只读审查的角色，不把宿主 Agent ID、模型或聊天会话写入计划；运行关联由接入层临时管理。重大需求必须在 Design 批准后才可通过 `item prepare --role plan` 生成计划，并单独审阅；普通方案可一次审阅包含计划的完整包。批准后使用 `item approval --role plan --decision approved --reason <依据> --state-revision <stateRevision>` 登记任务，再转 workspace-execute-plan 连续推进。Kit 入口不覆盖已有正文；直接 Markdown 编辑属于外部事实，不能由 CLI 阻止。
+展示实际计划、目标仓、基线、分支和执行方式。默认单 Agent；多 Agent 计划只记协调、实现、审查职责，运行关联由接入层管理。重大需求 Design 批准后用 `item prepare --role plan` 准备计划并单独审阅；普通方案可连同计划一次审阅。批准后用 `item approval --role plan --decision approved --reason <依据> --state-revision <stateRevision>` 登记任务，转 workspace-execute-plan 连续推进。
 
 事实漂移且范围方案不变时修正内容；改变范围、任务边界或验证强度时沿需求设计的变更分类规则处理。

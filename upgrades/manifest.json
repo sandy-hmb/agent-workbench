@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.6.0",
+  "kitVersion": "2.7.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.7.0",
+      "summary": "2.7 的重大需求严格按 Requirements→Design→Plan 分阶段生成和审批。升级后请通过 item prepare 逐阶段生成后续模板；既有 WorkItem 文档和状态保持原状，下一次审批会按当前文档版本重新核对前置关系。",
+      "runbook": "docs/guides/first-item.md"
+    },
     {
       "sinceVersion": "2.6.0",
       "summary": "2.6 为 standalone Skill-only Action 生成受管 local-* Skill Adapter。升级后运行 extension preview/doctor；旧 lock 缺少 Adapter 时使用 preview 返回的 applyCommand 补建。",

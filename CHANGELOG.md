@@ -4,6 +4,12 @@
 
 - 已激活的 standalone Skill-only Action 会生成受管 `local-*` Agent Skill 和 Claude 相对链接，支持会话技能发现。旧 standalone lock 在重新 preview/apply 后补建入口，Provider/Action 同名路径拒绝覆盖。
 
+## 2.7.0 - 2026-10-14
+
+- 重大需求按 Requirements、Design、Plan 分阶段生成和审批，前置内容批准后才准备下一份模板，减少一次性生成和评审无关文档的 token 消耗。
+- 新增 `item prepare` 受控模板入口，不覆盖已有正文；重大需求每次审批只处理一个阶段，前置规格实质修改会使后置审批重新进入审阅。
+- `brief`、`status` 和 Inspect 增加当前文档阶段与下一份可生成文档；普通需求和小改流程保持原有轻量行为。
+
 ## 2.6.0 - 2026-10-08
 
 - 已激活的 standalone Skill-only Action 会生成受管 `local-*` Agent Skill 和 Claude 相对链接，支持会话技能发现。旧 standalone lock 在重新 preview/apply 后补建入口，Provider/Action 同名路径拒绝覆盖。

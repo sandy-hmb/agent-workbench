@@ -15,7 +15,9 @@ description: Classify a change and prepare concrete requirements and design for 
 
 ## 创建与写作
 
-使用 `kit.py item create <slug> --repo <repo> --title <title> --summary <summary> --json`；复杂需求增加 `--document-kind requirements --risk-tier major`。维护模式同样使用此命令。不会建分支或初始化业务工作区。
+使用 `kit.py item create <slug> --repo <repo> --title <title> --summary <summary> --json`；重大需求加 `--document-kind requirements --risk-tier major`。
+
+重大需求首轮只写 Requirements，批准后才写 Design，再批准后才写 Plan。后续模板使用 `item prepare <slug> --role design|plan --state-revision <revision>`；不覆盖正文。Kit 约束生成入口，直接 Markdown 编辑仍须遵循阶段规则。
 
 按对应模板写内容：Requirements 维护完整业务规格、稳定 R 编号、角色条件、触发、可观察结果和反例；Design 维护完整技术方案、稳定 D 决策、选择理由、复用与新增职责、数据和接口、兼容回退及验证。
 
@@ -29,13 +31,13 @@ description: Classify a change and prepare concrete requirements and design for 
 python3 scripts/kit.py item approval <slug> --decision approved --reason "用户已批准实际方案" --state-revision <stateRevision> --json
 ```
 
-重大需求严格按 Requirements→Design→Plan 分阶段生成和审阅。创建时只生成 `requirements.md`；前置文档批准后，用 `python3 scripts/kit.py item prepare <slug> --role design|plan ...` 生成下一份模板，入口不会覆盖已有正文，也不会在前置未批准时生成。每阶段默认只审阅当前阶段；跨阶段必须显式 `--role`，且仍受前置门禁。前置文档发生实质修改并重新批准时，后置审批需重新审阅；排版修改可用 `unchanged` 沿用批准。普通需求一次审阅全部实际内容。直接编辑 Markdown 无法由 CLI 阻止，Kit 只约束自身生成和审批入口。
+重大需求每次只批准一个角色，默认当前阶段；普通需求一次批准方案包。批准记录绑定实际审阅版本。
 
 ## 修改已批准内容
 
-发现版本变化先分类。排版、措辞和文件组织未改变行为时，`item approval --decision unchanged --reason <依据>` 沿用批准；范围、验收、关键方案或验证强度改变，先记录 needs-review，说明受影响 R/D/T，再审阅实际变化。使用 `--affected-task` 指定影响任务；无法精确确定时按整个当前范围处理。
+排版、措辞和文件组织未改变行为时，`item approval --decision unchanged --reason <依据>` 沿用批准；范围、验收、关键方案或验证强度改变，先记录 needs-review，说明受影响 R/D/T，再审阅变化。重大需求实质修改使后置审批失效。用 `--affected-task` 指定影响任务，无法确定时按当前整体范围处理。
 
-复杂需求设计批准后生成计划草案；普通方案批准后直接执行。开启已结束 WorkItem 的新一轮时，先读取 references/item-iterations.md。
+普通方案批准后执行；开启新一轮先读 references/item-iterations.md。
 
 ## 调整工作项
 

@@ -17,7 +17,7 @@ python3 scripts/kit.py brief payment-retry
 python3 scripts/kit.py item approval payment-retry --decision approved --reason "用户批准实际内容" --state-revision <stateRevision> --json
 ```
 
-重大需求严格按 Requirements→Design→Plan 分阶段生成和审阅：创建只生成 `requirements.md`；Requirements 批准后用 `item prepare <slug> --role design --state-revision <stateRevision>` 生成 Design，再批准 Design 后生成 Plan。入口拒绝前置未批准、不会覆盖已有正文；默认审批只处理当前阶段，跨阶段须显式 `--role` 且仍受前置门禁。前置文档实质修改并重新批准会使后置审批失效，排版修改可用 `unchanged` 沿用批准。直接编辑 Markdown 无法由 CLI 阻止，Kit 只约束自身准备和审批入口。普通需求仍可在创建时只有 `change.md`，存在真实依赖时增加 `plan.md` 并一次批准。任务使用 `### T01 标题`，完整字段见计划模板；同 WorkItem 内编号持续递增。
+重大需求按 Requirements→Design→Plan 分阶段生成和审阅：创建只生成 `requirements.md`；Requirements 批准后用 `item prepare <slug> --role design --state-revision <stateRevision>` 准备 Design，再批准 Design 后准备 Plan。入口拒绝前置未批准、不会覆盖已有正文；每次审批只接受一个角色，默认当前阶段。前置文档实质修改或记录 needs-review 会使后置审批失效，排版修改可用 `unchanged` 沿用批准。直接编辑 Markdown 仍须遵循阶段规则。普通需求创建时只有 `change.md`，存在真实依赖时增加 `plan.md` 并一次批准。任务使用 `### T01 标题`，完整字段见计划模板；同 WorkItem 内编号持续递增。
 
 创建时可用 `--activity repair`、`investigate`、`takeover` 或 `acceptance`，分别从症状与复现、调查事实、接手风险或交付验收开始。change 模式使用 Kit 自带的对应活动模板；默认 `develop` 和其他合法自定义活动使用通用 `change.md`，requirements 模式始终使用 `requirements.md`。活动名须匹配 `^[a-z][a-z0-9-]*$`。模板只替换标题和摘要，摘要中的花括号按原文保留。活动仅选择初始正文，不改变生命周期、审批和验证门禁，也不重写已有工作项。
 
