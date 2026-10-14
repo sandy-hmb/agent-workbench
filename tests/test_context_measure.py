@@ -28,6 +28,20 @@ class ContextCostTest(unittest.TestCase):
         self.assertTrue(any('references/evidence.md' in row['path'] for row in report['rules']))
         self.assertEqual(0,report['commands'][0]['exitCode'])
 
+    def test_report_exposes_structured_measurements_without_source_content(self):
+        report = build_report(ROOT)
+        rule = report['rules'][0]
+        command = report['commands'][0]
+
+        self.assertGreater(rule['bytes'], 0)
+        self.assertTrue(rule['documentRevision'].startswith('sha256:'))
+        self.assertNotIn('content', rule)
+        self.assertGreater(command['inputBytes'], 0)
+        self.assertGreater(command['outputBytes'], 0)
+        self.assertEqual(command['outputEstTokens'], command['estTokens'])
+        self.assertEqual(command['outputBytes'], command['bytes'])
+        self.assertIn('not billed usage', report['tokenModel'])
+
     def test_four_scenarios_measure_real_sources_and_session_reuse(self):
         fixture = ItemFixture(); fixture.open(); self.addCleanup(fixture.close)
         fixture.review()
@@ -41,6 +55,12 @@ class ContextCostTest(unittest.TestCase):
         self.assertGreater(measured['threeTasks']['reusedSourceEstTokens'], 0)
         self.assertEqual(0, measured['freshResume']['reusedSourceEstTokens'])
         self.assertLess(measured['threeTasks']['totalEstTokens'], measured['freshResume']['totalEstTokens'] * 3)
+        three_tasks = measured['threeTasks']
+        self.assertGreater(three_tasks['inputBytes'], three_tasks['sourceBytes'])
+        self.assertEqual(three_tasks['inputBytes'] - three_tasks['sourceBytes'], three_tasks['reusedSourceBytes'])
+        self.assertEqual(three_tasks['usage']['inputEstTokens'], three_tasks['sourceReadEstTokens'])
+        self.assertEqual(three_tasks['usage']['outputEstTokens'], three_tasks['outputEstTokens'])
+        self.assertTrue(any(row['reused'] and row['documentRevision'].startswith('sha256:') for row in three_tasks['reads']))
         self.assertEqual([], fixture.state()['evidence'])
 
     def test_aegis_inspired_guidance_stays_conditional_and_compact(self):
