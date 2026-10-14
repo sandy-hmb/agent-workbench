@@ -852,12 +852,13 @@ def run_action(
             _summary(reason, "retry reason")
         elif previous_request_id is not None:
             raise _command("ACTION_REQUEST_NOT_FOUND", "没有可重试的请求")
+        started_at, started_monotonic = attempts.start_timing()
         record = {
             "requestId": request_id, "run": run_id, "stage": stage_id,
             "planHash": plan_hash, "fingerprint": item["fingerprint"],
             "sequence": max((x["sequence"] for x in data["requests"].values()), default=0) + 1,
             "action": binding.ref, "status": "running", "origin": "runner",
-            "updatedAt": attempts.stamp(), "summary": "Action command started",
+            "updatedAt": started_at, "startedAt": started_at, "summary": "Action command started",
             "diagnosticCodes": [], "effects": list(binding.action.effects),
             "previousRequestId": previous_request_id, "reason": reason,
             "context": {key: run[key] for key in ("itemSlug", "repository", "branch")},
@@ -877,7 +878,8 @@ def run_action(
                 result = run_provider(command, cwd=binding.manifest.root, provider=binding.ref,
                                       request=request, environment=binding.action.environment or ())
             except BaseException:
-                record.update(status="unknown", summary="执行中断，需核对外部结果", updatedAt=attempts.stamp())
+                record.update(status="unknown", summary="执行中断，需核对外部结果", updatedAt=attempts.stamp(),
+                              **attempts.finish_timing(started_monotonic))
                 attempts.save(root, run_id, data)
                 raise
             codes = [x.get("code") for x in result.get("diagnostics", []) if isinstance(x, Mapping) and isinstance(x.get("code"), str)][:20]
@@ -886,7 +888,8 @@ def run_action(
             unknown = not did_not_start and any(code in {"PROVIDER_TIMEOUT", "PROVIDER_PROCESS_ERROR", "PROVIDER_PROTOCOL_ERROR", "PROVIDER_OUTPUT_LIMIT"} for code in codes)
             state = "succeeded" if result.get("status") == "ok" else "unknown" if unknown else "failed"
             record.update(status=state, summary="执行结果未知，先核对再重试" if unknown else _result_summary(result),
-                          diagnosticCodes=codes, updatedAt=attempts.stamp())
+                          diagnosticCodes=codes, updatedAt=attempts.stamp(),
+                          **attempts.finish_timing(started_monotonic))
             attempts.save(root, run_id, data)  # Result is authoritative even if its projection fails.
             return {**record, "replayed": False}
 

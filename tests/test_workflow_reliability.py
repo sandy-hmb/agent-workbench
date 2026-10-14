@@ -5,6 +5,7 @@ import os
 import unittest
 from unittest import mock
 import tests.support.workflows as fixtures
+from workbench.extensions import attempts
 import workbench.extensions.runner as workflow
 
 
@@ -99,20 +100,62 @@ class ActionReliabilityTest(unittest.TestCase):
         self.assertEqual('canonical-request', captured['requestId'])
         self.assertEqual(self.item['planHash'], captured['planHash'])
 
+    def test_action_records_monotonic_execution_duration(self):
+        with mock.patch.object(attempts.time, 'monotonic', side_effect=[12.0, 12.125]):
+            with mock.patch.object(workflow, 'run_provider', return_value={'status': 'ok', 'diagnostics': []}):
+                result = self.execute(request_id='timed')
+        self.assertEqual('succeeded', result['status'])
+        self.assertIsInstance(result['startedAt'], str)
+        self.assertIsInstance(result['finishedAt'], str)
+        self.assertEqual(125, result['durationMs'])
+        self.assertGreaterEqual(result['durationMs'], 0)
+
     def test_unknown_outcome_requires_reconciliation_before_retry(self):
         uncertain = {'status': 'failed', 'diagnostics': [{'code': 'PROVIDER_TIMEOUT'}]}
         with mock.patch.object(workflow, 'run_provider', return_value=uncertain) as dispatch:
             result = self.execute(request_id='timed-out')
             self.assertEqual('unknown', result['status'])
+            self.assertIsInstance(result['startedAt'], str)
+            self.assertIsInstance(result['finishedAt'], str)
+            self.assertGreaterEqual(result['durationMs'], 0)
             self.execute(request_id='timed-out')
             self.assertEqual(1, dispatch.call_count)
         with self.assertRaisesRegex(ValueError, 'ACTION_RECONCILIATION_REQUIRED'):
             self.execute(request_id='retry-one', previous_request_id='timed-out', reason='retry')
         fixed = workflow.reconcile_action(self.root, 'reliable', 'timed-out', status='failed', summary='No deployment occurred', evidence='fixture:remote-status')
         self.assertEqual('reconciled', fixed['origin'])
+        self.assertEqual(result['finishedAt'], fixed['finishedAt'])
+        self.assertEqual(result['durationMs'], fixed['durationMs'])
         with mock.patch.dict(os.environ, {'DEPLOY_TOKEN': 'fixture'}):
             self.assertEqual('succeeded', self.execute(request_id='retry-one', previous_request_id='timed-out', reason='checked remote')['status'])
         self.assertEqual('failed', workflow.action_result(self.root, 'reliable', 'timed-out')['status'])
+
+    def test_interrupted_action_records_unknown_timing(self):
+        with mock.patch.object(attempts.time, 'monotonic', side_effect=[30.0, 30.004]):
+            with mock.patch.object(workflow, 'run_provider', side_effect=RuntimeError('provider interrupted')):
+                with self.assertRaisesRegex(RuntimeError, 'provider interrupted'):
+                    self.execute(request_id='interrupted')
+        result = workflow.action_result(self.root, 'reliable', 'interrupted')
+        self.assertEqual('unknown', result['status'])
+        self.assertIsInstance(result['startedAt'], str)
+        self.assertIsInstance(result['finishedAt'], str)
+        self.assertEqual(4, result['durationMs'])
+        self.assertGreaterEqual(result['durationMs'], 0)
+
+    def test_legacy_attempt_without_timing_fields_remains_readable(self):
+        with mock.patch.object(workflow, 'run_provider', return_value={'status': 'ok', 'diagnostics': []}):
+            self.execute(request_id='legacy')
+        data = attempts.read(self.root, 'reliable')
+        record = data['requests']['legacy']
+        record.pop('startedAt')
+        record.pop('finishedAt')
+        record.pop('durationMs')
+        attempts.save(self.root, 'reliable', data)
+        result = workflow.action_result(self.root, 'reliable', 'legacy')
+        self.assertEqual('succeeded', result['status'])
+        self.assertNotIn('startedAt', result)
+        self.assertNotIn('finishedAt', result)
+        self.assertNotIn('durationMs', result)
 
     def test_unknown_result_blocks_plan_and_cannot_be_hidden_by_skip(self):
         with mock.patch.object(workflow, 'run_provider', return_value={'status': 'failed', 'diagnostics': [{'code': 'PROVIDER_TIMEOUT'}]}):

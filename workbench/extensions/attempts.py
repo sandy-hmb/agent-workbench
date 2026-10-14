@@ -8,6 +8,7 @@ import json
 import os
 import re
 import stat
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,6 +71,11 @@ def read(root: Path, run_id: str) -> dict:
         for field in ('stage', 'planHash', 'fingerprint', 'summary', 'updatedAt'):
             if not isinstance(item.get(field), str):
                 raise ValueError('ACTION_RECORD_INVALID: 请求字段无效')
+        for field in ('startedAt', 'finishedAt'):
+            if field in item and not isinstance(item[field], str):
+                raise ValueError('ACTION_RECORD_INVALID: 请求时序字段无效')
+        if 'durationMs' in item and (type(item['durationMs']) is not int or item['durationMs'] < 0):
+            raise ValueError('ACTION_RECORD_INVALID: 请求耗时字段无效')
         try:
             validate_stage_id(item['stage'])
             validate_plan_hash(item['planHash'])
@@ -95,6 +101,19 @@ def save(root: Path, run_id: str, data: dict) -> None:
 
 def stamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
+def start_timing() -> tuple[str, float]:
+    """Return the persisted start stamp and matching monotonic clock reading."""
+    return stamp(), time.monotonic()
+
+
+def finish_timing(started_monotonic: float) -> dict[str, object]:
+    """Persist wall-clock completion time while measuring elapsed time monotonically."""
+    return {
+        'finishedAt': stamp(),
+        'durationMs': max(0, int(round((time.monotonic() - started_monotonic) * 1000))),
+    }
 
 
 @contextmanager
