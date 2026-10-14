@@ -7,7 +7,7 @@ import time
 import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
-from workbench.work_items.documents import ROLES, LINK, content_roles, instructions, parse_tasks, source
+from workbench.work_items.documents import ROLES, LINK, content_roles, instructions, parse_tasks, predecessor, source
 from workbench.git import _git, git_fingerprint, branch_fingerprint
 from workbench.work_items.store import WorkItemError, digest, item_area, item_path, load_state, read_evidence, read_bytes, safe_path, state_path, text_digest
 from workbench.workspace.model import load_workspace, repository_path, resolve_repository
@@ -220,6 +220,8 @@ class WorkItemQuery:
 
     def tasks(self) -> list[dict]:
         if self._tasks is None:
+            if self.state['risk'] == 'major' and not self.state['currentTasks'] and not self.approved_document('design'):
+                return []
             document = self.document('plan')
             self._tasks = parse_tasks(document['content']) if document else []
             names = {b['repository'] for b in self.state['bindings']}
@@ -234,11 +236,29 @@ class WorkItemQuery:
         result = {}
         for role in required:
             current, review = self.document(role), self.state['reviews'].get(role)
-            result[role] = ('missing' if current is None else 'pending' if review is None or review['decision'] == 'needs-review'
+            prior = predecessor(role) if self.state['risk'] == 'major' else None
+            result[role] = ('not_ready' if prior and result.get(prior) != 'approved'
+                            else 'missing' if current is None else 'pending' if review is None or review['decision'] == 'needs-review'
                             else 'changed' if self.review_revision(role) != review['revision'] else 'approved')
         if self.state['currentTasks'] and {t['id'] for t in self.tasks()} != set(self.state['currentTasks']):
-            result['plan'] = 'changed' if self.document('plan') else 'missing'
+            if result.get('plan') != 'not_ready':
+                result['plan'] = 'changed' if self.document('plan') else 'missing'
         return result
+
+    def approved_document(self, role: str) -> bool:
+        document = self.document(role)
+        review = self.state['reviews'].get(role)
+        prior = predecessor(role) if self.state['risk'] == 'major' else None
+        return bool(document and review and review['decision'] == 'approved' and
+                    review['revision'] == self.review_revision(role) and
+                    (prior is None or self.approved_document(prior)))
+
+    def document_progress(self) -> dict:
+        """Derive the current document and the only missing template allowed now."""
+        reviews = self.review_state()
+        current = next((role for role, value in reviews.items() if value != 'approved'), None)
+        return {'currentDocument': current,
+                'nextDocument': current if current and reviews[current] == 'missing' else None}
 
     def basis_revision(self) -> str:
         versions = {}
@@ -415,6 +435,9 @@ class WorkItemQuery:
             blocks.append('WORKFLOW_CHECK_INVALID')
         can_complete = not blocks and not execution_blocks['records'] and stage == 'item.complete' and verification['applicability'] == 'valid'
         next_actions = [{'stage': stage, 'runbook': '.agents/skills/' + STAGE_SKILLS[stage] + '/SKILL.md'}]
+        document_progress = self.document_progress()
+        if self.state['risk'] == 'major' and document_progress['nextDocument']:
+            next_actions[0]['document'] = document_progress['nextDocument']
         if 'WORKFLOW_CHECK_INVALID' in blocks:
             next_actions[0]['runbook'] = '.agents/skills/workspace-item-workflow/SKILL.md'
         return {'currentStage': stage, 'executionDecision': 'BLOCKED' if blocks else 'RUN',
@@ -431,6 +454,8 @@ class WorkItemQuery:
                   'documents': self.documents(), 'artifactSummary': self.artifact_summary(),
                   'delivery': self.state['delivery'],
                   'executionBlockers': self.state['blockers'], 'cancellation': self.state['cancellation']}
+        if self.state['risk'] == 'major':
+            result['documentProgress'] = self.document_progress()
         result.update(self.decision(check_code=check_code))
         return result
 
@@ -498,6 +523,8 @@ class WorkItemQuery:
             result.update(activity=self.state['activity'], riskTier=self.state['risk'], lifecycle=self.state['lifecycle'],
                           reviews=self.review_state(), verification=self.verification(check_code=check_code),
                           documents=self.documents(), repositoryContext=self.branches(names))
+            if self.state['risk'] == 'major':
+                result['documentProgress'] = self.document_progress()
             result['instructionContext'] = combine_contexts([repository_context(self.root, path, paths=paths) for path in self.roots(names).values()])
             if decision['readyTasks']:
                 candidate = next(task for task in self.task_states() if task['id'] == decision['readyTasks'][0])

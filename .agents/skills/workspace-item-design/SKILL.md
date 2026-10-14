@@ -29,7 +29,7 @@ description: Classify a change and prepare concrete requirements and design for 
 python3 scripts/kit.py item approval <slug> --decision approved --reason "用户已批准实际方案" --state-revision <stateRevision> --json
 ```
 
-重大需求每阶段用 `--role requirements`、`--role design`、`--role plan` 定向记录。普通需求一次审阅全部实际内容。脚本记录批准对应的版本，不代替用户决策。
+重大需求严格按 Requirements→Design→Plan 分阶段生成和审阅。创建时只生成 `requirements.md`；前置文档批准后，用 `python3 scripts/kit.py item prepare <slug> --role design|plan ...` 生成下一份模板，入口不会覆盖已有正文，也不会在前置未批准时生成。每阶段默认只审阅当前阶段；跨阶段必须显式 `--role`，且仍受前置门禁。前置文档发生实质修改并重新批准时，后置审批需重新审阅；排版修改可用 `unchanged` 沿用批准。普通需求一次审阅全部实际内容。直接编辑 Markdown 无法由 CLI 阻止，Kit 只约束自身生成和审批入口。
 
 ## 修改已批准内容
 

@@ -11,6 +11,7 @@ ROLES = {'change': 'change.md', 'requirements': 'requirements.md', 'design': 'de
 TASK_HEADING = re.compile(r'^### (T\d{2,})\s+(.+?)\s*$')
 LINK = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
 KINDS = {'行为', '声明式', '持久化'}
+PREDECESSORS = {'design': 'requirements', 'plan': 'design'}
 
 
 def source(item: Path, role: str) -> dict | None:
@@ -28,6 +29,11 @@ def source(item: Path, role: str) -> dict | None:
 
 def content_roles(state: dict) -> list[str]:
     return ['change', 'plan'] if state['documentKind'] == 'change' else ['requirements', 'design', 'plan']
+
+
+def predecessor(role: str) -> str | None:
+    """Return the staged document that must be approved before ``role``."""
+    return PREDECESSORS.get(role)
 
 
 def parse_tasks(text: str, path: str = 'plan.md') -> list[dict]:

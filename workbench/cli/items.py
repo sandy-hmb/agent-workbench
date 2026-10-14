@@ -39,6 +39,9 @@ def build_parser():
         command.add_argument('--json', action='store_true')
     storage_apply.add_argument('--plan-hash', required=True)
     storage_apply.add_argument('--backup-dir', type=Path, required=True)
+    prepare = commands.add_parser('prepare')
+    prepare.add_argument('slug'); prepare.add_argument('--role', choices=['change', 'requirements', 'design', 'plan'], required=True)
+    prepare.add_argument('--state-revision', required=True)
     for name in ['approval', 'update', 'block', 'unblock', 'cancel', 'delivery', 'complete', 'pause', 'resume', 'next-iteration']:
         command = commands.add_parser(name)
         command.add_argument('slug'); command.add_argument('--state-revision', required=True)
@@ -67,6 +70,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 result = migration.preview(root, slug=args.slug, all_items=args.all)
             else:
                 result = migration.apply(root, args.plan_hash, args.backup_dir, slug=args.slug, all_items=args.all)
+        elif args.command == 'prepare':
+            result = actions.prepare_document(root, args.slug, args.role, expected_revision=args.state_revision)
         elif args.command == 'create':
             result = actions.create(root, args.slug, title=args.title, summary=args.summary, repositories=args.repo,
                                     document_kind=args.document_kind, risk=args.risk_tier, activity=args.activity, branch=args.branch)

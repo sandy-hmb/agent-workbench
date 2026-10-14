@@ -9,7 +9,7 @@ from contextlib import ExitStack, nullcontext
 from datetime import datetime
 from pathlib import Path
 
-from workbench.work_items.documents import content_roles
+from workbench.work_items.documents import ROLES, content_roles, predecessor
 from workbench.work_items.query import WorkItemQuery, repository_roots
 from workbench.git import _git
 from workbench.resources import KIT_ROOT
@@ -102,9 +102,23 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
         if state['lifecycle'] != 'active':
             raise WorkItemError('ITEM_INACTIVE', '先恢复或开启新迭代')
         reader = WorkItemQuery(root, slug, state=state)
-        roles = roles or [role for role in content_roles(state) if reader.document(role)]
+        if roles is None:
+            if state['risk'] != 'major':
+                roles = [role for role in content_roles(state) if reader.document(role)]
+            else:
+                available = reader.review_state()
+                roles = next(([role] for role in content_roles(state)
+                              if role in available and available[role] != 'approved'), ['plan'])
+        elif state['risk'] == 'major' and len(roles) != 1:
+            raise WorkItemError('REVIEW_INVALID', '重大需求每次审批只能指定一个角色')
         if not roles or any(role not in content_roles(state) for role in roles):
             raise WorkItemError('REVIEW_INVALID', '审阅角色无效')
+        # Check the persisted approval chain before processing any selected
+        # roles, so one approval command cannot unlock its own later stages.
+        for role in roles:
+            prior_role = predecessor(role) if state['risk'] == 'major' else None
+            if prior_role and not reader.approved_document(prior_role):
+                raise WorkItemError('REVIEW_ORDER_INVALID', f'先审阅 {prior_role}')
         tasks = reader.tasks()
         old_ids = set(state['currentTasks'])
         if 'plan' in roles and decision != 'needs-review':
@@ -114,21 +128,18 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
         invalidated = set(affected_tasks or [])
         if invalidated - set(state['tasks']):
             raise WorkItemError('REVIEW_INVALID', '受影响任务不存在')
+        changed_roles = set()
         for role in roles:
             document = reader.document(role)
             if document is None:
                 raise WorkItemError('DOCUMENT_MISSING', role)
             old = state['reviews'].get(role)
-            predecessor = {'design': 'requirements', 'plan': 'design'}.get(role)
-            if state['risk'] == 'major' and predecessor and decision == 'approved':
-                prior = state['reviews'].get(predecessor)
-                prior_doc = reader.document(predecessor)
-                if not prior or prior['decision'] != 'approved' or not prior_doc or prior['revision'] != reader.review_revision(predecessor):
-                    raise WorkItemError('REVIEW_ORDER_INVALID', f'先审阅 {predecessor}')
             if decision == 'unchanged' and (old is None or old['decision'] != 'approved'):
                 raise WorkItemError('REVIEW_INVALID', '没有可沿用的已批准内容')
             document_revision = reader.review_revision(role)
             changed = old is not None and old['revision'] != document_revision
+            if state['risk'] == 'major' and (changed and decision != 'unchanged' or decision == 'needs-review'):
+                changed_roles.add(role)
             if affected_tasks is None and (decision == 'needs-review' or (decision != 'unchanged' and changed and role in {'change', 'requirements', 'design'})):
                 invalidated.update(old_ids)
             state['reviews'][role] = {'revision': document_revision,
@@ -151,11 +162,59 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
             invalidated.update(dependents)
         for task_id in invalidated & state['tasks'].keys():
             state['tasks'][task_id]['evidence'] = None
+        # Substantive changes to an earlier staged document invalidate every
+        # downstream approval; editorial ``unchanged`` keeps the chain.
+        for role in changed_roles:
+            downstream = False
+            for candidate in content_roles(state):
+                if candidate == role:
+                    downstream = True
+                    continue
+                if downstream and candidate in state['reviews']:
+                    state['reviews'][candidate].update(
+                        decision='needs-review', reason=f'{role} 已发生实质修改', recordedAt=stamp())
         if decision != 'unchanged':
             state['verification'] = None
         reader.assert_unchanged()
         state = save_state(directory, state)
     return _finish(root, slug, state)
+
+
+def prepare_document(root: Path, slug: str, role: str, *, expected_revision: str) -> dict:
+    """Create one staged document template without replacing existing prose."""
+    if role not in {'change', 'requirements', 'design', 'plan'}:
+        raise WorkItemError('DOCUMENT_INVALID', '文档角色无效')
+    directory = item_path(root, slug)
+    with item_lock(directory):
+        state = load_state(directory)
+        check_revision(state, expected_revision)
+        if state['lifecycle'] != 'active':
+            raise WorkItemError('ITEM_INACTIVE', '先恢复或开启新迭代')
+        if role not in content_roles(state):
+            raise WorkItemError('DOCUMENT_INVALID', '文档角色不适用于当前工作项')
+        target = safe_path(directory, ROLES[role])
+        if target.exists():
+            raise WorkItemError('DOCUMENT_EXISTS', f'不覆盖已有正文：{ROLES[role]}')
+        reader = WorkItemQuery(root, slug, state=state)
+        prior_role = predecessor(role) if state['risk'] == 'major' else None
+        if prior_role and not reader.approved_document(prior_role):
+            raise WorkItemError('DOCUMENT_ORDER_INVALID', f'先批准 {prior_role} 才能生成 {role}')
+        template_path = KIT_ROOT / 'templates/item' / (role + '.md')
+        try:
+            template = template_path.read_text(encoding='utf-8')
+        except (OSError, UnicodeError) as exc:
+            raise WorkItemError('ITEM_TEMPLATE_INVALID', f'无法读取工作项模板：{template_path}；{exc}') from exc
+        values = {'title': state['title'], 'summary': state['summary']}
+        content = re.sub(r'\{(title|summary)\}', lambda match: values[match[1]], template)
+        if role == 'plan':
+            content = content.replace('目标仓：repository', '目标仓：' + state['bindings'][0]['repository'])
+            content = content.replace('### T01 ', f"### T{state['maxTaskNumber'] + 1:02d} ")
+        reader.assert_unchanged()
+        with target.open('x', encoding='utf-8') as handle:
+            handle.write(content)
+    rendered = render(root, slug)
+    return {'itemSlug': slug, 'role': role, 'path': ROLES[role], 'created': True,
+            'stateRevision': state['stateRevision'], 'rendered': rendered['rendered']}
 
 
 def validate_checks(payload: dict, validation_kind: str | None) -> None:

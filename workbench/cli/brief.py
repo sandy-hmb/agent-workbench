@@ -53,6 +53,11 @@ def _item_lines(value: dict) -> list[str]:
               f"执行决策：{value.get('executionDecision', '未提供')}",
               '可完成：' + ('是' if value.get('canComplete') else '否'),
               '阻塞：' + ('、'.join(value.get('blockers', [])) or '无阻塞')]
+    progress = value.get('documentProgress')
+    if progress:
+        lines.append('文档阶段：' + (progress.get('currentDocument') or '已批准全部阶段'))
+        if progress.get('nextDocument'):
+            lines.append('下一份可生成文档：' + progress['nextDocument'])
     blocks = [row for row in value.get('executionBlockers', []) if row['status'] == 'open']
     lines.append('开发阻塞：' + ('' if blocks else '无开发阻塞'))
     for row in blocks:
