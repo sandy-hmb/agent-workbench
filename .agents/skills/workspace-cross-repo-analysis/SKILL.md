@@ -28,6 +28,17 @@ python3 scripts/kit.py registry resolve <name> --json
 
 使用事实、推断、待确认三类标记，避免把仓库描述当成实现事实。
 
+## 结论格式
+
+跨仓结论按“一条发现一行”输出，至少包含：
+
+- `status`：`exists`、`absent` 或 `unknown`；无法读取、版本不明或只有间接线索时使用 `unknown`，不把未搜索到写成 `absent`。
+- `repository`、相对 `path` 和 `symbol` 或 `line`；没有具体实现位置时写明“未定位”，不能用仓库根目录代替证据。
+- `revision`：已核对的文档 revision、Git commit 或其他来源版本；无法取得时写“未确认”。
+- `kind`：`fact`、`inference` 或 `pending`；使用 `pending` 时写责任方和确认条件。
+
+只返回结论、来源定位和必要的短理由；不要把完整源码、日志或需求正文粘贴到输出。需要查看正文时引用精确路径和行范围，交由后续阶段按需读取。
+
 ## 边界
 
 默认只读。未经用户对具体仓的明确授权不写代码或文档，不创建分支，不提交、push、合并、提测或解决冲突。本 Skill 不负责 Git 集成；需要同步基线或交付测试时分别使用 `workspace-sync-base` 或 `workspace-submit-test`。
