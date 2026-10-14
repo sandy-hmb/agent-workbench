@@ -4,6 +4,13 @@
 
 - 已激活的 standalone Skill-only Action 会生成受管 `local-*` Agent Skill 和 Claude 相对链接，支持会话技能发现。旧 standalone lock 在重新 preview/apply 后补建入口，Provider/Action 同名路径拒绝覆盖。
 
+## 2.8.0 - 2026-10-15
+
+- Inspect handoff 增加范围、仓绑定、当前阶段、阻塞、下一步和文档 revision；摘要正文限制为 2 KiB，超限时保留 `brief` 详情入口，不复制需求与设计正文。
+- `context-measure` 增加来源字节数、revision、估算 token、复用字节和 CLI 输入输出指标；这些数据用于估算读取成本，不代表模型计费 token，也不保存正文或凭据。
+- Workflow Action attempts 增加 `startedAt`、`finishedAt` 和 `durationMs`，覆盖成功、失败、unknown 和中断结果；旧执行记录继续可读。
+- 跨仓分析 Skill 要求结论标注存在性、仓库路径、符号或行号、来源版本及事实类型，减少大段源码进入后续上下文。
+
 ## 2.7.0 - 2026-10-14
 
 - 重大需求按 Requirements、Design、Plan 分阶段生成和审批，前置内容批准后才准备下一份模板，减少一次性生成和评审无关文档的 token 消耗。

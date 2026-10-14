@@ -38,3 +38,5 @@ items、runs、search 的 data.collectionRevision 对完整筛选集合计算，
 显式检查当前适用性时，同时核对当前批次和当前任务引用的交付物；artifactStates 标明 matched/changed/missing/unknown。修改交付物后旧证据保留，但不能支持当前完成。
 
 接手包包含未解决阻塞的原因、负责人、解除条件及待外部验收摘要；完整事项通过定向 brief 查询，历史不默认展开。
+
+2.8 的 handoff 增加 `scope`、`current`、`blocking`、`nextActions`、`contentBytes`、`contentLimitBytes`、`contentTruncated` 和 `detailsEntrypoint`。`content` 只保留不超过 2 KiB 的摘要与文档 revision 引用；超限时使用 `detailsEntrypoint` 读取完整事实。`sources` 保持原字段兼容，并补充可选 `endLine`。

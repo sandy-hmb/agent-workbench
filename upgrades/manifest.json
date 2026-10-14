@@ -11,6 +11,11 @@
   },
   "manualSteps": [
     {
+      "sinceVersion": "2.8.0",
+      "summary": "2.8 增加紧凑 handoff、上下文成本估算、Action 执行时序和跨仓结论定位。升级不迁移 .workspace 或 Extension；需要成本数据时重新运行 context-measure，需要读取 handoff 新字段时按 Inspect 2.3 的 additionalProperties 兼容方式处理。",
+      "runbook": "docs/reference/workbench-inspect.md"
+    },
+    {
       "sinceVersion": "2.7.0",
       "summary": "2.7 的重大需求严格按 Requirements→Design→Plan 分阶段生成和审批。升级后请通过 item prepare 逐阶段生成后续模板；既有 WorkItem 文档和状态保持原状，下一次审批会按当前文档版本重新核对前置关系。",
       "runbook": "docs/guides/first-item.md"
