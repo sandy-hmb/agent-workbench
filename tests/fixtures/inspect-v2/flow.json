@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "flow",
     "slug": "demo",
-    "stateRevision": "sha256:1901450d5ce0ff02908af5d25e9e298e2c71b2b510e30ff5794d2d2ab15544d3",
+    "stateRevision": "sha256:7fc00e7cdb37e2f6d1c9aa168cff89cd9446733d13ae7c3c817fc78e9d313645",
     "status": "active",
     "delivery": {
       "repositories": {},
@@ -19,7 +19,7 @@
     },
     "verification": {
       "recordedResult": "passed",
-      "evidenceId": "sha256:63d061e65deda06e0b1e4d362dd1b788e02af1328a728850936d71dd86112af8",
+      "evidenceId": "sha256:2b627bc3096fdd22ad31016c4bbfe9ba00dd429b394269214093f786d6af6601",
       "applicability": "not_checked",
       "verificationScope": "",
       "pendingExternalChecks": [],
@@ -33,5 +33,5 @@
     "executionBlockers": [],
     "cancellation": null
   },
-  "responseRevision": "sha256:7d1d04f887b9a7c4c0c9024fcf88b76a122e168d67435b3d8d2fce6d95f3c955"
+  "responseRevision": "sha256:ce6dd29a6108b6bd1a18565deec2671689326415f771a9afad628b1b73dc5105"
 }

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import time
 import re
 from pathlib import Path
@@ -102,6 +103,7 @@ class WorkItemQuery:
         self._artifact_documents = None
         self._artifact_collection_revision = None
         self._external_checks = None
+        self._task_progress = None
         self.deadline = deadline
 
     def remaining(self, maximum: float = 25) -> float:
@@ -294,6 +296,139 @@ class WorkItemQuery:
             task['executionBlocked'] = task['id'] in blocked['tasks']
         return results
 
+    @staticmethod
+    def _recorded_at(value: dict | None) -> datetime:
+        if not value or not isinstance(value.get('recordedAt'), str):
+            return datetime.min
+        try:
+            parsed = datetime.fromisoformat(value['recordedAt'].replace('Z', '+00:00'))
+            return parsed.astimezone(timezone.utc).replace(tzinfo=None) if parsed.tzinfo else parsed
+        except ValueError:
+            return datetime.min
+
+    def task_progress(self) -> list[dict]:
+        """Project approved and pending plan tasks without changing execution gates."""
+        if self._task_progress is not None:
+            return self._task_progress
+        document = self.document('plan')
+        planned = parse_tasks(document['content']) if document else []
+        names = {binding['repository'] for binding in self.state['bindings']}
+        if any(task['repository'] not in names for task in planned):
+            raise WorkItemError('PLAN_REPOSITORY_INVALID', '任务必须声明 WorkItem 中的唯一目标仓')
+        by_id = {task['id']: task for task in planned}
+        task_ids = set(by_id) | set(self.state['currentTasks'])
+        latest, latest_passed = {}, {}
+        for identifier in reversed(self.state['evidence']):
+            record = self.evidence(identifier)
+            task_id = record.get('taskId')
+            if task_id in task_ids and record.get('iteration') == self.state['iteration']:
+                if task_id not in latest:
+                    latest[task_id] = record
+                if record.get('result') == 'passed' and task_id not in latest_passed:
+                    latest_passed[task_id] = record
+        current_states = {task['id']: task for task in self.task_states()}
+        blocked = self.execution_blocks()
+        completed = {task_id for task_id, row in current_states.items() if row['completed']}
+        results = []
+        for task_id in sorted(task_ids, key=lambda value: int(value[1:])):
+            task = by_id.get(task_id)
+            recorded = self.state['tasks'].get(task_id, {})
+            definition_matches = bool(task and recorded.get('definitionRevision') == task['documentRevision'])
+            if task_id not in self.state['currentTasks']:
+                approval = 'pending'
+            elif not definition_matches:
+                approval = 'changed'
+            else:
+                approval = 'approved'
+            current = current_states.get(task_id)
+            current_evidence = self.evidence(recorded.get('evidence')) if recorded.get('evidence') else None
+            last_evidence = latest.get(task_id)
+            invalidation = recorded.get('verificationInvalidation')
+            if approval == 'changed' and last_evidence and not invalidation:
+                invalidation = {'evidenceId': last_evidence['id'], 'recordedAt': self.state['updatedAt'],
+                                'reason': '当前计划任务定义尚未批准'}
+            elif not current_evidence and last_evidence and not invalidation:
+                invalidation = {'evidenceId': last_evidence['id'], 'recordedAt': self.state['updatedAt'],
+                                'reason': '历史验证记录未被当前任务引用，失效原因未记录'}
+            if approval != 'approved':
+                verification = 'needs-revalidation' if last_evidence else 'unverified'
+            elif current_evidence:
+                verification = 'passed' if current_evidence['result'] == 'passed' else 'failed'
+            elif last_evidence:
+                verification = 'needs-revalidation'
+            else:
+                verification = 'unverified'
+            execution = recorded.get('execution')
+            if execution:
+                execution_status, execution_source = execution['status'], 'recorded'
+            elif task_id in latest_passed:
+                execution_status, execution_source = 'implemented', 'verification-evidence'
+            else:
+                execution_status, execution_source = 'unknown', 'none'
+            if execution_status == 'unknown':
+                execution_applicability = 'unknown'
+            elif invalidation and self._recorded_at(execution) <= self._recorded_at(invalidation):
+                execution_applicability = 'needs-reassessment'
+            else:
+                execution_applicability = 'current'
+            waiting = list(task.get('dependencies', [])) if task else []
+            waiting = [dependency for dependency in waiting if dependency not in completed]
+            blockers = [
+                {key: row[key] for key in ('id', 'reason', 'owner', 'condition')}
+                for row in blocked['records']
+                if not row['taskIds'] or task_id in row['taskIds']
+            ]
+            if approval != 'approved':
+                next_step = 'approve-plan'
+            elif blockers:
+                next_step = 'resolve-blocker'
+            elif waiting:
+                next_step = 'wait-dependencies'
+            elif verification == 'passed':
+                next_step = 'none'
+            elif execution_status == 'implemented':
+                next_step = 'verify-task'
+            else:
+                next_step = 'implement-task'
+            last_verification = ({'evidenceId': last_evidence['id'], 'recordedAt': last_evidence['recordedAt'],
+                                  'result': last_evidence['result']} if last_evidence else None)
+            records = []
+            if execution:
+                records.append({'kind': 'execution', 'recordedAt': execution['recordedAt'],
+                                'status': execution['status'], 'summary': execution['summary']})
+            if last_verification:
+                records.append({'kind': 'verification', **last_verification})
+            last_record = max(records, key=self._recorded_at) if records else None
+            base = {key: value for key, value in (task or {}).items() if key != 'body'}
+            results.append({**base, 'id': task_id, 'title': base.get('title', '计划中已移除的已登记任务'),
+                            'approvalStatus': approval, 'executionStatus': execution_status,
+                            'executionApplicability': execution_applicability, 'executionSource': execution_source,
+                            'verificationStatus': verification, 'lastImplementation': execution,
+                            'lastVerification': last_verification, 'lastRecord': last_record,
+                            'invalidation': invalidation, 'blockers': blockers, 'waitingFor': waiting,
+                            'nextStep': next_step, 'status': current['status'] if current else ('changed' if approval == 'changed' else 'pending-approval'),
+                            'evidenceId': recorded.get('evidence'), 'completed': verification == 'passed' and approval == 'approved',
+                            'executionBlocked': bool(blockers)})
+        self._task_progress = results
+        return results
+
+    def progress_summary(self) -> dict:
+        tasks = self.task_progress()
+        approved = [task for task in tasks if task['approvalStatus'] == 'approved']
+        return {'completed': sum(task['completed'] for task in approved), 'total': len(self.state['currentTasks']),
+                'plannedTotal': len(tasks), 'pendingApproval': sum(task['approvalStatus'] == 'pending' for task in tasks),
+                'changedApproval': sum(task['approvalStatus'] == 'changed' for task in tasks),
+                'execution': {status: sum(task['executionStatus'] == status for task in tasks)
+                              for status in ('unknown', 'not-started', 'in-progress', 'implemented')},
+                'verification': {status: sum(task['verificationStatus'] == status for task in tasks)
+                                 for status in ('unverified', 'passed', 'failed', 'needs-revalidation')}}
+
+    def compact_task_progress(self) -> list[dict]:
+        fields = ('id', 'title', 'approvalStatus', 'executionStatus', 'executionApplicability',
+                  'verificationStatus', 'lastRecord', 'invalidation', 'blockers', 'waitingFor',
+                  'nextStep', 'evidenceId', 'completed')
+        return [{key: task.get(key) for key in fields} for task in self.task_progress()]
+
     def branches(self, names=None) -> list[dict]:
         values = []
         for binding in self.state['bindings']:
@@ -449,7 +584,7 @@ class WorkItemQuery:
                   'path': str(self.path.relative_to(self.root)), 'status': self.state['lifecycle'], 'riskTier': self.state['risk'],
                   'activity': self.state['activity'], 'iteration': self.state['iteration'], 'stateRevision': self.state['stateRevision'],
                   'updatedAt': self.state['updatedAt'], 'repositoryBindings': self.state['bindings'],
-                  'progress': {'completed': sum(t['completed'] for t in tasks), 'total': len(tasks)},
+                  'progress': self.progress_summary(),
                   'reviews': self.review_state(), 'verification': self.verification(check_code=check_code),
                   'documents': self.documents(), 'artifactSummary': self.artifact_summary(),
                   'delivery': self.state['delivery'],
@@ -463,11 +598,12 @@ class WorkItemQuery:
         task = next((t for t in self.tasks() if t['id'] == task_id), None)
         if task is None:
             raise WorkItemError('TASK_NOT_FOUND', task_id)
-        current = next((t for t in self.task_states() if t['id'] == task_id), None)
+        current = next((t for t in self.task_progress() if t['id'] == task_id and t['approvalStatus'] == 'approved'), None)
         if current is None:
             raise WorkItemError('TASK_UNREGISTERED', '当前任务尚未经过计划审阅')
-        return {**task, 'status': current['status'], 'completed': current['completed'],
-                'executionBlocked': current['executionBlocked'], 'waitingFor': current['waitingFor'],
+        return {**task, **{key: current[key] for key in ('status', 'completed', 'executionBlocked', 'waitingFor',
+                'approvalStatus', 'executionStatus', 'executionApplicability', 'verificationStatus', 'lastRecord',
+                'invalidation', 'blockers', 'nextStep')},
                 'instructionContext': repository_context(self.root, self.roots({task['repository']})[task['repository']], task=task)}
 
     def requirement_sources(self, task: dict) -> list[dict]:
@@ -515,14 +651,22 @@ class WorkItemQuery:
             if paths:
                 context = repository_context(self.root, self.roots(names)[selected['repository']], paths=paths, task=selected)
             result['instructionContext'] = context
-            result['selectedTask'] = {key: selected[key] for key in ('id', 'path', 'documentRevision', 'startLine', 'endLine', 'body', 'status', 'executionBlocked', 'waitingFor')}
+            result['selectedTask'] = {key: selected[key] for key in (
+                'id', 'path', 'documentRevision', 'startLine', 'endLine', 'body', 'status', 'approvalStatus',
+                'executionStatus', 'executionApplicability', 'verificationStatus', 'lastRecord', 'invalidation',
+                'nextStep', 'executionBlocked', 'waitingFor')}
             result['sources'] = self.requirement_sources(selected)
-            result['directDependencies'] = [{key: task[key] for key in ('id', 'status', 'evidenceId')} for task in self.task_states() if task['id'] in selected['dependencies']]
+            result['directDependencies'] = [{key: task[key] for key in (
+                'id', 'status', 'executionStatus', 'verificationStatus', 'evidenceId')}
+                for task in self.task_progress() if task['id'] in selected['dependencies']]
             result['repositoryContext'] = self.branches({selected['repository']})
+            result['progress'] = self.progress_summary()
+            result['taskProgress'] = [task for task in self.compact_task_progress() if task['id'] == task_id]
         else:
             result.update(activity=self.state['activity'], riskTier=self.state['risk'], lifecycle=self.state['lifecycle'],
                           reviews=self.review_state(), verification=self.verification(check_code=check_code),
-                          documents=self.documents(), repositoryContext=self.branches(names))
+                          documents=self.documents(), repositoryContext=self.branches(names),
+                          progress=self.progress_summary(), taskProgress=self.compact_task_progress())
             if self.state['risk'] == 'major':
                 result['documentProgress'] = self.document_progress()
             result['instructionContext'] = combine_contexts([repository_context(self.root, path, paths=paths) for path in self.roots(names).values()])

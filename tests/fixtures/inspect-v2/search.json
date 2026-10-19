@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "search",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -15,17 +15,17 @@
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-28T05:39:56.065102+00:00",
+        "lastUpdated": "2026-10-19T06:47:48.446980+00:00",
         "path": "change.md",
         "line": 1,
         "heading": null,
-        "snippet": "# Demo"
+        "snippet": "# Demo 变更说明"
       },
       {
         "slug": "demo",
         "title": "Demo",
         "status": "active",
-        "lastUpdated": "2026-09-28T05:39:56.065102+00:00",
+        "lastUpdated": "2026-10-19T06:47:48.446980+00:00",
         "path": "README.md",
         "line": 1,
         "heading": null,
@@ -35,7 +35,7 @@
     "counts": {
       "total": 2
     },
-    "collectionRevision": "sha256:b1d02586afda7eb390d579204fde1fa8a476e2d768e1ca50d20296d2dc147095",
+    "collectionRevision": "sha256:5315cf708b87c246be05c2f2e0279dbf2ab4234672b3005e024b4f24f1575e13",
     "page": {
       "offset": 0,
       "limit": 20,
@@ -43,5 +43,5 @@
       "hasMore": false
     }
   },
-  "responseRevision": "sha256:44cd3466e24b1f0a6198f605ebf9fbb3e7763cf98b7b9468de65cd072d2a75f8"
+  "responseRevision": "sha256:95a3777cd509d01b77e58df3755c8b45a3425bd311975fa404f03677e83983b6"
 }

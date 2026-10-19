@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "document",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,11 +11,11 @@
   "data": {
     "slug": "demo",
     "path": "change.md",
-    "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
-    "content": "# Demo\n\n## 目标\n\n\n\n## 范围与验收\n\n## 方案与工作项\n",
-    "bytes": 63,
-    "lineCount": 9,
+    "documentRevision": "sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f",
+    "content": "# Demo 变更说明\n\n## 目标与范围\n\n\n\n## 已知事实与关键假设\n\n仅保留会影响本次结果的事实、未知项与来源。\n\n## 验收与检查\n\n说明角色、条件、触发、可观察结果和必要反例；选择能证明该要求的检查入口。\n\n## 方案与工作项\n\n按实际工作列出动作，不维护完成复选框。普通需求默认一次整体验证，有真实依赖或接力需要才增加 plan.md。\n",
+    "bytes": 440,
+    "lineCount": 17,
     "mediaType": "text/markdown"
   },
-  "responseRevision": "sha256:5df64188d8621fa77d7caac3831bbc262e3b8026bc268c9bed8bd1fc028ca6b4"
+  "responseRevision": "sha256:42ed126a36b1ff5840cd8d584a6c27fa0fe13a41b950a1c2bd038427fa84ca5d"
 }

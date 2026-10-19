@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "summary",
     "slug": "demo",
-    "stateRevision": "sha256:9b4de36e235b5a8d15d756dd9a4239c1241a48fac7bdc4bdf49b37481d92062f",
+    "stateRevision": "sha256:7fc00e7cdb37e2f6d1c9aa168cff89cd9446733d13ae7c3c817fc78e9d313645",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:9b4de36e235b5a8d15d756dd9a4239c1241a48fac7bdc4bdf49b37481d92062f",
-      "updatedAt": "2026-09-30T03:26:31.378505+00:00",
+      "stateRevision": "sha256:7fc00e7cdb37e2f6d1c9aa168cff89cd9446733d13ae7c3c817fc78e9d313645",
+      "updatedAt": "2026-10-19T06:47:48.446980+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -32,7 +32,22 @@
       ],
       "progress": {
         "completed": 1,
-        "total": 1
+        "total": 1,
+        "plannedTotal": 1,
+        "pendingApproval": 0,
+        "changedApproval": 0,
+        "execution": {
+          "unknown": 0,
+          "not-started": 0,
+          "in-progress": 0,
+          "implemented": 1
+        },
+        "verification": {
+          "unverified": 0,
+          "passed": 1,
+          "failed": 0,
+          "needs-revalidation": 0
+        }
       },
       "reviews": {
         "change": "approved",
@@ -40,7 +55,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:4e04c3c89404ee8f523788aa84c7d0cf86d343beac70fdc2ad9798db88f99a11",
+        "evidenceId": "sha256:2b627bc3096fdd22ad31016c4bbfe9ba00dd429b394269214093f786d6af6601",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -50,9 +65,9 @@
         {
           "role": "change",
           "path": "change.md",
-          "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
-          "bytes": 63,
-          "lineCount": 9
+          "documentRevision": "sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f",
+          "bytes": 440,
+          "lineCount": 17
         },
         {
           "role": "plan",
@@ -64,16 +79,16 @@
         {
           "role": "readme",
           "path": "README.md",
-          "documentRevision": "sha256:9060408630789f0eb2f68f7f88d5b8eb4a64f7726021f62623869353231038fc",
-          "bytes": 498,
-          "lineCount": 29
+          "documentRevision": "sha256:e90161b2cfab28777ecc6f212698e82048ecfbe881718bc9e694d84a3ae4edc6",
+          "bytes": 780,
+          "lineCount": 37
         }
       ],
       "artifactSummary": {
         "total": 1,
         "readable": 1,
         "unreadable": 0,
-        "collectionRevision": "sha256:2b392b89e57ccbf6a3ff9a5d0509b9d931f1065072fde81948debe3c92008146"
+        "collectionRevision": "sha256:e6df3db950df080e3a7f293b5f2c9a9dd957f8461f959e48f8da43fc53227bfa"
       },
       "delivery": {},
       "executionBlockers": [],
@@ -111,9 +126,9 @@
       {
         "role": "change",
         "path": "change.md",
-        "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
-        "bytes": 63,
-        "lineCount": 9
+        "documentRevision": "sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f",
+        "bytes": 440,
+        "lineCount": 17
       },
       {
         "role": "plan",
@@ -125,11 +140,11 @@
       {
         "role": "readme",
         "path": "README.md",
-        "documentRevision": "sha256:9060408630789f0eb2f68f7f88d5b8eb4a64f7726021f62623869353231038fc",
-        "bytes": 498,
-        "lineCount": 29
+        "documentRevision": "sha256:e90161b2cfab28777ecc6f212698e82048ecfbe881718bc9e694d84a3ae4edc6",
+        "bytes": 780,
+        "lineCount": 37
       }
     ]
   },
-  "responseRevision": "sha256:3e6d2e5da14f8b31bb9590bc1f11f61a4ddb1fb4fedc0fdd30cf72fe62afafd4"
+  "responseRevision": "sha256:3247b6c2b7a15d8df92cbeca610c616f93ebe6f5c46b7b9c17260ea37fb070d2"
 }

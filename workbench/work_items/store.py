@@ -228,6 +228,21 @@ def validate_state(state: dict, item: Path) -> None:
     for task_id, item in state['tasks'].items():
         if not TASK_RE.fullmatch(task_id) or int(task_id[1:]) > state['maxTaskNumber'] or not isinstance(item, dict):
             raise WorkItemError('ITEM_INVALID', '任务状态无效')
+        execution = item.get('execution')
+        if execution is not None:
+            if not isinstance(execution, dict) or set(execution) != {'status', 'summary', 'recordedAt'}:
+                raise WorkItemError('ITEM_INVALID', '任务执行记录无效')
+            if execution['status'] not in {'not-started', 'in-progress', 'implemented'} or any(
+                    not isinstance(execution[field], str) or not execution[field] for field in ('summary', 'recordedAt')):
+                raise WorkItemError('ITEM_INVALID', '任务执行记录无效')
+        invalidation = item.get('verificationInvalidation')
+        if invalidation is not None:
+            if not isinstance(invalidation, dict) or set(invalidation) != {'evidenceId', 'reason', 'recordedAt'}:
+                raise WorkItemError('ITEM_INVALID', '任务验证失效记录无效')
+            evidence_id = invalidation.get('evidenceId')
+            if not isinstance(evidence_id, str) or not DIGEST_RE.fullmatch(evidence_id) or any(
+                    not isinstance(invalidation.get(field), str) or not invalidation[field] for field in ('reason', 'recordedAt')):
+                raise WorkItemError('ITEM_INVALID', '任务验证失效记录无效')
     for reference in [*state['evidence'], *([state['verification']] if state['verification'] else [])]:
         if not isinstance(reference, str) or not DIGEST_RE.fullmatch(reference):
             raise WorkItemError('ITEM_INVALID', '证据引用无效')

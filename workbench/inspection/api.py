@@ -12,7 +12,7 @@ from workbench.workspace.model import load_workspace, repository_path, effective
 from workbench.workspace.paths import workflow_file, workflow_runs_root, workspace_file
 
 API_MAJOR = 2
-API_MINOR = 3
+API_MINOR = 4
 MAX_RESPONSE = 8 * 1024 * 1024
 HANDOFF_CONTENT_MAX_BYTES = 2 * 1024
 OPERATIONS = ['workspace', 'items', 'projection', 'document', 'artifacts', 'verification', 'evidence', 'handoff', 'search', 'workflow', 'runs', 'run']
@@ -81,7 +81,7 @@ def projection(root, slug, view, task_id=None, check_code=False, deadline=None):
                                        'reason': None if available else '仍有未完成事项；以 Kit 再次校验为准'}
         base.update(summary=summary, progression=reader.decision(), documents=summary['documents'])
         if view == 'task':
-            base['tasks'] = [reader.task(task_id)] if task_id else reader.task_states()
+            base['tasks'] = [reader.task(task_id)] if task_id else reader.task_progress()
     elif view == 'change':
         base.update(repositories=[{**b, 'absolutePath': str(reader.roots()[b['repository']])} for b in reader.state['bindings']],
                     comparison={'kind': 'merge-base', 'source': 'item-bindings'})
@@ -211,6 +211,7 @@ def handoff(root, slug, check_code=False, deadline=None):
         'current': current,
         'blocking': blocking,
         'nextActions': brief.get('nextActions', []),
+        'progress': brief.get('progress', {}),
         'sources': sources,
         'stateRevision': brief['stateRevision'],
         'progression': {key: brief[key] for key in ['currentStage', 'nextActions', 'blockers']},

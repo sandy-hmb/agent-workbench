@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "handoff",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -10,29 +10,85 @@
   "status": "ok",
   "data": {
     "slug": "demo",
-    "content": "# demo 接手\n\n- iteration：\"i01\"\n- activity：\"develop\"\n- lifecycle：\"active\"\n- currentStage：\"item.complete\"\n- currentTask：null\n- blockers：[]\n- nextActions：[{\"stage\": \"item.complete\", \"runbook\": \".agents/skills/workspace-verify/SKILL.md\"}]\n\n文档：\n- [change](change.md)\n- [plan](plan.md)\n- [readme](README.md)",
-    "estimatedTokens": 84,
+    "content": "# demo 接手\n\n- 范围：develop / 风险 normal / 迭代 i01\n- 生命周期：active\n- 仓绑定：kit (main <- main)\n- 当前阶段：item.complete\n- 当前任务：null\n- 阻塞：{\"workflow\": [], \"execution\": [], \"external\": []}\n- 下一步：[{\"stage\": \"item.complete\", \"runbook\": \".agents/skills/workspace-verify/SKILL.md\"}]\n\n文档引用：\n- [change](change.md) sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f\n- [plan](plan.md) sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130\n- [readme](README.md) sha256:e90161b2cfab28777ecc6f212698e82048ecfbe881718bc9e694d84a3ae4edc6\n\n完整入口：kit.py brief demo --json",
+    "estimatedTokens": 178,
+    "contentBytes": 667,
+    "contentLimitBytes": 2048,
+    "contentTruncated": false,
+    "detailsEntrypoint": "kit.py brief demo --json",
+    "scope": {
+      "activity": "develop",
+      "riskTier": "normal",
+      "lifecycle": "active",
+      "iteration": "i01",
+      "repositories": [
+        {
+          "repository": "kit",
+          "baseBranch": "main",
+          "workBranch": "main",
+          "currentBranch": "main",
+          "state": "matched"
+        }
+      ]
+    },
+    "current": {
+      "stage": "item.complete",
+      "task": null
+    },
+    "blocking": {
+      "workflow": [],
+      "execution": [],
+      "external": []
+    },
+    "nextActions": [
+      {
+        "stage": "item.complete",
+        "runbook": ".agents/skills/workspace-verify/SKILL.md"
+      }
+    ],
+    "progress": {
+      "completed": 1,
+      "total": 1,
+      "plannedTotal": 1,
+      "pendingApproval": 0,
+      "changedApproval": 0,
+      "execution": {
+        "unknown": 0,
+        "not-started": 0,
+        "in-progress": 0,
+        "implemented": 1
+      },
+      "verification": {
+        "unverified": 0,
+        "passed": 1,
+        "failed": 0,
+        "needs-revalidation": 0
+      }
+    },
     "sources": [
       {
         "kind": "change",
         "path": "change.md",
-        "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
-        "startLine": 1
+        "documentRevision": "sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f",
+        "startLine": 1,
+        "endLine": 17
       },
       {
         "kind": "plan",
         "path": "plan.md",
         "documentRevision": "sha256:d7b578cd1186d62582211867115fc1700df6fa52105e8fdf13322ed4353e4130",
-        "startLine": 1
+        "startLine": 1,
+        "endLine": 18
       },
       {
         "kind": "readme",
         "path": "README.md",
-        "documentRevision": "sha256:9060408630789f0eb2f68f7f88d5b8eb4a64f7726021f62623869353231038fc",
-        "startLine": 1
+        "documentRevision": "sha256:e90161b2cfab28777ecc6f212698e82048ecfbe881718bc9e694d84a3ae4edc6",
+        "startLine": 1,
+        "endLine": 37
       }
     ],
-    "stateRevision": "sha256:1901450d5ce0ff02908af5d25e9e298e2c71b2b510e30ff5794d2d2ab15544d3",
+    "stateRevision": "sha256:7fc00e7cdb37e2f6d1c9aa168cff89cd9446733d13ae7c3c817fc78e9d313645",
     "progression": {
       "currentStage": "item.complete",
       "nextActions": [
@@ -44,5 +100,5 @@
       "blockers": []
     }
   },
-  "responseRevision": "sha256:b172ff12eb699b73714ddc645ad8b08a808f24d92acc00c42962eac18d94b41a"
+  "responseRevision": "sha256:79277a8914f678406d887f4791ed606846fb7bf2aab68dbc2b8ae2048c93a78d"
 }

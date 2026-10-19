@@ -58,6 +58,22 @@ def _item_lines(value: dict) -> list[str]:
         lines.append('文档阶段：' + (progress.get('currentDocument') or '已批准全部阶段'))
         if progress.get('nextDocument'):
             lines.append('下一份可生成文档：' + progress['nextDocument'])
+    task_progress = value.get('taskProgress', [])
+    if task_progress:
+        summary = value.get('progress', {})
+        lines.append(f"任务进度：当前通过 {summary.get('completed', 0)}/{summary.get('total', 0)}；"
+                     f"计划共 {summary.get('plannedTotal', len(task_progress))}；待审批 {summary.get('pendingApproval', 0)}")
+        for task in task_progress[:30]:
+            recent = task.get('lastRecord') or {}
+            recent_text = recent.get('recordedAt', '未记录')
+            if recent.get('kind') == 'verification':
+                recent_text += ' / ' + recent.get('result', 'unknown')
+            elif recent.get('kind') == 'execution':
+                recent_text += ' / ' + recent.get('status', 'unknown')
+            lines.append(f"  - {task['id']} {task['title']}：审批 {task['approvalStatus']}；执行 {task['executionStatus']}；"
+                         f"验收 {task['verificationStatus']}；最近 {recent_text}；下一步 {task['nextStep']}")
+        if len(task_progress) > 30:
+            lines.append(f"  - 共 {len(task_progress)} 项，展示 30 项；其余通过 inspect task 视图查询")
     blocks = [row for row in value.get('executionBlockers', []) if row['status'] == 'open']
     lines.append('开发阻塞：' + ('' if blocks else '无开发阻塞'))
     for row in blocks:
@@ -97,12 +113,15 @@ def brief_text(value: dict) -> str:
     if value.get('itemSlug'):
         lines += _item_lines(value)
     if task := value.get('selectedTask'):
-        lines += [f"所选任务：{task['id']}；{task['status']}",
+        lines += [f"所选任务：{task['id']}；审批 {task.get('approvalStatus', '未提供')}；"
+                  f"执行 {task.get('executionStatus', '未提供')}；验收 {task.get('verificationStatus', task['status'])}",
                   '任务等待：' + ('、'.join(task['waitingFor']) or '无等待'),
                   f"任务来源：{task['path']}:{task['startLine']}-{task['endLine']}", task['body']]
         dependencies = value.get('directDependencies', [])
         lines.append('直接依赖：' + ('' if dependencies else '无直接依赖'))
-        lines += [f"  - {row['id']}：{row['status']}；证据：{row.get('evidenceId') or '未记录'}" for row in dependencies]
+        lines += [f"  - {row['id']}：状态 {row['status']}；执行 {row.get('executionStatus', '未提供')}；"
+                  f"验收 {row.get('verificationStatus', row['status'])}；证据：{row.get('evidenceId') or '未记录'}"
+                  for row in dependencies]
         for row in value.get('sources', []):
             lines.append('依据来源：' + (f"{row['id']}；{row['path']}:{row['startLine']}-{row['endLine']}" +
                                         ('（未定位）' if not row['located'] else '') if 'id' in row else row['reference']))

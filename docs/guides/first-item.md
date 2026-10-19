@@ -25,6 +25,15 @@ python3 scripts/kit.py item approval payment-retry --decision approved --reason 
 
 普通需求连续实施，收尾做一次整体验证。有独立任务时用 `brief <slug> --task T01`，只读任务、依赖和适用规则；完成一个后继续下一个。
 
+计划顶部固定链接到 README 的自动任务进度。不要在 plan.md 勾选或手工同步状态；README、brief 和 Inspect 都从 `state.json` 与不可变证据生成。缺少执行事实时显示 `unknown`（未记录），不会把“没有证据”推断成未开始。跨会话或较长任务可显式记录：
+
+```bash
+python3 scripts/kit.py item task-progress payment-retry --task T01 --status in-progress --summary "正在实现重试边界" --state-revision <stateRevision> --json
+python3 scripts/kit.py item task-progress payment-retry --task T01 --status implemented --summary "实现已落地，等待验证" --state-revision <stateRevision> --json
+```
+
+状态还可显式使用 `not-started`，但 Kit 不会自动推断它。执行记录只说明当前实施事实，不解除审批、依赖和阻塞，也不完成任务。验收另行显示 `unverified`、`passed`、`failed` 或 `needs-revalidation`；只有当前适用的通过证据才计入完成。任务定义、上游依据或仓绑定变化时，旧证据仍可从 history 查询，并显示失效原因与待补验证。
+
 行为变化先验证缺失行为，再最小实现并验证。声明式变化使用最小有效检查。执行真实检查后取得代码状态：
 
 ```bash

@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "verification",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -10,15 +10,15 @@
   "status": "ok",
   "data": {
     "recordedResult": "passed",
-    "evidenceId": "sha256:4e04c3c89404ee8f523788aa84c7d0cf86d343beac70fdc2ad9798db88f99a11",
+    "evidenceId": "sha256:2b627bc3096fdd22ad31016c4bbfe9ba00dd429b394269214093f786d6af6601",
     "applicability": "not_checked",
     "verificationScope": "",
     "pendingExternalChecks": [],
     "repositoryStates": [],
     "slug": "demo",
-    "stateRevision": "sha256:9b4de36e235b5a8d15d756dd9a4239c1241a48fac7bdc4bdf49b37481d92062f",
+    "stateRevision": "sha256:7fc00e7cdb37e2f6d1c9aa168cff89cd9446733d13ae7c3c817fc78e9d313645",
     "record": {
-      "basisRevision": "sha256:78b6d7138dc2a0d31dcd2fb3c410671dc82c78fee1cd1a4b2a008b7e622a268e",
+      "basisRevision": "sha256:384171221a9d53c162445a9f4d8b15708ac8989e295cd971cc7bd6d010b1697e",
       "checks": [
         {
           "command": "fixture-check",
@@ -32,24 +32,24 @@
         }
       ],
       "codeState": {
-        "kit": "sha256:a3a38faf2989d4b1f8ecebdaad3dc2698f4b465784f34f0227f96c914541637e"
+        "kit": "sha256:d9714589e36745089e8738cd7fdb437e8257799f27905fefdbf457ff0371c6c9"
       },
       "itemSlug": "demo",
       "iteration": "i01",
-      "receipt": "sha256:d208657ab868acff6129b3800c0823891a01897c2fd2e03f4e65795c6122ed13",
+      "receipt": "sha256:f08f50b75f41ddc0a0a07a9a7135a28d7ffb70d79cb2b07a5059ffd226663599",
       "recordedAt": "2026-09-25T10:00:00+08:00",
       "result": "passed",
       "reviewResult": "passed",
       "schemaVersion": 1,
       "scope": "item",
       "taskId": null,
-      "id": "sha256:4e04c3c89404ee8f523788aa84c7d0cf86d343beac70fdc2ad9798db88f99a11"
+      "id": "sha256:2b627bc3096fdd22ad31016c4bbfe9ba00dd429b394269214093f786d6af6601"
     },
     "tasks": [
       {
         "id": "T01",
         "status": "completed",
-        "evidenceId": "sha256:188f5bccc2a904137498909998c6686c2326a1916e4036ad1df906061715cc06"
+        "evidenceId": "sha256:9b5463f474356ec6157b57562ba114c592f4c89c92c8422d9390f29524533ee7"
       }
     ],
     "progression": {
@@ -66,5 +66,5 @@
       "canComplete": false
     }
   },
-  "responseRevision": "sha256:6dc8ea0cd3cd6d121bac4c2728867d4b9a3040f345252b7076e840e3b4bb59ff"
+  "responseRevision": "sha256:0124c39cd6eb68cde02c043e85bdb16a6261fbdddc68ff215c4d1ac054ff0edc"
 }

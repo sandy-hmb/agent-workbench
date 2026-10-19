@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "items",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -18,8 +18,8 @@
         "riskTier": "normal",
         "activity": "develop",
         "path": "docs/development/items/demo",
-        "stateRevision": "sha256:1901450d5ce0ff02908af5d25e9e298e2c71b2b510e30ff5794d2d2ab15544d3",
-        "updatedAt": "2026-09-28T05:39:56.065102+00:00",
+        "stateRevision": "sha256:7fc00e7cdb37e2f6d1c9aa168cff89cd9446733d13ae7c3c817fc78e9d313645",
+        "updatedAt": "2026-10-19T06:47:48.446980+00:00",
         "repositoryBindings": [
           {
             "baseBranch": "main",
@@ -35,7 +35,7 @@
         "cancellation": null,
         "openBlockerCount": 0,
         "verification": {
-          "evidenceId": "sha256:63d061e65deda06e0b1e4d362dd1b788e02af1328a728850936d71dd86112af8",
+          "evidenceId": "sha256:2b627bc3096fdd22ad31016c4bbfe9ba00dd429b394269214093f786d6af6601",
           "recordedResult": "passed",
           "applicability": "not_checked"
         }
@@ -44,7 +44,7 @@
     "counts": {
       "total": 1
     },
-    "collectionRevision": "sha256:87255961b82740dfa54e0ca2a887dbe473b2bbf7a724989351fd2ac47fccdd95",
+    "collectionRevision": "sha256:4e3933e0c1c105b34c05b3049b3ef0d77c410143d8e00b87b103655dbd0f981d",
     "page": {
       "offset": 0,
       "limit": 20,
@@ -52,5 +52,5 @@
       "hasMore": false
     }
   },
-  "responseRevision": "sha256:08e01e1d6161dfbd37bef56e9f87fdc959d5103dd8f17171d73080437c8a7daa"
+  "responseRevision": "sha256:f51a814165a37eecd41e878df3441b7b32500e8bd28f8f8ae96b8c93bd0d1744"
 }

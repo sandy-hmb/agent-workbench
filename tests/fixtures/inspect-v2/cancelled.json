@@ -1,7 +1,7 @@
 {
   "apiVersion": {
     "major": 2,
-    "minor": 3
+    "minor": 4
   },
   "operation": "projection",
   "observedAt": "2026-09-25T00:00:00Z",
@@ -11,7 +11,7 @@
   "data": {
     "view": "task",
     "slug": "demo",
-    "stateRevision": "sha256:51e3a4c8755186ed07416d0a2c0b99b3867bd7f882a1b5164ee5a2de20a90512",
+    "stateRevision": "sha256:0cc2a00fc5f015956ef30ce0c448cc2e0733a38210cab27c981079995e058ef3",
     "summary": {
       "slug": "demo",
       "title": "Demo",
@@ -21,8 +21,8 @@
       "riskTier": "normal",
       "activity": "develop",
       "iteration": "i01",
-      "stateRevision": "sha256:51e3a4c8755186ed07416d0a2c0b99b3867bd7f882a1b5164ee5a2de20a90512",
-      "updatedAt": "2026-09-28T05:39:57.952177+00:00",
+      "stateRevision": "sha256:0cc2a00fc5f015956ef30ce0c448cc2e0733a38210cab27c981079995e058ef3",
+      "updatedAt": "2026-10-19T06:47:49.260151+00:00",
       "repositoryBindings": [
         {
           "baseBranch": "main",
@@ -32,7 +32,22 @@
       ],
       "progress": {
         "completed": 1,
-        "total": 1
+        "total": 1,
+        "plannedTotal": 1,
+        "pendingApproval": 0,
+        "changedApproval": 0,
+        "execution": {
+          "unknown": 0,
+          "not-started": 0,
+          "in-progress": 0,
+          "implemented": 1
+        },
+        "verification": {
+          "unverified": 0,
+          "passed": 1,
+          "failed": 0,
+          "needs-revalidation": 0
+        }
       },
       "reviews": {
         "change": "approved",
@@ -40,7 +55,7 @@
       },
       "verification": {
         "recordedResult": "passed",
-        "evidenceId": "sha256:63d061e65deda06e0b1e4d362dd1b788e02af1328a728850936d71dd86112af8",
+        "evidenceId": "sha256:2b627bc3096fdd22ad31016c4bbfe9ba00dd429b394269214093f786d6af6601",
         "applicability": "not_checked",
         "verificationScope": "",
         "pendingExternalChecks": [],
@@ -50,9 +65,9 @@
         {
           "role": "change",
           "path": "change.md",
-          "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
-          "bytes": 63,
-          "lineCount": 9
+          "documentRevision": "sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f",
+          "bytes": 440,
+          "lineCount": 17
         },
         {
           "role": "plan",
@@ -64,16 +79,16 @@
         {
           "role": "readme",
           "path": "README.md",
-          "documentRevision": "sha256:49cd2b073110022c668c976c0a5204971b866394e334ce5d59f147eea66aa8d4",
-          "bytes": 631,
-          "lineCount": 37
+          "documentRevision": "sha256:ff7238022ac4701000df903f45d953858976b663ab08d35930f0ae429f7fa4ac",
+          "bytes": 931,
+          "lineCount": 45
         }
       ],
       "artifactSummary": {
         "total": 1,
         "readable": 1,
         "unreadable": 0,
-        "collectionRevision": "sha256:279cf29a6597ebe5a7685d5b807225ffbb41c907e8fa8555350759196317c741"
+        "collectionRevision": "sha256:e6df3db950df080e3a7f293b5f2c9a9dd957f8461f959e48f8da43fc53227bfa"
       },
       "delivery": {},
       "executionBlockers": [
@@ -82,7 +97,7 @@
           "id": "B01",
           "owner": "测试负责人",
           "reason": "等待验收环境",
-          "recordedAt": "2026-09-28T05:39:57.816826+00:00",
+          "recordedAt": "2026-10-19T06:47:49.198645+00:00",
           "resolution": null,
           "status": "open",
           "taskIds": []
@@ -90,7 +105,7 @@
       ],
       "cancellation": {
         "reason": "目标已被替代",
-        "recordedAt": "2026-09-28T05:39:57.952122+00:00"
+        "recordedAt": "2026-10-19T06:47:49.260142+00:00"
       },
       "currentStage": null,
       "executionDecision": "BLOCKED",
@@ -119,9 +134,9 @@
       {
         "role": "change",
         "path": "change.md",
-        "documentRevision": "sha256:ee1adf23e4401ee6e05d166279465857866e7d2ef2804ed35b662bc12af242ef",
-        "bytes": 63,
-        "lineCount": 9
+        "documentRevision": "sha256:e7433783eb6f0cb4520ae24ae5338145d95bcc561be2e4e393e3cf0d7a11d36f",
+        "bytes": 440,
+        "lineCount": 17
       },
       {
         "role": "plan",
@@ -133,9 +148,9 @@
       {
         "role": "readme",
         "path": "README.md",
-        "documentRevision": "sha256:49cd2b073110022c668c976c0a5204971b866394e334ce5d59f147eea66aa8d4",
-        "bytes": 631,
-        "lineCount": 37
+        "documentRevision": "sha256:ff7238022ac4701000df903f45d953858976b663ab08d35930f0ae429f7fa4ac",
+        "bytes": 931,
+        "lineCount": 45
       }
     ],
     "tasks": [
@@ -158,13 +173,40 @@
             "repository": "kit"
           }
         ],
-        "status": "completed",
-        "evidenceId": "sha256:044554e7e2fec29fa635243e82a9c6a0350475c61da9851903db69bd45e3d16d",
-        "completed": true,
+        "approvalStatus": "approved",
+        "executionStatus": "implemented",
+        "executionApplicability": "current",
+        "executionSource": "verification-evidence",
+        "verificationStatus": "passed",
+        "lastImplementation": null,
+        "lastVerification": {
+          "evidenceId": "sha256:9b5463f474356ec6157b57562ba114c592f4c89c92c8422d9390f29524533ee7",
+          "recordedAt": "2026-09-25T10:00:00+08:00",
+          "result": "passed"
+        },
+        "lastRecord": {
+          "kind": "verification",
+          "evidenceId": "sha256:9b5463f474356ec6157b57562ba114c592f4c89c92c8422d9390f29524533ee7",
+          "recordedAt": "2026-09-25T10:00:00+08:00",
+          "result": "passed"
+        },
+        "invalidation": null,
+        "blockers": [
+          {
+            "id": "B01",
+            "reason": "等待验收环境",
+            "owner": "测试负责人",
+            "condition": "环境恢复"
+          }
+        ],
         "waitingFor": [],
+        "nextStep": "resolve-blocker",
+        "status": "completed",
+        "evidenceId": "sha256:9b5463f474356ec6157b57562ba114c592f4c89c92c8422d9390f29524533ee7",
+        "completed": true,
         "executionBlocked": true
       }
     ]
   },
-  "responseRevision": "sha256:f358f20b5d1b1f28a8c7bbc8202b428ef8e3ad50175d31c6060bee30d378930e"
+  "responseRevision": "sha256:0619d61606ce338d579a2e0cecf1018c77b4633d4d1986cd552d27b531b8bc66"
 }

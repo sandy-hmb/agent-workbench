@@ -91,6 +91,15 @@ def _finish(root: Path, slug: str, state: dict, **extra) -> dict:
     return result
 
 
+def _invalidate_task(state: dict, task_id: str, reason: str) -> None:
+    task = state['tasks'].get(task_id)
+    if not task:
+        return
+    if task.get('evidence'):
+        task['verificationInvalidation'] = {'evidenceId': task['evidence'], 'reason': reason, 'recordedAt': stamp()}
+    task['evidence'] = None
+
+
 def review(root: Path, slug: str, *, decision: str, reason: str, expected_revision: str,
            roles: list[str] | None = None, affected_tasks: list[str] | None = None) -> dict:
     if decision not in {'approved', 'unchanged', 'needs-review'} or not reason.strip():
@@ -126,6 +135,7 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
                 if task['id'] not in old_ids and int(task['id'][1:]) <= state['maxTaskNumber']:
                     raise WorkItemError('TASK_ID_REUSED', f"任务编号不得复用：{task['id']}")
         invalidated = set(affected_tasks or [])
+        invalidation_reasons = {task_id: reason for task_id in invalidated}
         if invalidated - set(state['tasks']):
             raise WorkItemError('REVIEW_INVALID', '受影响任务不存在')
         changed_roles = set()
@@ -142,6 +152,7 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
                 changed_roles.add(role)
             if affected_tasks is None and (decision == 'needs-review' or (decision != 'unchanged' and changed and role in {'change', 'requirements', 'design'})):
                 invalidated.update(old_ids)
+                invalidation_reasons.update({task_id: f'{role} 审阅变化：{reason}' for task_id in old_ids})
             state['reviews'][role] = {'revision': document_revision,
                                       'semanticRevision': old['semanticRevision'] if decision == 'unchanged' else document_revision,
                                       'decision': 'approved' if decision == 'unchanged' else decision,
@@ -152,16 +163,20 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
                 evidence = old.get('evidence') if old else None
                 if old and old['definitionRevision'] != task['documentRevision'] and decision != 'unchanged':
                     invalidated.add(task['id'])
-                state['tasks'][task['id']] = {'definitionRevision': task['documentRevision'], 'iteration': state['iteration'], 'evidence': evidence}
+                state['tasks'][task['id']] = {**(old or {}), 'definitionRevision': task['documentRevision'],
+                                             'iteration': state['iteration'], 'evidence': evidence}
+                if old and old['definitionRevision'] != task['documentRevision'] and decision != 'unchanged':
+                    invalidation_reasons[task['id']] = f'计划任务定义已变更：{reason}'
             state['currentTasks'] = [task['id'] for task in tasks]
             state['maxTaskNumber'] = max([state['maxTaskNumber'], *[int(t['id'][1:]) for t in tasks]])
         while True:
             dependents = {t['id'] for t in tasks if set(t['dependencies']) & invalidated}
             if dependents <= invalidated:
                 break
+            invalidation_reasons.update({task_id: f'依赖任务失效：{reason}' for task_id in dependents - invalidated})
             invalidated.update(dependents)
         for task_id in invalidated & state['tasks'].keys():
-            state['tasks'][task_id]['evidence'] = None
+            _invalidate_task(state, task_id, invalidation_reasons.get(task_id, reason))
         # Substantive changes to an earlier staged document invalidate every
         # downstream approval; editorial ``unchanged`` keeps the chain.
         for role in changed_roles:
@@ -322,11 +337,37 @@ def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> d
         state['evidence'].append(identifier)
         if task:
             state['tasks'][task['id']]['evidence'] = identifier
+            state['tasks'][task['id']].pop('verificationInvalidation', None)
             state['verification'] = None
         else:
             state['verification'] = identifier
         state = save_state(directory, state)
     return _finish(root, slug, state, id=identifier, replayed=False)
+
+
+def task_progress(root: Path, slug: str, task_id: str, *, status: str, summary: str,
+                  expected_revision: str) -> dict:
+    if status not in {'not-started', 'in-progress', 'implemented'}:
+        raise WorkItemError('TASK_PROGRESS_INVALID', '执行进度必须为 not-started、in-progress 或 implemented')
+    text(summary, '$.summary')
+    directory = item_path(root, slug)
+    with item_lock(directory):
+        state = load_state(directory)
+        check_revision(state, expected_revision)
+        if state['lifecycle'] != 'active':
+            raise WorkItemError('ITEM_INACTIVE', '当前需求不是可执行状态')
+        reader = WorkItemQuery(root, slug, state=state)
+        if any(value != 'approved' for value in reader.review_state().values()):
+            raise WorkItemError('REVIEW_REQUIRED', '当前内容尚未批准或需要分类')
+        task = next((row for row in reader.tasks() if row['id'] == task_id), None)
+        if not task or task_id not in state['currentTasks']:
+            raise WorkItemError('TASK_UNREGISTERED', '任务尚未通过计划审阅登记')
+        if state['tasks'][task_id]['definitionRevision'] != task['documentRevision']:
+            raise WorkItemError('REVIEW_REQUIRED', '任务定义已变化，先完成计划审阅')
+        state['tasks'][task_id]['execution'] = {'status': status, 'summary': summary, 'recordedAt': stamp()}
+        reader.assert_unchanged()
+        state = save_state(directory, state)
+    return _finish(root, slug, state, changed=True, taskId=task_id, executionStatus=status)
 
 
 def complete(root: Path, slug: str, *, expected_revision: str) -> dict:
@@ -527,7 +568,7 @@ def update(root: Path, slug: str, changes: dict, *, reason: str, expected_revisi
             candidate['reviews'][role] = {**candidate['reviews'][role], 'decision': 'needs-review', 'reason': reason, 'recordedAt': stamp()}
         for identifier in invalidated:
             if identifier in candidate['tasks']:
-                candidate['tasks'][identifier]['evidence'] = None
+                _invalidate_task(candidate, identifier, f'仓库绑定或范围已变更：{reason}')
         impact = {'reviews': sorted(reviews), 'tasks': sorted(invalidated), 'verificationInvalidated': candidate['verification'] != state['verification']}
         reader.assert_unchanged()
         if preview:
@@ -615,6 +656,35 @@ def render(root: Path, slug: str) -> dict:
                 lines.append(f'- {name} 共 {len(paths)} 项，展示 30 项，其余 {len(paths)-30} 项见 `{name}/`。')
     if state['cancellation']:
         lines += ['', '## 取消原因', '', one(state['cancellation']['reason'])]
+    task_progress = reader.task_progress()
+    if task_progress:
+        approval_labels = {'approved': '已批准', 'pending': '待审批', 'changed': '定义已变更'}
+        execution_labels = {'unknown': '未记录', 'not-started': '未开始', 'in-progress': '进行中', 'implemented': '已实施待验证'}
+        verification_labels = {'unverified': '未验证', 'passed': '通过', 'failed': '失败', 'needs-revalidation': '需重新验证'}
+        summary = reader.progress_summary()
+        lines += ['', '## 任务进度', '',
+                  f"当前通过 {summary['completed']}/{summary['total']}；计划共 {summary['plannedTotal']}；待审批 {summary['pendingApproval']}。",
+                  '', '| 任务 | 审批 | 执行进度 | 当前验收 | 最近记录 | 阻塞或下一步 |',
+                  '|---|---|---|---|---|---|']
+        for task in task_progress[:30]:
+            recent = task.get('lastRecord') or {}
+            recent_text = '未记录'
+            if recent:
+                result = recent.get('result', recent.get('status', 'unknown'))
+                recent_text = f"{one(recent.get('recordedAt', '未记录'))} / {one(result)}"
+            if task['blockers']:
+                next_text = '；'.join(f"{one(row['id'])} {one(row['reason'])}" for row in task['blockers'])
+            elif task.get('invalidation'):
+                next_text = f"{one(task['nextStep'])}；{one(task['invalidation']['reason'])}"
+            else:
+                next_text = one(task['nextStep'])
+            lines.append('| ' + ' | '.join([
+                f"{one(task['id'])} {one(task['title'])}", approval_labels[task['approvalStatus']],
+                execution_labels[task['executionStatus']], verification_labels[task['verificationStatus']],
+                recent_text, next_text,
+            ]) + ' |')
+        if len(task_progress) > 30:
+            lines.append(f'- 共 {len(task_progress)} 项，展示 30 项，其余 {len(task_progress)-30} 项见 `kit.py inspect projection {slug} --view task`。')
     opened = [row for row in state['blockers'] if row['status'] == 'open']
     if opened:
         lines += ['', '## 开发阻塞', '', *[f"- {row['id']}：{one(row['reason'])}；{one(row['owner'])}；解除条件：{one(row['condition'])}" for row in opened[:20]]]

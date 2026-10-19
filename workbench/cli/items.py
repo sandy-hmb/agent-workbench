@@ -42,7 +42,7 @@ def build_parser():
     prepare = commands.add_parser('prepare')
     prepare.add_argument('slug'); prepare.add_argument('--role', choices=['change', 'requirements', 'design', 'plan'], required=True)
     prepare.add_argument('--state-revision', required=True)
-    for name in ['approval', 'update', 'block', 'unblock', 'cancel', 'delivery', 'complete', 'pause', 'resume', 'next-iteration']:
+    for name in ['approval', 'update', 'task-progress', 'block', 'unblock', 'cancel', 'delivery', 'complete', 'pause', 'resume', 'next-iteration']:
         command = commands.add_parser(name)
         command.add_argument('slug'); command.add_argument('--state-revision', required=True)
         if name == 'approval':
@@ -52,6 +52,10 @@ def build_parser():
         if name in {'delivery', 'update'}: command.add_argument('--input', type=Path, required=True)
         if name in {'update','block','unblock','cancel'}: command.add_argument('--reason', required=True)
         if name == 'update': command.add_argument('--preview', action='store_true')
+        if name == 'task-progress':
+            command.add_argument('--task', required=True)
+            command.add_argument('--status', choices=['not-started', 'in-progress', 'implemented'], required=True)
+            command.add_argument('--summary', required=True)
         if name == 'block':
             command.add_argument('--owner', required=True); command.add_argument('--condition', required=True)
             command.add_argument('--task', action='append')
@@ -83,6 +87,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                                     affected_tasks=args.affected_task, expected_revision=args.state_revision)
         elif args.command == 'delivery': result = actions.delivery(root, args.slug, read_json(args.input), expected_revision=args.state_revision)
         elif args.command == 'update': result = actions.update(root, args.slug, read_json(args.input), reason=args.reason, expected_revision=args.state_revision, preview=args.preview)
+        elif args.command == 'task-progress':
+            result = actions.task_progress(root, args.slug, args.task, status=args.status, summary=args.summary,
+                                           expected_revision=args.state_revision)
         elif args.command == 'block': result = actions.block(root, args.slug, reason=args.reason, owner=args.owner, condition=args.condition, task_ids=args.task, expected_revision=args.state_revision)
         elif args.command == 'unblock': result = actions.unblock(root, args.slug, args.blocker, reason=args.reason, expected_revision=args.state_revision)
         elif args.command == 'cancel': result = actions.cancel(root, args.slug, reason=args.reason, expected_revision=args.state_revision)

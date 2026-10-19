@@ -10,6 +10,7 @@ python3 scripts/kit.py brief <slug> --task T01
 python3 scripts/kit.py brief --repo <repo> --path <path>
 python3 scripts/kit.py brief <slug> --check-code
 python3 scripts/kit.py item create <slug> --repo <repo> --title "修复目标" --activity repair --json
+python3 scripts/kit.py item task-progress <slug> --task T01 --status in-progress --summary "当前实施事实" --state-revision <stateRevision> --json
 python3 scripts/kit.py verify snapshot <slug> --json
 python3 scripts/kit.py verify collect <slug> --snapshot <snapshot.json> --junit artifacts/junit.xml --command '<actual-command>' --working-directory '<actual cwd>' --exit-status <actualExitStatus> --json
 python3 scripts/kit.py verify record <slug> --input evidence.json --state-revision <stateRevision> --json
@@ -22,6 +23,8 @@ python3 scripts/kit.py doctor --root .
 ```
 
 stateRevision 使用当前 brief/snapshot 的输出，不是用户需理解的审批对象。需求和证据格式见[第一个需求](first-item.md)。未知命令使用 --help 或 kit.py describe。
+
+`task-progress` 只记录 `not-started`、`in-progress` 或 `implemented` 的显式执行事实；没有记录保持 unknown，`implemented` 不等于验证通过或工作项完成。
 
 报告采集先运行实际测试、保存同次检查的 snapshot，再 collect；人工审阅输出的 input 后才 record，整体验证通过还需实际填写 reviewResult。collect 不执行命令或写状态，失败草稿也可能正常退出。完整流程见[验证证据采集](verification-evidence.md)。
 
