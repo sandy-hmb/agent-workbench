@@ -32,6 +32,38 @@ def run_git(*arguments: str, cwd: Path) -> str:
 
 
 class WorkspaceSubmitTest(unittest.TestCase):
+    def test_equivalent_checkout_move_preserves_evidence_but_changed_content_does_not(self):
+        from workbench.work_items import commands
+        from workbench.work_items.query import WorkItemQuery
+        from workbench.work_items.store import load_state, item_path, stamp
+        directory = item_path(self.root, 'demo-feature')
+        (directory / 'plan.md').write_text('# Plan\n\n### T01 Behavior\n\n依据：R1\n依赖：无\n目标仓：service\n验证性质：行为\n\n- Modify：`README.md`\n\n通过条件：checked\n')
+        commands.review(self.root, 'demo-feature', decision='approved', reason='approved', expected_revision=load_state(directory)['stateRevision'])
+        reader = WorkItemQuery(self.root, 'demo-feature')
+        payload = {'scope': 'item', 'taskCoverage': {'T01': [0]}, 'recordedAt': stamp(), 'result': 'passed',
+                   'reviewResult': 'passed', 'codeState': reader.code_state(),
+                   'checks': [{'type': '行为检查', 'workingDirectory': str(self.service), 'command': 'fixture',
+                               'target': 'behavior', 'exitStatus': 0, 'result': 'checked'}]}
+        evidence = commands.record(self.root, 'demo-feature', payload, expected_revision=load_state(directory)['stateRevision'])['id']
+        checkout = self.parent / 'equivalent'
+        run_git('switch', 'main', cwd=self.service)
+        run_git('worktree', 'add', str(checkout), 'owner/feature/demo', cwd=self.service)
+        state = load_state(directory)
+        bindings = state['bindings']; bindings[0]['checkout'] = str(checkout)
+        commands.update(self.root, 'demo-feature', {'bindings': bindings}, reason='approved move', expected_revision=state['stateRevision'])
+        state = load_state(directory)
+        self.assertEqual(evidence, state['verification'])
+        self.assertEqual(evidence, state['tasks']['T01']['evidence'])
+        self.assertTrue(WorkItemQuery(self.root, 'demo-feature').decision(check_code=True)['canComplete'])
+        bindings[0].pop('checkout')
+        run_git('switch', '--detach', cwd=checkout)
+        run_git('switch', 'owner/feature/demo', cwd=self.service)
+        (self.service / 'README.md').write_text('different input\n')
+        commands.update(self.root, 'demo-feature', {'bindings': bindings}, reason='move with changed content', expected_revision=state['stateRevision'])
+        state = load_state(directory)
+        self.assertIsNone(state['verification'])
+        self.assertIsNone(state['tasks']['T01']['evidence'])
+
     def test_approved_worktree_used_for_snapshot_plan_and_submit(self):
         from workbench.work_items import commands
         from workbench.work_items.query import WorkItemQuery

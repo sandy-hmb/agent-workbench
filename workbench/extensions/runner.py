@@ -237,6 +237,11 @@ def _active_actions(root: Path, selected_extension: str | None = None) -> dict[s
                 dependency = _locked_provider(root, workspace, reference, capability, targeted=True)
                 if dependency is None:
                     raise _command('ACTION_MISSING', f'依赖 Provider 不可用：{reference}')
+                from workbench.extensions.management import validate_manifest_config
+                from workbench.workspace.local import load_local_settings
+                local = load_local_settings(root, required=True)
+                validate_manifest_config(root, dependency[0], workspace.extensions['config'].get(dependency[0].id, {}),
+                                         local.extensions.get(dependency[0].id, {}))
                 pending.extend(dependency[0].requires)
         for action in manifest.actions:
             if action.ref in result:

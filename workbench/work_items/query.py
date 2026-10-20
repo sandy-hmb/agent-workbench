@@ -485,7 +485,7 @@ class WorkItemQuery:
         for name, path in roots.items():
             if name not in self._code:
                 self._code[name] = git_fingerprint(path, excluded=('docs/development', '.workspace') if path == self.root else (),
-                                                   timeout=self.remaining(), max_untracked_files=10000, max_bytes=64 * 1024 * 1024)
+                                                   timeout=self.remaining(), max_untracked_files=10000, max_bytes=256 * 1024 * 1024)
         return {name: self._code[name] for name in roots}
 
     def execution_blocks(self) -> dict:
@@ -557,7 +557,7 @@ class WorkItemQuery:
                     for row in self.branches():
                         name = row['repository']
                         if row['state'] == 'matched':
-                            current[name] = git_fingerprint(self.roots()[name], excluded=('docs/development', '.workspace') if self.roots()[name] == self.root else (), timeout=self.remaining(), max_untracked_files=10000, max_bytes=64 * 1024 * 1024)
+                            current[name] = self.code_state({name})[name]
                             sources[name] = 'worktree'
                         else:
                             current[name] = branch_fingerprint(self.roots()[name], row['workBranch'], timeout=self.remaining(5))

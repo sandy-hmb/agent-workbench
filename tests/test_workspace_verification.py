@@ -94,6 +94,20 @@ class FingerprintTest(unittest.TestCase):
             (self.repository / 'config.json').write_text('{"mode":2}\n')
             self.assertNotEqual(before, workspace_verification.git_fingerprint(self.repository))
 
+    def test_index_hints_cannot_hide_input_changes(self):
+            before = workspace_verification.git_fingerprint(self.repository)
+            run_git('update-index', '--assume-unchanged', 'source.txt', cwd=self.repository)
+            (self.repository / 'source.txt').write_text('hidden input change\n')
+            self.assertNotEqual(before, workspace_verification.git_fingerprint(self.repository))
+
+    def test_clean_filters_do_not_change_identity_when_committing(self):
+            (self.repository / '.gitattributes').write_text('*.txt text eol=lf\n')
+            (self.repository / 'source.txt').write_bytes(b'windows\r\n')
+            before = workspace_verification.git_fingerprint(self.repository)
+            run_git('add', '.', cwd=self.repository)
+            run_git('-c', 'user.name=Test', '-c', 'user.email=test@example.test', 'commit', '-qm', 'normalized', cwd=self.repository)
+            self.assertEqual(before, workspace_verification.git_fingerprint(self.repository))
+
     def test_fingerprint_excludes_only_named_operational_files(self) -> None:
             initial = workspace_verification.git_fingerprint(
                 self.repository, excluded=("README.md", "plans/implementation.md")

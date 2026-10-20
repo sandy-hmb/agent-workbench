@@ -122,7 +122,8 @@ def collect_result(root: Path, slug: str, *, snapshot: Path, junit: list[str], c
     if not isinstance(code, dict) or set(code) != names or any(not isinstance(value, str) or not DIGEST_RE.fullmatch(value) for value in code.values()):
         raise WorkItemError('EVIDENCE_CODE_INVALID', '快照代码指纹必须对应本次验证的仓库集合')
     saved_task = saved.get('taskId')
-    if (isinstance(task_id, list) and saved_task not in task_ids) or (not isinstance(task_id, list) and saved_task != task_id):
+    if ((len(tasks) > 1 and saved_task is not None and saved_task not in task_ids) or
+            (len(tasks) <= 1 and saved_task != (task_ids[0] if task_ids else None))):
         raise WorkItemError('EVIDENCE_SUBJECT_MISMATCH', '快照任务与采集任务不一致')
     paths = {}
     for kind, values in [('test-report', junit), ('artifact', artifacts)]:

@@ -130,6 +130,23 @@ class WorkspaceUpdateTest(unittest.TestCase):
         self.assertIn("--json", calls[0])
         self.assertEqual(str(self.root), calls[0][calls[0].index("--root") + 1])
 
+    def test_apply_pulls_only_the_approved_tracking_branch(self) -> None:
+        publish_update(self.source)
+        run_command(['git', '-C', str(self.root), 'branch', '-m', 'local-kit'])
+        plan = workspace_update.plan_result(self.root)
+        target = run_command(['git', '-C', str(self.root), 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.strip()
+        original = workspace_update._git
+        pulls = []
+
+        def observe(root, arguments):
+            if arguments[0] == 'pull':
+                pulls.append(arguments)
+            return original(root, arguments)
+
+        with patch.object(workspace_update, '_git', side_effect=observe):
+            workspace_update.apply_result(self.root, str(plan['planHash']))
+        self.assertEqual([['pull', '--ff-only', 'origin', target.removeprefix('origin/')]], pulls)
+
     def test_apply_rejects_plan_when_target_advances(self) -> None:
         publish_update(self.source)
         plan = workspace_update.plan_result(self.root)

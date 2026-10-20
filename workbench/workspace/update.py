@@ -348,8 +348,8 @@ def apply_result(root: Path, expected_hash: str) -> dict[str, object]:
     root = _root(root)
     # Pull only the tracked branch; a broad pull can fail when the remote
     # exposes multiple heads and may accidentally merge an unrelated branch.
-    branch, _ = _tracking_target(root)
-    _git(root, ["pull", "--ff-only", "origin", branch])
+    _, target = _tracking_target(root)
+    _git(root, ["pull", "--ff-only", "origin", target.removeprefix("origin/")])
     check = subprocess.run(
         [sys.executable, "-B", str(root / "scripts/kit.py"), "doctor", "--root", str(root), "--verbose", "--json"],
         cwd=root,

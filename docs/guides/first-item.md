@@ -4,6 +4,8 @@
 
 `brief` 和 `status` 默认输出简洁中文文本；自动化、工作台和插件消费这两个命令时显式加 `--json`，继续读取既有 JSON 字段与错误对象。查询保持只读，记录通过、当前代码适用性和生命周期完成分别展示。
 
+Agent 使用 `brief <slug> --task T01` 定向续接。无任务时默认只给外部验收计数和前十项待办，不附长证据；`--full` 展开全部验收依据，Inspect 2 的完整查询保持兼容。`workflowHooks.before/after` 给出当前阶段实际挂载的 Action；为空时不创建 Run 或查询空流程。同会话按路径、版本和作用范围复用未变规则，record 返回的 nextStep/revision 可直接续接，不反复运行全量 status。
+
 创建普通需求：
 
 ```bash
@@ -38,24 +40,34 @@ python3 scripts/kit.py item task-progress payment-retry --task T01 --status impl
 
 ```bash
 python3 scripts/kit.py verify snapshot payment-retry --json
-python3 scripts/kit.py verify record payment-retry --input evidence.json --state-revision <stateRevision> --json
+python3 scripts/kit.py verify record payment-retry --input - --state-revision <stateRevision> --json
 ```
 
-逐任务 snapshot 加 `--task T01`；record 输入使用 scope=task。完整格式见[证据输入](../../.agents/skills/workspace-verify/references/evidence.md)。状态与 README 验证摘要自动更新，不勾选计划、不手工改 README。摘要生成失败只运行 `verify render`。
+输入默认从 stdin 或临时文件提供，不将输入副本长期留在 artifacts。同一批检查只记录一次：`taskCoverage` 用零起始 checks 索引说明实际覆盖哪些任务。例如 `{"scope":"item","taskCoverage":{"T01":[0],"T02":[0]}}` 关联同仓的一项真实检查，须另附 checks、codeState、recordedAt、result 和整体 reviewResult。不能把未覆盖的任务任意列入映射。
+
+`scope=item` 可原子登记相关任务及整体验证，代码快照包含全部涉及仓；`scope=batch` 仅更新覆盖任务，代码快照只含对应仓。逐任务仍用 `scope=task,taskId=T01` 和 `snapshot --task T01`。不同仓的检查必须分别对应实际 checkout；同批可包含真实依赖，但外部未完成依赖仍阻断。每个任务的验证性质、实际执行/跳过、分支、阻塞、交付路径与代码内容均校验，失败不会完成任务。重复相同输入和原 revision 返回已有回执，中断后状态未提交就不算完成。
+
+JUnit 采集可重复 `verify collect --task T01 --task T02`，在同仓报告确实覆盖两任务时复用一份快照与 checks；仍须人工核对映射，整体验收改为 scope=item 并填写 reviewResult=passed。完整格式见[证据输入](../../.agents/skills/workspace-verify/references/evidence.md)。状态与 README 自动更新，摘要失败只 verify render，不重复执行或登记。原始 Case 报告、必要失败日志保留；不默认另写 results、validation、review、delivery-input 和普通预检成功报告。复杂独立审查、前端指南、SQL 及真实发布/回退说明仍按需交付，旧文件不自动清理。
 
 记录通过不等于当前代码有效；接手时按需 `brief <slug> --check-code`。代码不匹配时重新验证，不能把旧结果当作当前通过。
+
+2.10 起的新证据按完整 Git 输入的实际内容识别代码，另存来源 commit 和 checkout；相同内容暂存或提交后不重登“沿用”证据。真实源码、配置、资源、测试、文件模式或未跟踪输入变化仍失效；忽略文件不在 Git 输入集合内，需要验证的构建输入应纳入版本化或受审阅证据。子模块有未提交输入时保守拒绝核对。旧不可变证据继续按旧指纹规则读取，不重写历史。
 
 ## 修改与完成
 
 已批准内容发生非实质修改时用 `item approval --decision unchanged --reason <原因>` 沿用批准。范围、验收或关键方案变化时记录 needs-review，并审阅实际变更；受影响任务不能沿用原完成证据。
 
-通过 `item delivery` 记录实际版本、提测、部署和外部验收。未关闭待办需保留负责人和完成条件；关闭必须附证据或范围调整理由。没有部署事实显示未确认。已有 Workflow Action 结果可选地以 `evidenceRefs` 引用同一 WorkItem 的 runId、requestId 和 stage；引用不会代替人工确认或自动关闭验收。
+实质修改用 `--affected-task T01` 明确影响任务，自动传播到依赖方；独立新增范围且没有旧任务受影响时，使用 `--no-affected-tasks --reason <依据>`。两者互斥；未声明影响则保守整体失效。任务定义真实变化仍会失效，不能用“无影响”绕过；整体范围变化需新整体验证，未变任务保留原证据，不复制旧检查重新登记。
+
+通过 `item delivery --input -` 记录实际版本、提测、部署和外部验收。未关闭待办需保留负责人和完成条件；关闭必须附证据或范围调整理由。没有部署事实显示未确认。已有 Workflow Action 结果可选地以 `evidenceRefs` 引用同一 WorkItem 的 runId、requestId 和 stage；引用不会代替人工确认或自动关闭验收。机器 attempt/receipt 为外部事实，不另造同义报告。
 
 本次验收完成、用户确认结束后：
 
 ```bash
 python3 scripts/kit.py item complete payment-retry --state-revision <stateRevision> --json
 ```
+
+complete 内部即时深检，无须先重复 brief --check-code；后者只用于诊断。可信执行者已经在同一内容与模块/profile/参数下完成的检查可核对凭据复用，不因切换 Agent 重跑。漂移、覆盖缺口或可疑结果才重验；目标检查和有证据的历史基线失败分开，不为全仓绿扩大修复范围。
 
 ## 下一迭代
 
@@ -65,7 +77,9 @@ python3 scripts/kit.py item complete payment-retry --state-revision <stateRevisi
 
 ## 调整、阻塞与取消
 
-工作项结构事实通过 `item update` 维护。输入仅允许 title、summary、activity、risk、documentKind、bindings；绑定包含 repository、workBranch、baseBranch。每次提供当前 stateRevision 和调整理由，`--preview` 只显示变化与影响，不修改状态。
+工作项结构事实通过 `item update` 维护。输入仅允许 title、summary、activity、risk、documentKind、bindings；绑定包含 repository、workBranch、baseBranch，以及可选 checkout。每次提供当前 stateRevision 和调整理由，`--preview` 只显示变化与影响，不修改状态。
+
+`checkout` 是已授权、已存在 worktree 的绝对真实路径，不是任意克隆副本；Kit 核对 Git common-dir、worktree 登记、remote 与工作分支，命令不创建或切换 worktree。通过 item update 登记后，brief、规则发现、snapshot、record、Inspect 和 submit 使用同一实际位置。仅位置改变且内容等价时保留新式证据，分支/范围或内容变化使受影响证据失效。不要绕过门禁在 Registry 主目录提测另一 worktree 的代码。
 
 ```bash
 python3 scripts/kit.py item update payment-retry --input changes.json --reason "增加前端接入范围" --state-revision <stateRevision> --preview --json

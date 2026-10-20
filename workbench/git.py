@@ -196,13 +196,15 @@ def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout=N
         return not any(name == item or name.startswith(item.rstrip('/') + '/') for item in excluded)
     entries = _content_entries(repository, ['ls-tree', '-rz', 'HEAD'], remaining(), max_bytes)
     entries = {p: value for p, value in entries.items() if included(p)}
-    changed = _git(repository, ['diff', '--name-only', '--no-ext-diff', '--no-textconv', '--no-renames', '--ignore-submodules=none', '-z', 'HEAD'], remaining(), max_bytes)
+    tracked = _git(repository, ['ls-files', '--cached', '-z'], remaining(), max_bytes)
     untracked = _git(repository, ['ls-files', '--others', '--exclude-standard', '-z'], remaining(), max_bytes)
     paths = {p for p in untracked.split(b'\0') if p and included(p)}
     if max_untracked_files is not None and len(paths) > max_untracked_files:
         raise ValueError('代码核对未跟踪文件数量超过限制')
-    paths.update(p for p in changed.split(b'\0') if p and included(p))
-    consumed = len(changed) + len(untracked)
+    paths.update(p for p in tracked.split(b'\0') if p and included(p))
+    paths.update(entries)
+    consumed = len(tracked) + len(untracked)
+    object_format = len(next(iter(entries.values()))[1]) if entries else 40
     for raw in sorted(paths):
         remaining()
         path = repository / os.fsdecode(raw)
@@ -222,11 +224,16 @@ def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout=N
                     chunks.append(chunk)
             data = b''.join(chunks)
             mode = b'100755' if info.st_mode & 0o111 else b'100644'
+        elif stat.S_ISDIR(info.st_mode) and entries.get(raw, (None,))[0] == b'160000':
+            if _git(path, ['status', '--porcelain', '--untracked-files=all'], remaining(), max_bytes).strip():
+                raise ValueError(f'子模块存在未提交输入，无法证明内容等价：{path}')
+            entries[raw] = (b'160000', _git(path, ['rev-parse', 'HEAD'], remaining(), max_bytes).strip())
+            continue
         else:
             raise ValueError(f'变化路径不是普通文件或符号链接：{path}')
         consumed += len(data)
-        # Git object identities let unchanged blobs be read from the tree, not disk.
-        object_format = len(next(iter(entries.values()))[1]) if entries else 40
+        # Read every tracked input: assume-unchanged and clean filters must not
+        # hide filesystem changes, and staging/committing must not change identity.
         hasher = hashlib.sha256() if object_format == 64 else hashlib.sha1()
         hasher.update(b'blob ' + str(len(data)).encode() + b'\0' + data)
         entries[raw] = (mode, hasher.hexdigest().encode())

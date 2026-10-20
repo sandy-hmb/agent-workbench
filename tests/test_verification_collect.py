@@ -37,8 +37,8 @@ class VerificationCollectTest(unittest.TestCase):
 
     def save_snapshot(self, task=None):
         args = ['verify', 'snapshot', 'demo', '--json']
-        for task_id in task if isinstance(task, list) else [task] if task else []:
-            args += ['--task', task_id]
+        if task:
+            args += ['--task', task]
         result = self.cli(*args)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.snapshot.write_text(result.stdout, encoding='utf-8')
@@ -52,8 +52,8 @@ class VerificationCollectTest(unittest.TestCase):
             args += ['--junit', path]
         for path in artifacts:
             args += ['--artifact', path]
-        if task:
-            args += ['--task', task]
+        for task_id in task if isinstance(task, list) else [task] if task else []:
+            args += ['--task', task_id]
         if json_flag:
             args += ['--json']
         result = self.cli(*args)
@@ -98,6 +98,19 @@ class VerificationCollectTest(unittest.TestCase):
         self.assertNotIn('PRIVATE_STDOUT', json.dumps(value))
         self.assertNotIn('PRIVATE_STDERR', json.dumps(value))
         self.assertEqual(before, self.files())
+
+    def test_multi_task_collection_reuses_one_check_set_and_snapshot(self):
+        self.fixture.plan(('T01', 'T02'))
+        self.fixture.review()
+        self.save_snapshot()
+        status, value = self.collect(task=['T01', 'T02'])
+        self.assertEqual(0, status, value)
+        payload = value['input']
+        self.assertEqual('batch', payload['scope'])
+        self.assertEqual({'T01': [0], 'T02': [0]}, payload['taskCoverage'])
+        self.assertEqual(1, len(payload['checks']))
+        commands.record(self.root, 'demo', payload, expected_revision=value['stateRevision'])
+        self.assertEqual(1, len(self.fixture.state()['evidence']))
 
     def test_failures_errors_skips_exit_status_and_empty_report_never_pass(self):
         self.report.write_text('''<testsuite tests="4" failures="1" errors="1" skipped="1">

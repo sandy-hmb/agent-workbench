@@ -29,6 +29,8 @@ summary.completionAction 指示可请求完成及阻塞原因；实际写入仍�
 
 `verification.pendingExternalChecks` 返回验收清单，消费者按 `status` 区分未关闭项与 `passed`/`waived` 项。活动或暂停项的已关闭 Workflow 引用失效时，查询复制出 `status=pending`，并附 `recordedStatus`（原持久化状态）和 `reason`（失效原因）；这些字段不写入 `state.json`，不能将查询派生字段原样作为 delivery 输入。summary、flow 和 verification 使用相同有效状态，已结束轮次保留历史结论。`evidenceRefs.status` 也是显示快照，不能取代真实尝试；查询不执行 Action 或自动关闭验收。
 
+Kit 2.10 的 Agent `brief` 默认压缩外部验收为计数和当前待办；`brief --full` 恢复完整依据。此变化不裁剪 Inspect 的 summary/flow/verification。批准的 `bindings.checkout` 在 change/task 视图解析为实际绝对路径；仓库身份仍用 repository，不从 worktree 目录名推断。批量证据可被多任务引用，同一 id 不代表多次测试，详情包含 taskCoverage 到 checks 的索引映射。
+
 查询不执行测试、Git 写操作、Provider 或 Action。单文本最多 1 MiB、响应最多 8 MiB，普通请求 10 秒、代码核对 30 秒；列表最多 200 项，搜索最多 50 项。非法路径、符号链接、未知版本或超限不能伪装为空成功。
 
 summary 中的 executionBlockers 和 cancellation 分别展示开发阻塞与取消结论。任务包含 executionBlocked 与 waitingFor；readyTasks 排除实际阻塞和依赖未完成任务。取消项不出现在默认未完成视图。

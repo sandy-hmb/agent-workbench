@@ -45,7 +45,7 @@ python3 scripts/kit.py update plan --root . --json
 python3 scripts/kit.py update apply --root . --plan-hash <planHash> --json
 ```
 
-apply 会重新检查目标提交和 plan hash，内部仅执行 `git pull --ff-only` 与 doctor；无法快进时停止并保留现场。不得执行 `git merge`、`git rebase`、`git stash`、`git reset` 或 `git push`，也不得自动解决冲突。返回值若含 `manualSteps`，原样转告使用者——这是 plan 阶段已经展示过的同一批步骤。
+apply 会重新检查目标提交和 plan hash，只对当前跟踪分支执行 `git pull --ff-only origin <branch>` 与 doctor；无法快进时停止并保留现场。不得执行 `git merge`、`git rebase`、`git stash`、`git reset` 或 `git push`，也不得自动解决冲突。返回值若含 `manualSteps`，原样转告使用者——这是 plan 阶段已经展示过的同一批步骤。
 
 新版只支持新格式。旧工作区保持原状，在新目录初始化，不执行迁移或清理。
 

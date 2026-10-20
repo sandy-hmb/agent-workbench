@@ -372,12 +372,17 @@ def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> d
         reader.assert_unchanged()
         if payload['result'] == 'passed' and code != reader.code_state(names):
             raise WorkItemError('CODE_CHANGED', '验证代码状态与当前代码不一致')
+        reader.assert_unchanged()
         identifier = write_evidence(directory, value)
         state['evidence'].append(identifier)
         receipts[receipt] = identifier
         state['evidenceReceipts'] = receipts
         for target in targets:
             stored = state['tasks'][target['id']]
+            if 'latestPassedEvidence' not in stored:
+                stored['latestPassedEvidence'] = next((old_id for old_id in reversed(state['evidence'][:-1])
+                    if (old := reader.evidence(old_id))['iteration'] == state['iteration'] and old['result'] == 'passed'
+                    and (old.get('taskId') == target['id'] or target['id'] in old.get('taskCoverage', {}))), None)
             stored.update(evidence=identifier, latestEvidence=identifier)
             if payload['result'] == 'passed':
                 stored['latestPassedEvidence'] = identifier
@@ -589,6 +594,8 @@ def update(root: Path, slug: str, changes: dict, *, reason: str, expected_revisi
                 location = repository_roots(Path(root).resolve(), {'bindings': [binding]})[name]
                 for field in ('workBranch', 'baseBranch'):
                     _git(location, ['check-ref-format', '--branch', binding[field]], 5, 65536)
+                if binding.get('checkout') and _git(location, ['branch', '--show-current'], 5, 65536).decode().strip() != binding['workBranch']:
+                    raise WorkItemError('WORKING_BRANCH_MISMATCH', '批准的 checkout 必须已位于工作分支')
         reader = WorkItemQuery(root, slug, state=state)
         tasks = reader.tasks() if {'risk', 'documentKind', 'bindings'} & changed.keys() else []
         old_bindings = {row['repository']: row for row in state['bindings']}
@@ -598,17 +605,32 @@ def update(root: Path, slug: str, changes: dict, *, reason: str, expected_revisi
             raise WorkItemError('ITEM_REPOSITORY_REFERENCED', '先审阅并移除仍引用该仓的当前计划任务')
         if removed and (any(row['status'] == 'open' for row in state['blockers']) or any(row['status'] not in {'passed','waived'} for row in state['externalChecks'])):
             raise WorkItemError('ITEM_REPOSITORY_REFERENCED', '仍有未关闭事项，先明确处理范围再移除仓库')
-        rebound = {name for name in old_bindings.keys() & new_bindings.keys() if old_bindings[name] != new_bindings[name]}
+        rebound = {name for name in old_bindings.keys() & new_bindings.keys()
+                   if any(old_bindings[name][key] != new_bindings[name][key]
+                          for key in ('repository', 'workBranch', 'baseBranch'))}
+        moved = {name for name in old_bindings.keys() & new_bindings.keys()
+                 if old_bindings[name].get('checkout') != new_bindings[name].get('checkout')} - rebound
+        moved_code = WorkItemQuery(root, slug, state=candidate).code_state(moved) if moved else {}
         invalidated = {task['id'] for task in tasks if task['repository'] in rebound}
+        for task in tasks:
+            if task['repository'] in moved and (identifier := state['tasks'].get(task['id'], {}).get('evidence')):
+                evidence = reader.evidence(identifier)
+                if evidence.get('codeIdentity') != 'content-v1' or evidence['codeState'].get(task['repository']) != moved_code[task['repository']]:
+                    invalidated.add(task['id'])
         while True:
             dependents = {task['id'] for task in tasks if set(task['dependencies']) & invalidated}
             if dependents <= invalidated:
                 break
             invalidated.update(dependents)
         reviews = set()
-        if {'risk', 'documentKind'} & changed.keys() or 'bindings' in changed:
+        identity_changed = bool(removed or new_bindings.keys() - old_bindings.keys() or rebound)
+        if {'risk', 'documentKind'} & changed.keys() or identity_changed:
             reviews.update(candidate['reviews'])
             candidate['verification'] = None
+        elif moved and state['verification']:
+            evidence = reader.evidence(state['verification'])
+            if evidence.get('codeIdentity') != 'content-v1' or any(evidence['codeState'].get(name) != value for name, value in moved_code.items()):
+                candidate['verification'] = None
         for role in reviews:
             candidate['reviews'][role] = {**candidate['reviews'][role], 'decision': 'needs-review', 'reason': reason, 'recordedAt': stamp()}
         for identifier in invalidated:

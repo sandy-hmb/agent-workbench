@@ -109,3 +109,26 @@ class BatchEvidenceTest(ItemFixture, TestCase):
         subprocess.run(['git', '-C', str(self.root), '-c', 'user.name=Test', '-c', 'user.email=test@example.test', 'commit', '-qm', 'tested'], check=True)
         self.assertTrue(WorkItemQuery(self.root, 'demo').decision(check_code=True)['canComplete'])
         self.assertEqual(1, len(self.state()['evidence']))
+
+    def test_delivery_stdin_and_explicit_no_affected_tasks_cli(self):
+        import json
+        import subprocess
+        import sys
+        from tests.support.items import ROOT
+        commands.record(self.root, 'demo', self.batch(), expected_revision=self.state()['stateRevision'])
+        previous = self.state()['tasks']['T01']['evidence']
+        with (self.item / 'change.md').open('a') as handle:
+            handle.write('\nIndependent new scope\n')
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/kit.py'), 'item', 'approval', 'demo',
+                                 '--decision', 'approved', '--reason', 'independent scope', '--no-affected-tasks',
+                                 '--state-revision', self.state()['stateRevision'], '--root', str(self.root), '--json'],
+                                capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(previous, self.state()['tasks']['T01']['evidence'])
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/kit.py'), 'item', 'delivery', 'demo',
+                                 '--input', '-', '--state-revision', self.state()['stateRevision'],
+                                 '--root', str(self.root), '--json'], input=json.dumps({'repositories': {'kit': {'version': 'tested', 'evidence': 'actual receipt'}}}),
+                                capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual('tested', self.state()['delivery']['kit']['version'])
+        self.assertFalse((self.item / 'artifacts/delivery-input.json').exists())

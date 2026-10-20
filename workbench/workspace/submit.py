@@ -194,10 +194,12 @@ def _current_branch(root: Path, repository_name: str) -> str | None:
         return None
 
 
-def _submit_path(root, repository_name, slug, expected=None):
+def _submit_path(root, repository_name, slug, expected=None, branch=None):
     workspace = load_workspace(root)
     validate_repository_state(workspace, resolve_repository(workspace.repositories, repository_name), allow_missing_remote=False)
     state = load_state(item_path(root, slug))
+    if branch is not None and not any(b['repository'] == repository_name and b['workBranch'] == branch for b in state['bindings']):
+        raise SubmitError('SUBMIT_BRANCH_MISMATCH', 'WorkItem 批准分支已变化，不能续接旧提测')
     path = repository_roots(root, state, {repository_name}).get(repository_name)
     if path is None or expected is not None and str(path) != expected:
         raise SubmitError('SUBMIT_CHECKOUT_CHANGED', '批准的 checkout 已变化，请重新 plan')
@@ -268,7 +270,7 @@ def plan_result(
         "repository": repository.path,
         "checkout": str(path),
         "sourceHead": _git(path, ['rev-parse', 'HEAD']).strip(),
-        "sourceContent": git_fingerprint(path, timeout=25, max_bytes=64 * 1024 * 1024, max_untracked_files=10000),
+        "sourceContent": git_fingerprint(path, timeout=25, max_bytes=256 * 1024 * 1024, max_untracked_files=10000),
         "branch": branch,
         "item": item_slug,
         "target": target,
@@ -316,7 +318,7 @@ def apply_result(
             "SUBMIT_REPOSITORY_INVALID",
             f"repositoryPath 必须填写已登记业务仓路径 {repository.path}，不能填写别名或仓库名称：{repository_name}",
         )
-    path = _submit_path(root, repository.path, item_slug, payload.get('checkout'))
+    path = _submit_path(root, repository.path, item_slug, payload.get('checkout'), branch)
     selected = payload["paths"]
     assert isinstance(selected, list)
     attempt_id = str(payload["attemptId"])
@@ -441,7 +443,7 @@ def reconcile_submit(root: Path, attempt_id: str) -> dict[str, object]:
     assert isinstance(plan, dict)
     workspace = load_workspace(root)
     repository = resolve_repository(workspace.repositories, str(plan["repository"]))
-    path = _submit_path(root, repository.path, str(plan['item']), plan.get('checkout'))
+    path = _submit_path(root, repository.path, str(plan['item']), plan.get('checkout'), str(plan['branch']))
     branch = str(plan["branch"])
     target = str(plan["target"])
     local_head = _git(path, ["rev-parse", "HEAD"], check=False).strip()
@@ -476,7 +478,7 @@ def continue_submit(root: Path, attempt_id: str) -> dict[str, object]:
     assert isinstance(phases, dict)
     workspace = load_workspace(root)
     repository = resolve_repository(workspace.repositories, str(plan["repository"]))
-    path = _submit_path(root, repository.path, str(plan['item']), plan.get('checkout'))
+    path = _submit_path(root, repository.path, str(plan['item']), plan.get('checkout'), str(plan['branch']))
     branch = str(plan["branch"])
     target = str(plan["target"])
 

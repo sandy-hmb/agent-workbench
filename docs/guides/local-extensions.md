@@ -16,6 +16,8 @@ python3 scripts/kit.py action resolve <extension>/<action> --root . --json
 
 入口只返回短元数据、精确 Skill 路径、资源目录、effects、确认摘要、非敏感配置和 Extension digest，不启动命令、MCP、Provider 或 Workflow Run。Agent 只有在用户实际需要时才读取返回的 Skill 和资源。命令型或未声明 standalone 的 Action 仍只能通过 Workflow Stage 使用。
 
+`action resolve` 定向校验所选扩展和实际 Provider 依赖的路径、digest 与配置；不因无关扩展损坏阻断本次独立动作。`action list`、doctor 与激活仍做完整健康检查。resolve 不豁免所选动作漂移、依赖缺失或执行授权。
+
 ## 准备来源
 
 团队可把源码保存在任意已有私有业务仓，例如：
