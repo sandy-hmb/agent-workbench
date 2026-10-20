@@ -346,7 +346,10 @@ def apply_result(root: Path, expected_hash: str) -> dict[str, object]:
     if plan["planHash"] != expected_hash:
         raise _error("UPDATE_PLAN_STALE", "更新计划已变化，请重新运行 plan")
     root = _root(root)
-    _git(root, ["pull", "--ff-only"])
+    # Pull only the tracked branch; a broad pull can fail when the remote
+    # exposes multiple heads and may accidentally merge an unrelated branch.
+    branch, _ = _tracking_target(root)
+    _git(root, ["pull", "--ff-only", "origin", branch])
     check = subprocess.run(
         [sys.executable, "-B", str(root / "scripts/kit.py"), "doctor", "--root", str(root), "--verbose", "--json"],
         cwd=root,
