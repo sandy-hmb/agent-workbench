@@ -10,7 +10,7 @@ from workbench.workspace.model import reject_sensitive_fields
 from workbench.workspace.paths import extensions_root, state_root
 
 
-def discover_extensions(root: Path) -> dict[str, ExtensionManifest]:
+def discover_extensions(root: Path, only: set[str] | None = None) -> dict[str, ExtensionManifest]:
     if Path(root).is_symlink():
         raise ExtensionError(f"workspace root must be regular directory: {root}")
     state = state_root(root)
@@ -25,6 +25,8 @@ def discover_extensions(root: Path) -> dict[str, ExtensionManifest]:
         raise ExtensionError(f"extensions root must be regular directory: {base}")
     result: dict[str, ExtensionManifest] = {}
     for child in sorted(base.iterdir(), key=lambda p: p.name):
+        if only is not None and child.name not in only:
+            continue
         if child.name == ".state":
             continue
         if child.is_symlink() or not child.is_dir():

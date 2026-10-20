@@ -1,38 +1,22 @@
 # 证据输入
 
-只记录已经执行的检查；命令文本是证据，不由 record 执行。record 的 stateRevision 使用 snapshot/brief 返回的当前状态版本。
+只记实际执行，不由 record 运行命令。默认 stdin/临时输入，不把 JSON 副本留在 artifacts。revision/codeState 来自同批检查的 snapshot；记录时即时核对内容。
 
 ```json
 {
   "scope": "item",
-  "taskId": null,
-  "recordedAt": "2026-09-25T10:00:00+08:00",
+  "taskCoverage": {"T01": [0], "T02": [0]},
+  "recordedAt": "2026-10-21T10:00:00+08:00",
   "result": "passed",
   "reviewResult": "passed",
-  "verificationScope": "本地后端验证",
   "codeState": {"service": "sha256:<snapshot-digest>"},
-  "checks": [{
-    "type": "测试", "workingDirectory": "service",
-    "command": "python3 -m unittest tests.test_service",
-    "target": "tests.test_service", "executed": 1, "skipped": 0,
-    "exitStatus": 0, "result": "关键行为与反例通过"
-  }]
+  "checks": [{"type": "测试", "workingDirectory": "service", "command": "exact-command",
+    "target": "实际覆盖的行为", "executed": 2, "skipped": 0, "exitStatus": 0, "result": "验收与反例通过"}]
 }
 ```
 
-逐任务使用 scope=task、taskId=T01，codeState 只包含目标仓；整体验证包含全部涉及仓。result 为 passed/failed；环境等待用 item block，整体验证通过必须 reviewResult=passed。检查类型为测试、行为检查、集成、结构、迁移、静态检查或编译；性质必须足以覆盖任务。涉及旧路径时，在 verificationScope 或检查结果说明主路径、残留引用和兼容边界。
+scope=item 覆盖全部仓并含整体复核，可同时更新 taskCoverage 的任务；scope=batch 只登记覆盖任务，codeState 只含其仓；旧 scope=task/taskId=T01 仍可用。映射值为 checks 的零起始索引，必须实际证明对应任务、匹配验证性质和 checkout；同批允许依赖但不能跳过外部未完成依赖。失败不完成任务。每批只写一份检查事实、一次摘要。
 
-可选 artifactRefs 为 `{path,sha256,bytes,type}` 数组，path 相对 WorkItem，实际文件哈希必须一致。不要放密钥或完整敏感日志。
+检查类型：测试、行为检查、集成、结构、迁移、静态检查、编译。测试需 executed>0、skipped=0；持久化需集成/结构/迁移。旧路径变化说明主路径、残留引用和兼容边界。artifactRefs 可用 `{path,sha256,bytes,type}`，path 相对 WorkItem，文件须匹配，不放凭据。
 
-交付记录示例：
-
-```json
-{
-  "repositories": {"service": {"version": "<commit>", "submission": "submitted", "deployment": "未确认", "evidence": "测试分支推送结果"}},
-  "externalChecks": [{"id": "integration", "requirement": "R1", "description": "测试环境联调符合接口契约", "owner": "测试负责人", "status": "pending", "evidence": ""}]
-}
-```
-
-externalChecks 更新提交当前完整清单；passed/waived 必须填写 evidence。repositories 按仓合并，不提交不变仓。验证记录不能自行关闭外部待办。
-
-必要 Action 先登记 pending；成功后人工验收为 passed，附 `"evidenceRefs":[{"kind":"workflow","runId":"...","requestId":"...","stage":"..."}]`，引用当前轮次、绑定和配置下最新成功尝试。引用中 status 仅为快照，省略旧引用仍保留。running 等待或查询；退出后 unknown 才 reconcile。waived 附范围理由并引用最新已结束尝试。Action 成功不自动关闭验收；失效项不能丢弃。无引用人工验收不变。
+交付 stdin 示例：`{"repositories":{"service":{"version":"<commit>","submission":"submitted","deployment":"未确认","evidence":"回执"}}}`。仓按需合并；externalChecks 更新须完整保留未关闭项，passed/waived 附依据。必要 Action 用 evidenceRefs 的 workflow/runId/requestId/stage 关联当前成功尝试；running 等待，unknown 先 reconcile，不能 skip 未知结果。Action 成功不自动完成验收。

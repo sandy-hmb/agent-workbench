@@ -20,7 +20,7 @@ def snapshot_result(root: Path, slug: str, task_id=None):
     else:
         states = reader.code_state()
     reader.assert_unchanged()
-    return {'itemSlug': slug, 'stateRevision': reader.state['stateRevision'], 'codeState': states, 'taskId': task_id}
+    return {'itemSlug': slug, 'stateRevision': reader.state['stateRevision'], 'codeState': states, 'taskId': task_id, 'codeIdentity': 'content-v1'}
 
 
 def summary_text(root: Path, slug: str, item: Path, **_kwargs):
@@ -40,7 +40,7 @@ def build_parser():
     collect.add_argument('--command', dest='check_command', required=True)
     collect.add_argument('--working-directory', required=True)
     collect.add_argument('--exit-status', type=int, required=True)
-    collect.add_argument('--task')
+    collect.add_argument('--task', action='append')
     record = commands.add_parser('record'); record.add_argument('--input', type=Path, required=True, help='JSON 文件路径，或使用 - 从 stdin 读取'); record.add_argument('--state-revision', required=True)
     evidence = commands.add_parser('evidence'); evidence.add_argument('--task'); evidence.add_argument('--id')
     history = commands.add_parser('history'); history.add_argument('--task'); history.add_argument('--iteration'); history.add_argument('--offset', type=int, default=0); history.add_argument('--limit', type=int, default=20)

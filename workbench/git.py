@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable
 
 
-def branch_fingerprint(repository: Path, branch: str, *, timeout: float = 5) -> str:
+def legacy_branch_fingerprint(repository: Path, branch: str, *, timeout: float = 5) -> str:
     """Fingerprint a local committed branch without checkout or fetching."""
     started = time.monotonic()
     _git(repository, ['check-ref-format', '--branch', branch], timeout, 65536)
@@ -91,7 +91,7 @@ def _digest_part(digest: object, label: bytes, value: bytes) -> None:
     digest.update(value)
 
 
-def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout: float | None = None, max_untracked_files: int | None = None, max_bytes: int | None = None) -> str:
+def legacy_git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout: float | None = None, max_untracked_files: int | None = None, max_bytes: int | None = None) -> str:
     deadline = time.monotonic() + timeout if timeout is not None else None
     def remaining() -> float | None:
         if deadline is None:
@@ -147,3 +147,88 @@ def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout: 
         _digest_part(digest, b"DATA", content)
         consumed += len(raw_path) + len(content)
     return f"sha256:{digest.hexdigest()}"
+
+
+def _content_entries(repository, arguments, timeout, limit):
+    entries = {}
+    for row in _git(repository, arguments, timeout, limit).split(b"\0"):
+        if row:
+            metadata, path = row.split(b"\t", 1)
+            mode, kind, oid = metadata.split()
+            entries[path] = (mode, oid)
+    return entries
+
+
+def _content_digest(entries):
+    result = hashlib.sha256()
+    _digest_part(result, b"IDENTITY", b"content-v1")
+    for path, (mode, oid) in sorted(entries.items()):
+        _digest_part(result, b"PATH", path)
+        _digest_part(result, b"MODE", mode)
+        _digest_part(result, b"BLOB", oid)
+    return 'sha256:' + result.hexdigest()
+
+
+def branch_fingerprint(repository: Path, branch: str, *, timeout: float = 5) -> str:
+    started = time.monotonic()
+    _git(repository, ['check-ref-format', '--branch', branch], timeout, 65536)
+    remaining = timeout - (time.monotonic() - started)
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired('git', timeout)
+    return _content_digest(_content_entries(repository, ['ls-tree', '-rz', 'refs/heads/' + branch], remaining, 64 * 1024 * 1024))
+
+
+def git_fingerprint(repository: Path, excluded: Iterable[str] = (), *, timeout=None, max_untracked_files=None, max_bytes=None) -> str:
+    """Hash complete Git input contents, independent of staging or commit identity."""
+    repository = Path(repository).resolve()
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    def remaining():
+        value = None if deadline is None else deadline - time.monotonic()
+        if value is not None and value <= 0:
+            raise subprocess.TimeoutExpired('git', timeout)
+        return value
+    top = Path(os.fsdecode(_git(repository, ['rev-parse', '--show-toplevel'], remaining(), max_bytes).strip())).resolve()
+    if top != repository:
+        raise ValueError(f'仓库不是独立 Git 根目录：{repository}')
+    excluded = _excluded_paths(excluded)
+    def included(path):
+        name = os.fsdecode(path)
+        return not any(name == item or name.startswith(item.rstrip('/') + '/') for item in excluded)
+    entries = _content_entries(repository, ['ls-tree', '-rz', 'HEAD'], remaining(), max_bytes)
+    entries = {p: value for p, value in entries.items() if included(p)}
+    changed = _git(repository, ['diff', '--name-only', '--no-ext-diff', '--no-textconv', '--no-renames', '--ignore-submodules=none', '-z', 'HEAD'], remaining(), max_bytes)
+    untracked = _git(repository, ['ls-files', '--others', '--exclude-standard', '-z'], remaining(), max_bytes)
+    paths = {p for p in untracked.split(b'\0') if p and included(p)}
+    if max_untracked_files is not None and len(paths) > max_untracked_files:
+        raise ValueError('代码核对未跟踪文件数量超过限制')
+    paths.update(p for p in changed.split(b'\0') if p and included(p))
+    consumed = len(changed) + len(untracked)
+    for raw in sorted(paths):
+        remaining()
+        path = repository / os.fsdecode(raw)
+        if not path.exists() and not path.is_symlink():
+            entries.pop(raw, None)
+            continue
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            data, mode = os.fsencode(os.readlink(path)), b'120000'
+        elif stat.S_ISREG(info.st_mode):
+            if max_bytes is not None and consumed + info.st_size > max_bytes:
+                raise ValueError('代码核对读取字节超过限制')
+            chunks = []
+            with path.open('rb') as handle:
+                while chunk := handle.read(64 * 1024):
+                    remaining()
+                    chunks.append(chunk)
+            data = b''.join(chunks)
+            mode = b'100755' if info.st_mode & 0o111 else b'100644'
+        else:
+            raise ValueError(f'变化路径不是普通文件或符号链接：{path}')
+        consumed += len(data)
+        # Git object identities let unchanged blobs be read from the tree, not disk.
+        object_format = len(next(iter(entries.values()))[1]) if entries else 40
+        hasher = hashlib.sha256() if object_format == 64 else hashlib.sha1()
+        hasher.update(b'blob ' + str(len(data)).encode() + b'\0' + data)
+        entries[raw] = (mode, hasher.hexdigest().encode())
+    remaining()
+    return _content_digest(entries)

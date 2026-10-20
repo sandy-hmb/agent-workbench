@@ -195,8 +195,8 @@ def validate_state(state: dict, item: Path) -> None:
                 'iteration', 'bindings', 'reviews', 'tasks', 'currentTasks', 'maxTaskNumber',
                 'verification', 'evidence', 'delivery', 'externalChecks', 'history', 'updatedAt', 'stateRevision',
                 'blockers', 'cancellation', 'changes'}
-    object_fields(state, allowed=required, required=required)
-    if set(state) != required or state.get('schemaVersion') != SCHEMA_VERSION:
+    object_fields(state, allowed=required | {'evidenceReceipts'}, required=required)
+    if state.get('schemaVersion') != SCHEMA_VERSION:
         raise WorkItemError('ITEM_FORMAT_UNSUPPORTED', '仅支持新版 state.json；请使用新工作区')
     if state['slug'] != item.name or not SLUG_RE.fullmatch(state['slug']):
         raise WorkItemError('ITEM_INVALID', '需求身份不一致')
@@ -210,16 +210,22 @@ def validate_state(state: dict, item: Path) -> None:
         raise WorkItemError('ITEM_INVALID', '缺少仓库绑定')
     names = set()
     for binding in state['bindings']:
-        if not isinstance(binding, dict) or set(binding) != {'repository', 'workBranch', 'baseBranch'}:
+        if not isinstance(binding, dict) or not {'repository', 'workBranch', 'baseBranch'} <= set(binding) or set(binding) - {'repository', 'workBranch', 'baseBranch', 'checkout'}:
             raise WorkItemError('ITEM_INVALID', '仓库绑定无效')
         if any(not isinstance(v, str) or not v or '\n' in v for v in binding.values()):
             raise WorkItemError('ITEM_INVALID', '仓库绑定必须是非空单行文字')
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', binding['repository']) or binding['repository'] in names:
             raise WorkItemError('ITEM_INVALID', '仓库名称重复或无效')
         names.add(binding['repository'])
+        if binding.get('checkout') and (not Path(binding['checkout']).is_absolute() or '\0' in binding['checkout']):
+            raise WorkItemError('ITEM_INVALID', 'checkout 必须为绝对路径')
     for key in ('reviews', 'tasks', 'delivery'):
         if not isinstance(state[key], dict):
             raise WorkItemError('ITEM_INVALID', f'{key} 必须是对象')
+    if 'evidenceReceipts' in state:
+        if not isinstance(state['evidenceReceipts'], dict) or any(
+                not DIGEST_RE.fullmatch(k) or v not in state['evidence'] for k, v in state['evidenceReceipts'].items()):
+            raise WorkItemError('ITEM_INVALID', '证据重放索引无效')
     for key in ('currentTasks', 'evidence', 'externalChecks', 'history', 'blockers', 'changes'):
         if not isinstance(state[key], list):
             raise WorkItemError('ITEM_INVALID', f'{key} 必须是数组')

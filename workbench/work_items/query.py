@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from workbench.work_items.documents import ROLES, LINK, content_roles, instructions, parse_tasks, predecessor, source
-from workbench.git import _git, git_fingerprint, branch_fingerprint
+from workbench.git import _git, git_fingerprint, branch_fingerprint, legacy_git_fingerprint, legacy_branch_fingerprint
 from workbench.work_items.store import WorkItemError, digest, item_area, item_path, load_state, read_evidence, read_bytes, safe_path, state_path, text_digest
 from workbench.workspace.model import load_workspace, repository_path, resolve_repository
 from workbench.workspace.paths import context_file, workspace_file
@@ -25,7 +25,7 @@ ARTIFACT_READ_LIMIT = 1024 * 1024
 def recorded_task_status(state: dict, task_id: str, evidence: dict | None) -> str:
     if evidence is None:
         return 'pending'
-    if evidence.get('taskId') != task_id or evidence.get('iteration') != state['iteration']:
+    if (evidence.get('taskId') != task_id and task_id not in evidence.get('taskCoverage', {})) or evidence.get('iteration') != state['iteration']:
         raise WorkItemError('EVIDENCE_SUBJECT_MISMATCH', '任务证据归属不一致')
     return 'completed' if evidence['result'] == 'passed' else evidence['result']
 
@@ -44,16 +44,41 @@ def repository_roots(root: Path, state: dict, names=None) -> dict[str, Path]:
             if not path.is_dir():
                 raise WorkItemError('REPOSITORY_UNAVAILABLE', f'仓库不存在：{name}')
             result[name] = path
+        if binding.get('checkout'):
+            if workspace:
+                from workbench.workspace.model import validate_repository_state
+                validate_repository_state(workspace, resolve_repository(workspace.repositories, name), allow_missing_remote=False)
+            result[name] = approved_checkout(result[name], binding['checkout'])
     return result
 
 
-def repository_context(root: Path, repository: Path, paths=None, task=None) -> dict:
+def approved_checkout(canonical: Path, checkout: str) -> Path:
+    """Accept only a real worktree of the registered repository, never another clone."""
+    candidate = Path(checkout)
+    if not candidate.is_absolute() or candidate.is_symlink() or candidate.resolve() != candidate:
+        raise WorkItemError('CHECKOUT_INVALID', 'checkout 必须为无符号链接的绝对 Git 根路径')
+    safe_path(candidate, '.git')
+    def git(path, *args):
+        return _git(path, list(args), 5, 1024 * 1024).decode().strip()
+    if Path(git(candidate, 'rev-parse', '--show-toplevel')).resolve() != candidate:
+        raise WorkItemError('CHECKOUT_INVALID', 'checkout 不是独立 Git 根目录')
+    original_common = git(canonical, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+    actual_common = git(candidate, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+    registered = git(canonical, 'worktree', 'list', '--porcelain', '-z').split('\0')
+    if (Path(original_common).resolve() != Path(actual_common).resolve() or
+            'worktree ' + str(candidate) not in registered or
+            git(canonical, 'remote', 'get-url', 'origin') != git(candidate, 'remote', 'get-url', 'origin')):
+        raise WorkItemError('CHECKOUT_INVALID', 'checkout 不属于登记仓库或 remote 不一致')
+    return candidate
+
+
+def repository_context(root: Path, repository: Path, paths=None, task=None, repository_name=None) -> dict:
     configured = workspace_file(root).exists()
     facts = []
     source_instruction = None
     if configured:
         workspace = load_workspace(root)
-        repo = resolve_repository(workspace.repositories, repository.name)
+        repo = resolve_repository(workspace.repositories, repository_name or repository.name)
         source_instruction = repo.source_instruction
         facts = [(context_file(root), 'workspace-context', True),
                  (safe_path(root / '.workspace', repo.instruction), 'repository-profile', True)]
@@ -318,10 +343,21 @@ class WorkItemQuery:
         by_id = {task['id']: task for task in planned}
         task_ids = set(by_id) | set(self.state['currentTasks'])
         latest, latest_passed = {}, {}
+        for task_id in task_ids:
+            stored = self.state['tasks'].get(task_id, {})
+            for field, destination in [('latestEvidence', latest), ('latestPassedEvidence', latest_passed)]:
+                if stored.get(field) and stored.get('iteration') == self.state['iteration']:
+                    destination[task_id] = self.evidence(stored[field])
         for identifier in reversed(self.state['evidence']):
+            legacy = {task_id for task_id in task_ids if 'latestEvidence' not in self.state['tasks'].get(task_id, {})}
+            if not legacy:
+                break
+            if legacy <= latest.keys() & latest_passed.keys():
+                break
             record = self.evidence(identifier)
-            task_id = record.get('taskId')
-            if task_id in task_ids and record.get('iteration') == self.state['iteration']:
+            for task_id in [record.get('taskId'), *record.get('taskCoverage', {})]:
+                if task_id not in legacy or record.get('iteration') != self.state['iteration']:
+                    continue
                 if task_id not in latest:
                     latest[task_id] = record
                 if record.get('result') == 'passed' and task_id not in latest_passed:
@@ -528,6 +564,11 @@ class WorkItemQuery:
                             sources[name] = 'local-branch'
                 else:
                     current = self.code_state()
+                if record.get('codeIdentity') != 'content-v1':
+                    current = {name: (legacy_branch_fingerprint(path, next(b['workBranch'] for b in self.state['bindings'] if b['repository'] == name), timeout=self.remaining(5))
+                                     if sources.get(name) == 'local-branch' else
+                                     legacy_git_fingerprint(path, excluded=('docs/development', '.workspace') if path == self.root else (), timeout=self.remaining(), max_untracked_files=10000, max_bytes=64 * 1024 * 1024))
+                               for name, path in self.roots().items()}
                 result['repositoryStates'] = [{'repository': name, 'state': 'matched' if value == record['codeState'].get(name) else 'changed',
                                                'source': sources.get(name, 'worktree'), 'currentFingerprint': value,
                                                'recordedFingerprint': record['codeState'].get(name)} for name, value in current.items()]
@@ -604,7 +645,7 @@ class WorkItemQuery:
         return {**task, **{key: current[key] for key in ('status', 'completed', 'executionBlocked', 'waitingFor',
                 'approvalStatus', 'executionStatus', 'executionApplicability', 'verificationStatus', 'lastRecord',
                 'invalidation', 'blockers', 'nextStep')},
-                'instructionContext': repository_context(self.root, self.roots({task['repository']})[task['repository']], task=task)}
+                'instructionContext': repository_context(self.root, self.roots({task['repository']})[task['repository']], task=task, repository_name=task['repository'])}
 
     def requirement_sources(self, task: dict) -> list[dict]:
         identifiers = list(dict.fromkeys(re.findall(r'(?<![A-Za-z0-9])(?:R\d+(?:\.\d+)*|D\d+)(?![A-Za-z0-9])', task['basis'])))
@@ -649,7 +690,7 @@ class WorkItemQuery:
         if task_id:
             context = selected['instructionContext']
             if paths:
-                context = repository_context(self.root, self.roots(names)[selected['repository']], paths=paths, task=selected)
+                context = repository_context(self.root, self.roots(names)[selected['repository']], paths=paths, task=selected, repository_name=selected['repository'])
             result['instructionContext'] = context
             result['selectedTask'] = {key: selected[key] for key in (
                 'id', 'path', 'documentRevision', 'startLine', 'endLine', 'body', 'status', 'approvalStatus',
@@ -669,7 +710,7 @@ class WorkItemQuery:
                           progress=self.progress_summary(), taskProgress=self.compact_task_progress())
             if self.state['risk'] == 'major':
                 result['documentProgress'] = self.document_progress()
-            result['instructionContext'] = combine_contexts([repository_context(self.root, path, paths=paths) for path in self.roots(names).values()])
+            result['instructionContext'] = combine_contexts([repository_context(self.root, path, paths=paths, repository_name=name) for name, path in self.roots(names).items()])
             if decision['readyTasks']:
                 candidate = next(task for task in self.task_states() if task['id'] == decision['readyTasks'][0])
                 result['currentTask'] = {key: candidate[key] for key in ('id', 'title', 'repository', 'status')}
@@ -678,6 +719,10 @@ class WorkItemQuery:
             result.update(executionDecision='BLOCKED', blockers=list(dict.fromkeys([*result['blockers'], *rule_errors])), canComplete=False)
         self.assert_unchanged()
         result['executionBlockers'] = self.execution_blocks()['records']
+        from workbench.extensions.runner import _active_overlay
+        overlay = _active_overlay(self.root) if workspace_file(self.root).exists() else None
+        result['workflowHooks'] = {side: [s.id for s in overlay.stages if getattr(s, side) == result['currentStage']]
+                                   if overlay else [] for side in ('before', 'after')}
         return result
 
     def assert_unchanged(self) -> None:

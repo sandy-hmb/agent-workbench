@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.9.0",
+  "kitVersion": "2.10.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.10.0",
+      "summary": "2.10 支持批量验证证据、内容等价指纹、批准 worktree、一致提测 checkout、精简 brief 和按需 Action 解析。升级保留 .workspace、历史证据、Extension 与 IDE 兼容；需要使用 taskCoverage、--full 或绑定 checkout 时按当前 runbook 使用。",
+      "runbook": "docs/guides/first-item.md"
+    },
     {
       "sinceVersion": "2.9.0",
       "summary": "2.9 增加自动任务进度投影和显式 task-progress 记录。现有 state.json 与历史证据无需迁移；旧工作项会按已有事实显示 unknown 或需重新验证，需要立即刷新 README 时可运行 verify render，命令不会修改状态事实。",

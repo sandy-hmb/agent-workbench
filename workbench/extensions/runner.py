@@ -187,10 +187,10 @@ def _action_rows(manifest: ExtensionManifest) -> list[dict[str, object]]:
     return rows
 
 
-def _active_actions(root: Path) -> dict[str, ActionBinding]:
+def _active_actions(root: Path, selected_extension: str | None = None) -> dict[str, ActionBinding]:
     try:
         lock = _read_lock(root)
-        discovered = discover_extensions(root)
+        discovered = discover_extensions(root, only={selected_extension}) if selected_extension else discover_extensions(root)
     except (ExtensionCommandError, ExtensionError) as exc:
         raise _command("ACTION_MISSING", str(exc)) from exc
     from workbench.extensions.model import lock_version_major
@@ -201,6 +201,8 @@ def _active_actions(root: Path) -> dict[str, ActionBinding]:
         assert isinstance(item, dict)
         extension_id = item["id"]
         assert isinstance(extension_id, str)
+        if selected_extension and extension_id != selected_extension:
+            continue
         manifest = discovered.get(extension_id)
         if manifest is None:
             raise _command("ACTION_MISSING", f"已锁定 Extension 不存在：{extension_id}")
@@ -217,6 +219,25 @@ def _active_actions(root: Path) -> dict[str, ActionBinding]:
             raise _command("ACTION_DRIFT", f"已激活 Extension 已漂移：{extension_id}")
         digest = item["digest"]
         assert isinstance(digest, str)
+        if selected_extension:
+            # Validate only this Action's transitive provider requirements.
+            from workbench.extensions.providers import _locked_provider
+            from workbench.workspace.model import load_workspace
+            workspace = load_workspace(root, validate_extension_refs=False)
+            pending, visited = list(manifest.requires), set()
+            while pending:
+                capability = pending.pop()
+                if capability in visited:
+                    continue
+                visited.add(capability)
+                configured = workspace.extensions['providers'].get(capability, {})
+                reference = configured.get('default')
+                if not reference:
+                    raise _command('ACTION_MISSING', f'缺少依赖 Provider：{capability}')
+                dependency = _locked_provider(root, workspace, reference, capability, targeted=True)
+                if dependency is None:
+                    raise _command('ACTION_MISSING', f'依赖 Provider 不可用：{reference}')
+                pending.extend(dependency[0].requires)
         for action in manifest.actions:
             if action.ref in result:
                 raise _command("ACTION_MISSING", f"Action 引用重复：{action.ref}")

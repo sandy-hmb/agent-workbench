@@ -10,12 +10,21 @@ from workbench.workspace.model import load_workspace, resolve_repository
 from workbench.workspace.paths import workspace_file
 
 
-def brief_result(root: Path, slug: str | None = None, *, task_id=None, check_code=False, deadline=None, repository=None, paths=None) -> dict:
+def brief_result(root: Path, slug: str | None = None, *, task_id=None, check_code=False, deadline=None, repository=None, paths=None, full=False) -> dict:
     root = Path(root).resolve()
     if repository and workspace_file(root).exists():
         repository = resolve_repository(load_workspace(root).repositories, repository).path
     if slug:
-        return WorkItemQuery(root, slug, deadline=deadline).continuation(task_id=task_id, check_code=check_code, repository=repository, paths=paths)
+        value = WorkItemQuery(root, slug, deadline=deadline).continuation(task_id=task_id, check_code=check_code, repository=repository, paths=paths)
+        if not full and (verification := value.get('verification')):
+            checks = verification.get('pendingExternalChecks', [])
+            pending = [row for row in checks if row['status'] not in {'passed', 'waived'}]
+            verification['externalCheckCounts'] = {'total': len(checks), 'pending': len(pending)}
+            verification['pendingExternalChecks'] = [{key: row[key] for key in ('id', 'requirement', 'description', 'owner', 'status', 'recordedStatus', 'reason') if key in row}
+                                                     for row in pending[:10]]
+            verification['detailsEntrypoint'] = f'kit.py brief {slug} --full --json'
+            verification.pop('verificationScope', None)
+        return value
     if not repository or task_id or check_code:
         raise WorkItemError('CONTEXT_ARGUMENT_INVALID', '无工作项查询需要 --repo，可选 --path，不接受 --task 或 --check-code')
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', repository):
@@ -146,13 +155,14 @@ def build_parser():
     parser.add_argument('slug', nargs='?'); parser.add_argument('--root', type=Path, default=Path.cwd())
     parser.add_argument('--repo', dest='repository'); parser.add_argument('--path', action='append', dest='paths')
     parser.add_argument('--task', dest='task_id'); parser.add_argument('--check-code', action='store_true'); parser.add_argument('--json', action='store_true')
+    parser.add_argument('--full', action='store_true', help='展开完整验证范围和外部验收依据；默认只给待办摘要')
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        value = brief_result(args.root, args.slug, task_id=args.task_id, check_code=args.check_code, repository=args.repository, paths=args.paths)
+        value = brief_result(args.root, args.slug, task_id=args.task_id, check_code=args.check_code, repository=args.repository, paths=args.paths, full=args.full)
         print(json.dumps(value, ensure_ascii=False) if args.json else brief_text(value))
         return 0
     except (OSError, ValueError) as exc:

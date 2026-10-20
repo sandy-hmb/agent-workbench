@@ -81,6 +81,19 @@ class FingerprintTest(unittest.TestCase):
             self.assertNotEqual(initial, tracked)
             self.assertNotEqual(tracked, untracked)
 
+    def test_content_identity_survives_staging_and_commit_but_not_input_changes(self):
+            (self.repository / 'source.txt').write_text('updated\n')
+            (self.repository / 'config.json').write_text('{"mode":1}\n')
+            before = workspace_verification.git_fingerprint(self.repository)
+            run_git('add', '.', cwd=self.repository)
+            self.assertEqual(before, workspace_verification.git_fingerprint(self.repository))
+            run_git('-c', 'user.name=Test', '-c', 'user.email=test@example.test', 'commit', '-qm', 'tested', cwd=self.repository)
+            self.assertEqual(before, workspace_verification.git_fingerprint(self.repository))
+            branch = workspace_verification._git(self.repository, ['branch', '--show-current']).decode().strip()
+            self.assertEqual(before, workspace_verification.branch_fingerprint(self.repository, branch))
+            (self.repository / 'config.json').write_text('{"mode":2}\n')
+            self.assertNotEqual(before, workspace_verification.git_fingerprint(self.repository))
+
     def test_fingerprint_excludes_only_named_operational_files(self) -> None:
             initial = workspace_verification.git_fingerprint(
                 self.repository, excluded=("README.md", "plans/implementation.md")

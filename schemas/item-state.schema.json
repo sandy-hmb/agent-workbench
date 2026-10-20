@@ -27,6 +27,7 @@
     "changes"
   ],
   "properties": {
+    "evidenceReceipts": {"type": "object"},
     "schemaVersion": {
       "const": 1
     },
@@ -59,6 +60,9 @@
           "baseBranch": {
             "type": "string",
             "minLength": 1
+          },
+          "checkout": {
+            "type": "string", "minLength": 1
           }
         },
         "additionalProperties": false

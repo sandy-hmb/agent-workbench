@@ -64,6 +64,23 @@ class ProgressiveContextTest(ItemFixture, unittest.TestCase):
     def setUp(self):
         self.open(); self.addCleanup(self.close)
 
+    def test_agent_brief_bounds_external_evidence_while_inspect_keeps_full_facts(self):
+        from workbench.cli.brief import brief_result
+        from workbench.inspection.api import projection
+        self.review()
+        checks = [{'id': f'check-{i}', 'requirement': 'R1', 'description': 'acceptance',
+                   'owner': 'owner', 'status': 'pending', 'evidence': 'receipt-' + 'x' * 2000}
+                  for i in range(20)]
+        commands.delivery(self.root, 'demo', {'externalChecks': checks}, expected_revision=self.state()['stateRevision'])
+        compact = brief_result(self.root, 'demo')['verification']
+        full = brief_result(self.root, 'demo', full=True)['verification']
+        self.assertEqual({'total': 20, 'pending': 20}, compact['externalCheckCounts'])
+        self.assertEqual(10, len(compact['pendingExternalChecks']))
+        self.assertNotIn('evidence', compact['pendingExternalChecks'][0])
+        self.assertEqual(checks, full['pendingExternalChecks'])
+        self.assertEqual(checks, projection(self.root, 'demo', 'flow')['delivery']['externalChecks'])
+        self.assertLess(len(json.dumps(compact)), len(json.dumps(full)) / 5)
+
     def test_ordinary_and_lightweight_entrypoints_expose_rules(self):
         self.review()
         normal = WorkItemQuery(self.root, 'demo').continuation()

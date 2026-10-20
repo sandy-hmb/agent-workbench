@@ -5,32 +5,22 @@ description: Record actual validation and delivery facts, then complete an accep
 
 # 验证与完成
 
-验证已授权范围内的实际结果。没有 WorkItem 的小改，在回复中给出命令、退出状态和结果，不创建记录目录。
+没有 WorkItem 的小改只汇报实际命令、退出状态和结果，不创建记录目录。
 
 ## 验证
 
-从当前需求验收、仓规则、manifest、CI 和已有测试核实检查入口。任务验证覆盖当前行为，整体验证覆盖必要回归与需求符合性。零执行、跳过目标测试或仅编译不能证明完成。新增或替换旧路径时检查主路径、残留引用和兼容边界，其他任务不加检查。
+从验收、仓规则、manifest、CI 和已有测试核实入口。按变更与风险选最小检查，扩展受影响模块回归；资金、权限、幂等、事务和迁移保留必要集成验证。零执行、跳过目标或仅编译不能证明行为完成。新旧路径变化检查主路径、残留引用和兼容边界，其他任务不加检查。
 
-运行检查后，用 `verify snapshot <slug> --json` 取得当前代码状态；逐任务加 `--task T01`。证据记录格式按需读取 [证据输入](references/evidence.md)。普通需求只需一次整体验证。
+同一次实际检查只记一份证据。用 `verify snapshot <slug> --json` 取代码状态，逐任务加 --task；同批覆盖多任务按 [证据输入](references/evidence.md) 的 taskCoverage 映射 checks。scope=item 可同时登记任务和整体，scope=batch 仅更新所覆盖任务；不要复制同一 checks 逐项重登。
 
-```bash
-python3 scripts/kit.py verify record <slug> --input evidence.json --state-revision <stateRevision> --json
-```
-
-记录成功自动更新任务完成事实或整体验证指针，并更新 README 验证摘要。失败也记录实际结论；最新失败覆盖旧成功。状态已提交而摘要未生成时执行 `verify render <slug>`，不重复执行检查。历史和日志只在需要时通过 evidence/history 展开。
+默认 `verify record <slug> --input - --state-revision <revision> --json` 从 stdin 输入；临时文件不进 artifacts。record 自动更新状态和 README；失败也如实记录。摘要失败只 verify render，不重复检查。原始报告、失败日志按需保留，不默认生成 results.json、validation.md、review.md 等同义报告；普通预检成功不另写 preflight。历史用 evidence/history 按需读取，不清理被引用文件。
 
 ## 外部验收与交付
 
-通过 `item delivery <slug> --input delivery.json --state-revision <stateRevision>` 记录逐仓版本、提测、部署、验收及依据；未知不猜。未完成外部事项写明 R、描述、负责人和条件。关闭时提供实际证据；范围调整用 waived 并说明理由，不静默丢弃待办。
+`item delivery <slug> --input - --state-revision <revision>` 记录实际版本、提测、部署与验收；未知不猜。externalChecks 提交完整清单，未关闭事项保留负责人和完成条件；关闭附依据或明确 waived 理由。机器 attempt/receipt 是外部执行事实，不复制成人工报告。
 
-README 由脚本生成并包含验证摘要。需要发布顺序、开关、观察指标、回退条件时，交付说明放 artifacts/ 并链接已有设计，不另维护状态副本。前端指南复用原文件。
+README 是可重建视图。复杂独立审查、前端指南、SQL、真实发布/回退说明按需保留并链接，不另维护状态副本。前端指南复用原文件。
 
 ## 完成
 
-使用 `brief <slug> --check-code` 核对当前适用性。记录通过、当前代码有效和实际部署是不同事实。所有本次目标验收关闭后，用户确认结束，再运行：
-
-```bash
-python3 scripts/kit.py item complete <slug> --state-revision <stateRevision> --json
-```
-
-脚本再次核对审批、任务、当前验证和外部验收。没有部署目标不要求伪造部署。工作台使用同一完成入口，不另维护门禁。
+记录通过、当前代码有效、部署和业务验收分别说明。目标验收关闭且用户确认结束后直接 `item complete <slug> --state-revision <revision> --json`；它即时核对审批、代码、任务和外部验收，无须先重复 brief --check-code。仅诊断时使用后者。无部署目标不伪造部署事实。

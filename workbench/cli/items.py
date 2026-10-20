@@ -9,7 +9,7 @@ from typing import Sequence
 from workbench.validation import CommandParser
 import workbench.work_items.commands as actions
 from workbench.work_items.query import WorkItemQuery
-from workbench.work_items.store import WorkItemError, SLUG_RE, item_area, item_path, load_state, read_json, read_evidence
+from workbench.work_items.store import WorkItemError, SLUG_RE, MAX_BYTES, item_area, item_path, load_state, read_json, read_evidence
 
 ITEM_STATUSES = frozenset({'active', 'paused', 'done', 'cancelled'})
 
@@ -49,6 +49,7 @@ def build_parser():
             command.add_argument('--decision', choices=['approved', 'unchanged', 'needs-review'], required=True)
             command.add_argument('--reason', required=True); command.add_argument('--role', action='append')
             command.add_argument('--affected-task', action='append')
+            command.add_argument('--no-affected-tasks', action='store_true', help='明确没有旧任务受影响，与 --affected-task 互斥')
         if name in {'delivery', 'update'}: command.add_argument('--input', type=Path, required=True)
         if name in {'update','block','unblock','cancel'}: command.add_argument('--reason', required=True)
         if name == 'update': command.add_argument('--preview', action='store_true')
@@ -83,9 +84,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == 'resolve':
             result = {'matches': [dict(slug=x.slug, path=str(x.path), status=x.status, repository=x.repository, baseBranch=x.base_branch) for x in resolve_items(root, args.repo, args.branch)]}
         elif args.command == 'approval':
+            if args.no_affected_tasks and args.affected_task:
+                raise WorkItemError('REVIEW_INVALID', '不能同时声明受影响任务和无受影响任务')
             result = actions.review(root, args.slug, decision=args.decision, reason=args.reason, roles=args.role,
-                                    affected_tasks=args.affected_task, expected_revision=args.state_revision)
-        elif args.command == 'delivery': result = actions.delivery(root, args.slug, read_json(args.input), expected_revision=args.state_revision)
+                                    affected_tasks=[] if args.no_affected_tasks else args.affected_task, expected_revision=args.state_revision)
+        elif args.command == 'delivery':
+            if str(args.input) == '-':
+                data = sys.stdin.buffer.read(MAX_BYTES + 1)
+                if len(data) > MAX_BYTES:
+                    raise WorkItemError('READ_LIMIT', '输入超过上限')
+                try:
+                    payload = json.loads(data)
+                except (ValueError, UnicodeError) as exc:
+                    raise WorkItemError('JSON_INVALID', '输入必须是有效 JSON', '$') from exc
+            else:
+                payload = read_json(args.input)
+            result = actions.delivery(root, args.slug, payload, expected_revision=args.state_revision)
         elif args.command == 'update': result = actions.update(root, args.slug, read_json(args.input), reason=args.reason, expected_revision=args.state_revision, preview=args.preview)
         elif args.command == 'task-progress':
             result = actions.task_progress(root, args.slug, args.task, status=args.status, summary=args.summary,

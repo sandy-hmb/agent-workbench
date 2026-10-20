@@ -115,11 +115,14 @@ def collect_result(root: Path, slug: str, *, snapshot: Path, junit: list[str], c
     if saved['itemSlug'] != slug:
         raise WorkItemError('EVIDENCE_SUBJECT_MISMATCH', '快照不属于当前 WorkItem')
     check_revision(reader.state, saved['stateRevision'])
-    names = {reader.task(task_id)['repository']} if task_id else {row['repository'] for row in reader.state['bindings']}
+    task_ids = task_id if isinstance(task_id, list) else [task_id] if task_id else []
+    tasks = [reader.task(identifier) for identifier in task_ids]
+    names = {task['repository'] for task in tasks} if tasks else {row['repository'] for row in reader.state['bindings']}
     code = saved['codeState']
     if not isinstance(code, dict) or set(code) != names or any(not isinstance(value, str) or not DIGEST_RE.fullmatch(value) for value in code.values()):
         raise WorkItemError('EVIDENCE_CODE_INVALID', '快照代码指纹必须对应本次验证的仓库集合')
-    if saved.get('taskId') != task_id:
+    saved_task = saved.get('taskId')
+    if (isinstance(task_id, list) and saved_task not in task_ids) or (not isinstance(task_id, list) and saved_task != task_id):
         raise WorkItemError('EVIDENCE_SUBJECT_MISMATCH', '快照任务与采集任务不一致')
     paths = {}
     for kind, values in [('test-report', junit), ('artifact', artifacts)]:
@@ -156,7 +159,10 @@ def collect_result(root: Path, slug: str, *, snapshot: Path, junit: list[str], c
         raise WorkItemError('CODE_CHANGED', '快照代码指纹与当前代码不一致')
     reader.assert_unchanged()
     passed = all(row['total'] > 0 for row in reports) and not any(summary[key] for key in ('failed', 'errors', 'skipped')) and exit_status == 0
-    payload = {'scope': 'task' if task_id else 'item', 'taskId': task_id, 'recordedAt': stamp(),
+    coverage = {task['id']: list(range(len(checks))) for task in tasks}
+    payload = {'scope': 'batch' if len(tasks) > 1 else 'task' if tasks else 'item',
+               'taskId': tasks[0]['id'] if len(tasks) == 1 else None,
+               **({'taskCoverage': coverage} if len(tasks) > 1 else {}), 'recordedAt': stamp(),
                'result': 'passed' if passed else 'failed', 'codeState': code, 'checks': checks,
                'verificationScope': 'JUnit 报告：' + '、'.join(row['path'] for row in reports) + '；需人工审阅实际执行、报告归属与结果',
                'artifactRefs': refs}

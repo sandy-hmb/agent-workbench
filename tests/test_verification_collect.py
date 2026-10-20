@@ -37,8 +37,8 @@ class VerificationCollectTest(unittest.TestCase):
 
     def save_snapshot(self, task=None):
         args = ['verify', 'snapshot', 'demo', '--json']
-        if task:
-            args += ['--task', task]
+        for task_id in task if isinstance(task, list) else [task] if task else []:
+            args += ['--task', task_id]
         result = self.cli(*args)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.snapshot.write_text(result.stdout, encoding='utf-8')

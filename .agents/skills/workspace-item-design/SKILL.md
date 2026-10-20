@@ -35,7 +35,7 @@ python3 scripts/kit.py item approval <slug> --decision approved --reason "用户
 
 ## 修改已批准内容
 
-排版、措辞和文件组织未改变行为时，`item approval --decision unchanged --reason <依据>` 沿用批准；范围、验收、关键方案或验证强度改变，先记录 needs-review，说明受影响 R/D/T，再审阅变化。重大需求实质修改使后置审批失效。用 `--affected-task` 指定影响任务，无法确定时按当前整体范围处理。
+排版、措辞和文件组织未改变行为时，`item approval --decision unchanged --reason <依据>` 沿用批准；范围、验收、关键方案或验证强度改变，先记录 needs-review，说明受影响 R/D/T，再审阅变化。重大需求实质修改使后置审批失效。用 --affected-task 指定影响任务；独立新增范围且不影响旧任务用 --no-affected-tasks 并附依据。未知则保守整体失效；未变任务保留原证据，不重登“沿用”副本。
 
 普通方案批准后执行；开启新一轮先读 references/item-iterations.md。
 

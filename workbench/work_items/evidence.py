@@ -31,6 +31,6 @@ def history_page(item, *, offset=0, limit=20, task_id=None, iteration=None):
     items = []
     for identifier in reversed(state['evidence']):
         record = read_evidence(item, identifier)
-        if task_id is None or record.get('taskId') == task_id:
-            items.append({key: record.get(key) for key in ('id', 'scope', 'taskId', 'recordedAt', 'result')})
+        if task_id is None or record.get('taskId') == task_id or task_id in record.get('taskCoverage', {}):
+            items.append({key: record.get(key) for key in ('id', 'scope', 'taskId', 'taskCoverage', 'recordedAt', 'result')})
     return {'items': items[offset:offset + limit], 'total': len(items), 'offset': offset, 'limit': limit, 'stateRevision': state['stateRevision']}

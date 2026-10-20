@@ -11,13 +11,7 @@ description: Resolve and run user-defined workflow Actions at explicit work item
 
 ## 先判断是否启用
 
-先运行：
-
-```bash
-python3 scripts/kit.py status --root . --json
-```
-
-`workflow.enabled` 为 `false` 时直接按现有 Core Skill 工作，不读取 Extension Action，不创建 Workflow Run。为 `true` 时，再读取当前需求的最小上下文，并使用：
+使用当前 brief 的 workflowHooks 判断锚点；before/after 都为空时不启动 Run 或查询空流程，不重复 status。当前锚点有 Action 时才 workflow start；同一轮复用 Run。旧 Kit 无 workflowHooks 时按已加载 Overlay 定位，禁用时不读取 Action。
 
 ```bash
 python3 scripts/kit.py workflow start --root . --item-slug <itemSlug> --json

@@ -44,10 +44,10 @@ def _metadata(root: Path, binding) -> dict[str, object]:
     }
 
 
-def _actions(root: Path) -> dict[str, object]:
+def _actions(root: Path, selected_extension=None) -> dict[str, object]:
     if not workspace_file(root).is_file():
         return {}
-    return _active_actions(root)
+    return _active_actions(root, selected_extension)
 
 
 def list_result(root: Path) -> dict[str, object]:
@@ -55,10 +55,13 @@ def list_result(root: Path) -> dict[str, object]:
 
 
 def resolve_result(root: Path, action_ref: str) -> dict[str, object]:
-    binding = _actions(root).get(action_ref)
+    import re
+    if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*', action_ref):
+        raise ExtensionCommandError('ACTION_NOT_STANDALONE: Action 引用无效')
+    binding = _actions(root, action_ref.split('/')[0]).get(action_ref)
     if binding is None or not binding.action.standalone:
         raise ExtensionCommandError(f"ACTION_NOT_STANDALONE: 未找到已启用的独立 Skill-only Action：{action_ref}")
-    workspace = load_workspace(root)
+    workspace = load_workspace(root, validate_extension_refs=False)
     local = load_local_settings(root, required=True)
     shared = workspace.extensions["config"].get(binding.manifest.id, {})
     local_config = local.extensions.get(binding.manifest.id, {})

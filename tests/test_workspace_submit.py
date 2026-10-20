@@ -32,6 +32,40 @@ def run_git(*arguments: str, cwd: Path) -> str:
 
 
 class WorkspaceSubmitTest(unittest.TestCase):
+    def test_approved_worktree_used_for_snapshot_plan_and_submit(self):
+        from workbench.work_items import commands
+        from workbench.work_items.query import WorkItemQuery
+        from workbench.work_items.store import load_state, item_path
+        checkout = self.parent / 'approved-worktree'
+        run_git('switch', 'main', cwd=self.service)
+        run_git('worktree', 'add', str(checkout), 'owner/feature/demo', cwd=self.service)
+        state = load_state(item_path(self.root, 'demo-feature'))
+        bindings = state['bindings']; bindings[0]['checkout'] = str(checkout)
+        commands.update(self.root, 'demo-feature', {'bindings': bindings}, reason='approved worktree', expected_revision=state['stateRevision'])
+        reader = WorkItemQuery(self.root, 'demo-feature')
+        self.assertEqual(checkout, reader.roots()['service'])
+        self.assertEqual('matched', reader.branches()[0]['state'])
+        (checkout / 'feature.txt').write_text('feature\n')
+        plan = workspace_submit.plan_result(self.root, 'service', 'owner/feature/demo', 'demo-feature', ['feature.txt'], 'feat: feature', 'self-test')
+        self.assertEqual(str(checkout), plan['checkout'])
+        result = workspace_submit.apply_result(self.root, 'service', 'owner/feature/demo', 'demo-feature', ['feature.txt'], 'feat: feature', 'self-test', plan['planHash'])
+        self.assertTrue(result)
+        self.assertEqual('main', run_git('branch', '--show-current', cwd=self.service))
+        self.assertEqual('owner/feature/demo', run_git('branch', '--show-current', cwd=checkout))
+        self.assertTrue((checkout / 'feature.txt').is_file())
+
+    def test_checkout_rejects_unrelated_clone_and_path_escape(self):
+        from workbench.work_items import commands
+        from workbench.work_items.store import load_state, item_path
+        other = self.parent / 'unrelated'
+        run_git('clone', str(self.remote), str(other), cwd=self.parent)
+        for path in (other, self.service / '..' / 'service', self.service / 'nested'):
+            with self.subTest(path=path):
+                state = load_state(item_path(self.root, 'demo-feature'))
+                bindings = state['bindings']; bindings[0]['checkout'] = str(path)
+                with self.assertRaises((ValueError, OSError)):
+                    commands.update(self.root, 'demo-feature', {'bindings': bindings}, reason='bad checkout', expected_revision=state['stateRevision'])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.parent = Path(self.temp.name).resolve()

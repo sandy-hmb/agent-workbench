@@ -23,6 +23,8 @@ description: Prepare independent executable tasks when a change needs explicit d
 
 步骤只写易遗漏或有顺序要求的动作，不复制通用教程；持久化变化需检查真实结构、迁移或写入，声明式改动选最小有效检查。新增 fallback、adapter、provider、兼容分支或删旧路径时补 Old path、Disposition、Reason、Verification。
 
+允许一批检查显式映射多个任务，不为证据登记拆测试。
+
 在整体验证区承接跨任务回归；跨仓行为明确最终验收入口，各仓局部通过不能代替整体验收。外部待验证写清 R、事项、负责方和完成条件，随后通过 item delivery 登记，不阻塞无关本地任务。
 
 ## 审阅与执行

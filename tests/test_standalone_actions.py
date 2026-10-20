@@ -130,7 +130,17 @@ class StandaloneActionTest(unittest.TestCase):
         result = self._run("action", "list", "--json", check=False)
         self.assertEqual("ACTION_DRIFT", result["error"]["code"])
         result = self._run("action", "resolve", "missing/action", "--json", check=False)
-        self.assertEqual("ACTION_DRIFT", result["error"]["code"])
+        self.assertEqual("ACTION_NOT_STANDALONE", result["error"]["code"])
+
+    def test_targeted_resolve_ignores_unrelated_broken_extension_but_checks_own_digest(self):
+        unrelated = self.root / '.workspace/extensions/unrelated'
+        unrelated.mkdir()
+        (unrelated / 'workspace-extension.json').write_text('invalid json')
+        self.assertEqual('standalone-extension/query', self._run('action', 'resolve', 'standalone-extension/query', '--json')['action']['id'])
+        self.assertIn('error', self._run('action', 'list', '--json', check=False))
+        own = self.root / '.workspace/extensions/standalone-extension/skills/query/SKILL.md'
+        own.write_text(own.read_text() + '\nchanged\n')
+        self.assertEqual('ACTION_DRIFT', self._run('action', 'resolve', 'standalone-extension/query', '--json', check=False)['error']['code'])
 
     def test_no_workspace_is_empty_and_command_standalone_is_invalid(self):
         with tempfile.TemporaryDirectory() as directory:

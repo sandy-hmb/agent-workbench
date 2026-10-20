@@ -16,7 +16,7 @@ description: Deliver an explicitly selected repository to its configured test ta
 
 1. 用 `python3 scripts/kit.py registry resolve <name> --json` 解析仓路径和 `effectiveBranchPolicy.testTarget`；不要猜测测试目标。`testTarget` 为 `null` 时立即停止，不执行提测。
 2. 用 `python3 scripts/kit.py item resolve --repo <name> --branch <work-branch> --json` 定位需求；命令返回的 `itemSlug` 是 WorkItem slug，不是 Workflow Run ID。标准需求或补丁模式无法唯一匹配、状态不符时停止。
-3. 在目标仓检查当前工作分支、远程、未提交文件、未完成 Git 操作和敏感文件。只把用户通过 `--path` 明确指定的业务仓文件交给脚本；work item 目录的 `artifacts/` 不属于业务仓提交路径。
+3. 实际位置以 WorkItem bindings.checkout（未指定则 Registry）为准；用 item update 审阅登记 worktree，禁止临时绕过分支门禁。在目标仓检查当前工作分支、远程、未提交文件、未完成 Git 操作和敏感文件。只把用户通过 `--path` 明确指定的业务仓文件交给脚本；work item 目录的 `artifacts/` 不属于业务仓提交路径。
 
 ## 交付顺序
 

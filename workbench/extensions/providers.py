@@ -129,6 +129,7 @@ def _locked_provider(
     workspace: Workspace,
     provider_ref: str,
     capability: str,
+    *, targeted: bool = False,
 ) -> tuple[ExtensionManifest, ProviderDeclaration] | None:
     extension_id, provider_name = provider_ref.split("/", 1)
     lock = _read_lock(root)
@@ -141,7 +142,7 @@ def _locked_provider(
     }
     if extension_id not in locked:
         return None
-    manifest = discover_extensions(root).get(extension_id)
+    manifest = (discover_extensions(root, only={extension_id}) if targeted else discover_extensions(root)).get(extension_id)
     if manifest is None:
         return None
     item = locked[extension_id]

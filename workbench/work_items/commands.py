@@ -165,6 +165,8 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
                     invalidated.add(task['id'])
                 state['tasks'][task['id']] = {**(old or {}), 'definitionRevision': task['documentRevision'],
                                              'iteration': state['iteration'], 'evidence': evidence}
+                if not old or old.get('iteration') != state['iteration']:
+                    state['tasks'][task['id']].update(latestEvidence=None, latestPassedEvidence=None)
                 if old and old['definitionRevision'] != task['documentRevision'] and decision != 'unchanged':
                     invalidation_reasons[task['id']] = f'计划任务定义已变更：{reason}'
             state['currentTasks'] = [task['id'] for task in tasks]
@@ -260,11 +262,11 @@ def validate_checks(payload: dict, validation_kind: str | None) -> None:
 
 
 def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> dict:
-    allowed = {'scope', 'taskId', 'recordedAt', 'result', 'codeState', 'checks', 'reviewResult', 'verificationScope', 'artifactRefs'}
+    allowed = {'scope', 'taskId', 'taskCoverage', 'recordedAt', 'result', 'codeState', 'checks', 'reviewResult', 'verificationScope', 'artifactRefs'}
     object_fields(payload, allowed=allowed, required={'scope', 'recordedAt', 'result', 'codeState', 'checks'})
     text(payload['scope'], '$.scope')
     text(payload['result'], '$.result')
-    if payload.get('scope') not in {'task', 'item'} or payload.get('result') not in {'passed', 'failed'}:
+    if payload.get('scope') not in {'task', 'batch', 'item'} or payload.get('result') not in {'passed', 'failed'}:
         raise WorkItemError('EVIDENCE_INVALID', '证据范围、结果或字段无效')
     try:
         timestamp = datetime.fromisoformat(payload['recordedAt'].replace('Z', '+00:00'))
@@ -277,7 +279,11 @@ def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> d
     with item_lock(directory):
         state = load_state(directory)
         reader = WorkItemQuery(root, slug, state=state)
-        for identifier in reversed(state['evidence']):
+        receipts = state.get('evidenceReceipts')
+        if receipts is None:
+            receipts = {reader.evidence(i).get('receipt'): i for i in state['evidence'] if reader.evidence(i).get('receipt')}
+        candidates = [receipts[receipt]] if receipt in receipts else []
+        for identifier in candidates:
             if reader.evidence(identifier).get('receipt') == receipt:
                 return _finish(root, slug, state, id=identifier, replayed=True)
         check_revision(state, expected_revision)
@@ -291,35 +297,61 @@ def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> d
         elif payload.get('taskId') is not None:
             raise WorkItemError('EVIDENCE_INVALID', '整体验证不能指定 taskId')
         validate_checks(payload, task['validationKind'] if task else None)
+        coverage = payload.get('taskCoverage', {})
+        object_fields(coverage, field='$.taskCoverage')
+        if payload['scope'] == 'task' and coverage or payload['scope'] == 'batch' and not coverage:
+            raise WorkItemError('EVIDENCE_COVERAGE_INVALID', 'batch 需要覆盖映射；task 使用 taskId')
+        by_id = {row['id']: row for row in reader.tasks()}
+        covered = []
+        for task_id, indices in coverage.items():
+            if task_id not in by_id or task_id not in state['currentTasks']:
+                raise WorkItemError('TASK_UNREGISTERED', task_id)
+            if (not isinstance(indices, list) or not indices or
+                    any(type(i) is not int or i < 0 or i >= len(payload['checks']) for i in indices) or
+                    len(set(indices)) != len(indices)):
+                raise WorkItemError('EVIDENCE_COVERAGE_INVALID', '任务须显式映射到实际检查索引')
+            row = by_id[task_id]
+            checkout = reader.roots({row['repository']})[row['repository']]
+            for i in indices:
+                working = Path(payload['checks'][i]['workingDirectory'])
+                if working.is_absolute():
+                    matches = working.resolve().is_relative_to(checkout)
+                else:
+                    matches = working.parts and working.parts[0] == row['repository'] and '..' not in working.parts
+                if not matches:
+                    raise WorkItemError('EVIDENCE_COVERAGE_INVALID', '覆盖检查的工作目录不属于任务 checkout')
+            validate_checks({**payload, 'checks': [payload['checks'][i] for i in indices]}, row['validationKind'])
+            covered.append(row)
+        targets = [task] if task else covered
+        overall = payload['scope'] == 'item'
         if payload['result'] == 'passed':
             if any(value != 'approved' for value in reader.review_state().values()):
                 raise WorkItemError('REVIEW_REQUIRED', '当前内容尚未批准或需要分类')
             blocked = reader.execution_blocks()
-            if blocked['itemBlocked'] or (task and task['id'] in blocked['tasks']) or (not task and blocked['records']):
+            if blocked['itemBlocked'] or any(t['id'] in blocked['tasks'] for t in targets) or (overall and blocked['records']):
                 raise WorkItemError('EXECUTION_BLOCKED', '先解除适用的开发阻塞，再记录通过结果')
-            names = {task['repository']} if task else None
+            names = {t['repository'] for t in targets} if not overall else None
             if any(row['state'] != 'matched' for row in reader.branches(names)):
                 raise WorkItemError('WORKING_BRANCH_MISMATCH', '实际工作分支与 WorkItem 不一致')
-            if task:
-                complete = {t['id'] for t in reader.task_states() if t['completed']}
-                if not set(task['dependencies']) <= complete:
+            complete = {t['id'] for t in reader.task_states() if t['completed']}
+            for target in targets:
+                if not set(target['dependencies']) <= complete | set(coverage):
                     raise WorkItemError('TASK_DEPENDENCY_PENDING', '任务依赖尚未完成')
-                for item in task['deliverables']:
-                    target = safe_path(reader.roots({task['repository']})[task['repository']], item['path'])
-                    if item['kind'] == 'Delete' and target.exists() or item['kind'] != 'Delete' and not target.is_file():
+                for item in target['deliverables']:
+                    path = safe_path(reader.roots({target['repository']})[target['repository']], item['path'])
+                    if item['kind'] == 'Delete' and path.exists() or item['kind'] != 'Delete' and not path.is_file():
                         raise WorkItemError('DELIVERABLE_INVALID', f"交付路径不符合声明：{item['path']}")
-                if any(item['kind'] == 'Test' for item in task['deliverables']) and not any(check['type'] == '测试' for check in payload['checks']):
+                checks = [payload['checks'][i] for i in coverage[target['id']]] if coverage else payload['checks']
+                if any(item['kind'] == 'Test' for item in target['deliverables']) and not any(check['type'] == '测试' for check in checks):
                     raise WorkItemError('EVIDENCE_KIND_INSUFFICIENT', 'Test 交付必须有实际测试证据')
-            elif any(not t['completed'] for t in reader.task_states()):
+            if overall and set(state['currentTasks']) - complete - set(coverage):
                 raise WorkItemError('TASKS_INCOMPLETE', '仍有未完成任务')
-            if not task and payload.get('reviewResult') != 'passed':
+            if overall and payload.get('reviewResult') != 'passed':
                 raise WorkItemError('REVIEW_RESULT_REQUIRED', '整体验证需要实际复核结论')
         code = payload.get('codeState')
-        names = {task['repository']} if task else {row['repository'] for row in state['bindings']}
+        names = {t['repository'] for t in targets} if not overall else {row['repository'] for row in state['bindings']}
         if not isinstance(code, dict) or set(code) != names or any(not isinstance(v, str) or not DIGEST_RE.fullmatch(v) for v in code.values()):
             raise WorkItemError('EVIDENCE_CODE_INVALID', '代码状态必须对应验证涉及的仓库')
-        if payload['result'] == 'passed' and code != reader.code_state(names):
-            raise WorkItemError('CODE_CHANGED', '验证代码状态与当前代码不一致')
         for index, artifact in enumerate(array(payload.get('artifactRefs', []), '$.artifactRefs')):
             object_fields(artifact, allowed={'path','sha256','bytes','type'}, required={'path','sha256','bytes','type'}, field=f'$.artifactRefs[{index}]')
             text(artifact['path'], f'$.artifactRefs[{index}].path')
@@ -329,15 +361,28 @@ def record(root: Path, slug: str, payload: dict, *, expected_revision: str) -> d
             if artifact.get('sha256') != text_digest(data) or artifact.get('bytes') != len(data):
                 raise WorkItemError('ARTIFACT_CHANGED', '交付文件哈希或字节数不匹配')
         value = {**payload, 'schemaVersion': SCHEMA_VERSION, 'itemSlug': slug, 'iteration': state['iteration'],
-                 'basisRevision': reader.basis_revision(), 'receipt': receipt}
+                 'basisRevision': reader.basis_revision(), 'receipt': receipt, 'codeIdentity': 'content-v1'}
+        value['codeSources'] = {name: {'checkout': str(path),
+                                      'commit': _git(path, ['rev-parse', 'HEAD'], 5, 65536).decode().strip()}
+                                for name, path in reader.roots(names).items()}
         if task:
             value['definitionRevision'] = task['documentRevision']
+        if coverage:
+            value['taskDefinitions'] = {t['id']: t['documentRevision'] for t in covered}
         reader.assert_unchanged()
+        if payload['result'] == 'passed' and code != reader.code_state(names):
+            raise WorkItemError('CODE_CHANGED', '验证代码状态与当前代码不一致')
         identifier = write_evidence(directory, value)
         state['evidence'].append(identifier)
-        if task:
-            state['tasks'][task['id']]['evidence'] = identifier
-            state['tasks'][task['id']].pop('verificationInvalidation', None)
+        receipts[receipt] = identifier
+        state['evidenceReceipts'] = receipts
+        for target in targets:
+            stored = state['tasks'][target['id']]
+            stored.update(evidence=identifier, latestEvidence=identifier)
+            if payload['result'] == 'passed':
+                stored['latestPassedEvidence'] = identifier
+            stored.pop('verificationInvalidation', None)
+        if not overall:
             state['verification'] = None
         else:
             state['verification'] = identifier
@@ -495,7 +540,7 @@ def next_iteration(root: Path, slug: str, *, expected_revision: str) -> dict:
             raise WorkItemError('ARCHIVE_CONFLICT', '已有归档与当前状态不一致')
         history_path = history.relative_to(directory).as_posix()
         state['history'].append({'iteration': state['iteration'], 'path': history_path + '/' + state['iteration']})
-        state.update(iteration=f"i{int(state['iteration'][1:]) + 1:02d}", lifecycle='active', reviews={}, currentTasks=[], verification=None, evidence=[], blockers=[], cancellation=None)
+        state.update(iteration=f"i{int(state['iteration'][1:]) + 1:02d}", lifecycle='active', reviews={}, currentTasks=[], verification=None, evidence=[], evidenceReceipts={}, blockers=[], cancellation=None)
         state = save_state(directory, state)
     return _finish(root, slug, state)
 
@@ -533,7 +578,7 @@ def update(root: Path, slug: str, changes: dict, *, reason: str, expected_revisi
             raise WorkItemError('INPUT_INVALID', '至少保留一个仓库', '$.bindings')
         names = set()
         for index, binding in enumerate(bindings):
-            object_fields(binding, allowed={'repository','workBranch','baseBranch'}, required={'repository','workBranch','baseBranch'}, field=f'$.bindings[{index}]')
+            object_fields(binding, allowed={'repository','workBranch','baseBranch','checkout'}, required={'repository','workBranch','baseBranch'}, field=f'$.bindings[{index}]')
             for field, value in binding.items():
                 text(value, f'$.bindings[{index}].{field}')
             name = binding['repository']
