@@ -34,7 +34,7 @@ python3 scripts/kit.py item task-progress payment-retry --task T01 --status impl
 
 状态还可显式使用 `not-started`，但 Kit 不会自动推断它。执行记录只说明当前实施事实，不解除审批、依赖和阻塞，也不完成任务。验收另行显示 `unverified`、`passed`、`failed` 或 `needs-revalidation`；只有当前适用的通过证据才计入完成。任务定义、上游依据或仓绑定变化时，旧证据仍可从 history 查询，并显示失效原因与待补验证。
 
-行为变化先验证缺失行为，再最小实现并验证。声明式变化使用最小有效检查。执行真实检查后取得代码状态：
+按风险选择 TDD 强度：复杂行为或回归先用一个聚焦失败场景证明缺失；简单改动、声明式变化或已有检查已覆盖时直接做最小有效检查，并说明跳过 RED 的理由。随后最小实现并验证。执行真实检查后取得代码状态：
 
 ```bash
 python3 scripts/kit.py verify snapshot payment-retry --json

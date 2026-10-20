@@ -25,7 +25,7 @@ description: Classify a change and prepare concrete requirements and design for 
 
 主设计保留完整方案与关键结论；字段字典、请求样例等较长细节按需放 references/ 并引用 D。在批准范围内自行选择文件组织，不为拆附件额外确认。前端交接用 workspace-api-contract。
 
-写完检查需求覆盖、矛盾、关键取舍、引用和可验收性；复杂表格或图按需检查预览。展示实际内容，等用户批准。用户批准已有明确审阅对象后，使用最新 brief 的 revision 记录：
+自审需求覆盖、矛盾、引用、验收和过度设计。新增抽象、配置、依赖或兼容分支，须说明当前需要及更简单方案的不足，不为假设的未来预留。不削减安全、数据完整性、已承诺兼容或必要验证。结论就近写，不另加报告或审批。复杂图表按需预览；展示内容等用户批准，再用最新 brief revision 记录：
 
 ```bash
 python3 scripts/kit.py item approval <slug> --decision approved --reason "用户已批准实际方案" --state-revision <stateRevision> --json
