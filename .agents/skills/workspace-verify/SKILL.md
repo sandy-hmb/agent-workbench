@@ -9,7 +9,7 @@ description: Record actual validation and delivery facts, then complete an accep
 
 ## 验证
 
-从验收、仓规则、manifest、CI 和已有测试核实入口。按变更与风险选最小检查，扩展受影响模块回归；资金、权限、幂等、事务和迁移保留必要集成验证。零执行、跳过目标或仅编译不能证明行为完成。新旧路径变化检查主路径、残留引用和兼容边界，其他任务不加检查。
+从验收、仓规则、CI 和已有测试选入口。规则选主要验证层，其他层只补独有风险，不重复已有覆盖。范围或数据库需取舍时读[验证策略](references/strategy.md)。Mock 不替代真实数据库/鉴权/事务验证，缺环境保留待验收。零执行、跳过目标或仅编译不证明行为完成。新旧路径检查主路径、残留引用和兼容边界，其他任务不加检查。
 
 同一次实际检查只记一份证据。用 `verify snapshot <slug> --json` 取代码状态，逐任务加 --task；同批覆盖多任务按 [证据输入](references/evidence.md) 的 taskCoverage 映射 checks。scope=item 可同时登记任务和整体，scope=batch 仅更新所覆盖任务；不要复制同一 checks 逐项重登。
 

@@ -9,7 +9,7 @@ description: Prepare independent executable tasks when a change needs explicit d
 
 读取当前需求、设计、目标仓规则及相关代码，使用 templates/item/plan.md。按可独立验证的行为拆分，同仓服务同一结果的测试、实现与配置归同一任务。跨仓任务分别声明唯一目标仓，通过真实契约连接。
 
-同一 checkout 中，必须全部完成才能统一编译或测试的步骤归同一任务，不把无法独立验证的步骤标为完成并解锁依赖。不同仓仅在接口、数据或发布顺序确实独立时才可并行，并说明每个写入者的 checkout。
+同 checkout 需统一编译/测试的步骤归同一任务，不以半成品解锁依赖。跨仓仅在接口、数据和发布顺序独立时并行，明确写入者 checkout。
 
 ## 每项任务
 
@@ -17,11 +17,11 @@ description: Prepare independent executable tasks when a change needs explicit d
 
 - 可观察交付结果、R/D 依据、唯一目标仓。
 - 真实依赖编号或“无”；不把阅读顺序作为依赖。
-- Create/Modify/Test/Delete/Verify 的精确路径，已有逻辑标注稳定符号。
+- 实际 Create/Modify/Test/Delete/Verify 路径及稳定符号，不预设新测试文件。
 - 行为、声明式或持久化的验证性质。
-- 测试工作目录、精确命令、通过条件；非平凡行为写最小失败场景。
+- 主要验证入口、工作目录、命令、通过条件和必要反例；不强制 RED。
 
-步骤只写易遗漏或有顺序要求的动作，不复制通用教程；持久化变化需检查真实结构、迁移或写入，声明式改动选最小有效检查。新增 fallback、adapter、provider、兼容分支或删旧路径时补 Old path、Disposition、Reason、Verification。
+步骤只写易遗漏或有顺序的动作；复用覆盖，不跨层重复场景，数据库按独有风险验证。取舍见 workspace-verify。新增 fallback、adapter、provider、兼容或删旧路径时补 Old path、Disposition、Reason、Verification。
 
 允许一批检查显式映射多个任务，不为证据登记拆测试。
 

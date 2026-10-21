@@ -21,11 +21,11 @@ description: Classify a change and prepare concrete requirements and design for 
 
 按对应模板写内容：Requirements 维护完整业务规格、稳定 R 编号、角色条件、触发、可观察结果和反例；Design 维护完整技术方案、稳定 D 决策、选择理由、复用与新增职责、数据和接口、兼容回退及验证。
 
-验收选择能证明要求的观察入口；只记录会改变方案的假设及依据、验证和失败影响。涉及 fallback、adapter、provider、兼容分支或旧路径删除时说明处置，其他任务不加治理段落。
+验收选主要观察入口，复用已有覆盖；其他层只补独有风险，不按文件配测试。只记影响方案的假设、依据和失败影响。涉及 fallback、adapter、provider、兼容或删旧路径时说明处置，其他任务不加治理段落。
 
-主设计保留完整方案与关键结论；字段字典、请求样例等较长细节按需放 references/ 并引用 D。在批准范围内自行选择文件组织，不为拆附件额外确认。前端交接用 workspace-api-contract。
+主设计保留方案与结论，长字段字典/样例按需放 references/ 并引用 D；文件组织无需额外确认。前端交接用 workspace-api-contract。
 
-自审需求覆盖、矛盾、引用、验收和过度设计。新增抽象、配置、依赖或兼容分支，须说明当前需要及更简单方案的不足，不为假设的未来预留。不削减安全、数据完整性、已承诺兼容或必要验证。结论就近写，不另加报告或审批。复杂图表按需预览；展示内容等用户批准，再用最新 brief revision 记录：
+自审覆盖、矛盾、验收和过度设计，包括重复测试与设施成本。额外抽象、配置、依赖或兼容须说明必要性，不为未来或测试扩展生产能力。保留安全、数据完整性、兼容和必要验证。结论就近写，不另加报告或审批。展示后等用户批准，用最新 brief revision 记录：
 
 ```bash
 python3 scripts/kit.py item approval <slug> --decision approved --reason "用户已批准实际方案" --state-revision <stateRevision> --json

@@ -36,7 +36,7 @@ python3 scripts/kit.py item task-progress payment-retry --task T01 --status impl
 
 状态还可显式使用 `not-started`，但 Kit 不会自动推断它。执行记录只说明当前实施事实，不解除审批、依赖和阻塞，也不完成任务。验收另行显示 `unverified`、`passed`、`failed` 或 `needs-revalidation`；只有当前适用的通过证据才计入完成。任务定义、上游依据或仓绑定变化时，旧证据仍可从 history 查询，并显示失效原因与待补验证。
 
-按风险选择 TDD 强度：复杂行为或回归先用一个聚焦失败场景证明缺失；简单改动、声明式变化或已有检查已覆盖时直接做最小有效检查，并说明跳过 RED 的理由。随后最小实现并验证。执行真实检查后取得代码状态：
+先复用已有覆盖，每条规则选主要验证入口，其他层只补独有风险，不按改动文件配测试。TDD/RED 可选，不要求跳过说明；可复现 Bug 优先聚焦回归，新功能可先实现再验证。数据库按 SQL、约束、事务、并发和迁移风险触发，不默认本地拉库；缺少必要验证时保留待验收，不冒充通过。选择示例见[验证策略](../../.agents/skills/workspace-verify/references/strategy.md)。执行真实检查后取得代码状态：
 
 ```bash
 python3 scripts/kit.py verify snapshot payment-retry --json

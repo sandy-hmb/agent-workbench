@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.10.1",
+  "kitVersion": "2.10.2",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
