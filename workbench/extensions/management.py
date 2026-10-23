@@ -428,6 +428,8 @@ def load_desired_state(root: Path, config: Path) -> DesiredState:
             )
         manifests.append(manifest)
     manifests.sort(key=lambda item: item.id)
+    from workbench.extensions.item_outputs import check_conflicts
+    check_conflicts(manifests)
     _active_dependencies(manifests)
     raw_config = raw["config"]
     if isinstance(raw_config, dict):
@@ -534,6 +536,7 @@ def _locked_manifests(
                 or item["path"] != f"extensions/{extension_id}"
                 or extension_digest(manifest.root) != item["digest"]
                 or _provider_rows(manifest) != item["providers"]
+                or manifest.item_outputs != item.get('itemOutputs')
             )
             if _action_rows(manifest) != item.get("actions"):
                 snapshot_drift = True
@@ -604,6 +607,7 @@ def _lock_for_desired(desired: DesiredState, plan: AdapterPlan) -> dict[str, obj
                 "providers": _provider_rows(manifest),
                 "actions": _action_rows(manifest),
                 "adapters": adapters,
+                **({'itemOutputs': manifest.item_outputs} if manifest.item_outputs is not None else {}),
             }
         )
     candidate: dict[str, object] = {
@@ -867,6 +871,7 @@ def extension_findings(root: Path) -> list[ExtensionFinding]:
                 or item.get("path") != f"extensions/{extension_id}"
                 or item.get("digest") != extension_digest(manifest.root)
                 or item.get("providers") != expected
+                or manifest.item_outputs != item.get('itemOutputs')
                 or (
                     item.get("actions") != _action_rows(manifest)
                 )
@@ -1155,6 +1160,7 @@ def _scaffold_manifest_json(extension_id: str) -> str:
         "version": "0.1.0",
         "kitApi": 1,
         "provides": [],
+        "itemOutputs": {SCAFFOLD_ACTION_ID: []},
         "actions": [
             {
                 "id": SCAFFOLD_ACTION_ID,

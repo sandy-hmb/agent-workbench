@@ -5,7 +5,7 @@ description: Record actual validation and delivery facts, then complete an accep
 
 # 验证与完成
 
-没有 WorkItem 的小改只汇报实际命令、退出状态和结果，不创建记录目录。
+无 Item 的小改只报实际命令、退出码和结果，不建目录。
 
 ## 验证
 
@@ -19,7 +19,9 @@ description: Record actual validation and delivery facts, then complete an accep
 
 `item delivery <slug> --input - --state-revision <revision>` 记录实际版本、提测、部署与验收；未知不猜。externalChecks 提交完整清单，未关闭事项保留负责人和完成条件；关闭附依据或明确 waived 理由。机器 attempt/receipt 是外部执行事实，不复制成人工报告。
 
-README 是可重建视图。复杂独立审查、前端指南、SQL、真实发布/回退说明按需保留并链接，不另维护状态副本。前端指南复用原文件。
+README 可重建。独立审查、前端指南、SQL、发布/回退说明按需保留链接，不另维护状态；指南复用原文件。
+
+focused-v1 只登记稳定交付入口和最小可校验证据，不复制完整报告/逐批 Markdown；说明临时证据失效风险。legacy 不搬迁。
 
 ## 完成
 

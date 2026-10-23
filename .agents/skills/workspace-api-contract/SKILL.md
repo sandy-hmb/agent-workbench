@@ -40,6 +40,8 @@ description: Create or update API integration notes for workspace work items tha
 
 已纳入本次批准范围的指南直接生成，不重复请求生成许可。纯交接说明、示例或环境信息更新不触发设计重新审阅；发现契约或业务行为变化时先修订对应 R/D。生成或更新后通过 item delivery 更新交付事实，必要证据使用 artifactRefs；README 导航由 verify render 生成。
 
+focused-v1 在主规格的交付入口登记固定指南链接，README 不扫描全部文件；简单接口只更新设计，确有独立前端读者才写指南。已有指南原地修改，不生成 final/日期版、阶段结果或重复总指南。legacy 保留原位置，不自动重命名。
+
 历史 `design/frontend-integration.md` 或以 `references/api-contract.md` 命名的前端指南保持可读，按正文确认职责，不自动重命名、改写或迁移。
 
 ## 测试期文档

@@ -7,6 +7,8 @@ description: Execute approved work continuously with targeted validation and aut
 
 使用 `kit.py brief <slug> --json` 接手，已知任务加 `--task T01`。检查审批、实际分支和范围；普通活动没有独立计划时沿已批准 change.md 执行。
 
+focused-v1 读取 sources 与全局约束；超预算去重，不截断约束。扩展 resolve 加 --item 核对输出，只用声明路径，不写阶段报告。legacy 不补文档链。
+
 ## 执行循环
 
 1. 读取任务正文、sources 指向的 R/D 和直接依赖的必要结果。按 instructionContext.rules 的 scope 应用规范，facts 为事实；同会话按路径、版本和范围复用，新会话重读。普通工作项用 --repo/--path 定位目录规范，小改不建计划。必需入口缺失先处理诊断，目录变化补查规则。
@@ -22,7 +24,7 @@ description: Execute approved work continuously with targeted validation and aut
 
 当前任务普通代码或测试失败先解决。真正等待外部条件或业务决策时，记录事实、影响和恢复条件，再推进其他独立且已授权的 readyTasks。调整顺序不等于并行。
 
-沿 nextStep 连续推进，完成或真实阻塞才停止；未漂移不重读规则。只汇报事实、未完成项和决策。
+沿 nextStep 推进至完成或真实阻塞；未漂移不重读，只报事实和未决项。
 
 默认当前 Agent 连续执行。子 Agent 仅用于已授权且有明确收益的独立任务或审查；使用前读取 [协作边界](references/subagent-execution.md)。同一 checkout 只允许一个写入者，主 Agent 核对实际结果后统一记证据。未经授权不引入 worktree、并行、远端 Git、部署或外部环境。
 

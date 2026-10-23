@@ -28,6 +28,7 @@
       inputs/
     references/
     artifacts/
+      runs/<extension>/<runId>/ # focused-v1 必要机器证据，按需存在
   extensions/
     <extension-id>/
     .state/                    # lock、输入和缓存，Kit 管理
@@ -53,3 +54,5 @@ python3 scripts/kit.py item storage-migrate apply --root . --all \
 迁移不会转换需求内容或业务状态；旧 `verification.md`、临时验证输入和冲突前原始文件会进入备份或 `.state/inputs/legacy/`。
 
 升级后可用 `setup refresh preview/apply` 重新生成 CONTEXT.md 和仓 profile；它不会修改 WorkItem、Extension 或 Run。
+
+2.11 只在新建 WorkItem 写入 documentPolicy=focused-v1，缺失为 legacy。升级不写已有 Item、README 或证据，next-iteration 保留其策略。主模板的 focused 变体只供新项；不要自动迁移历史或为符合新目录移动旧回执。

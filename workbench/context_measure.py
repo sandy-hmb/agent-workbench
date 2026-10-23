@@ -68,7 +68,8 @@ def _sources(root: Path, slug, payload, skill: str) -> list[dict]:
             continue
         seen.add(identity)
         output.append({'path': str(path), 'startLine': row.get('startLine'), 'endLine': row.get('endLine'),
-                       'documentRevision': row.get('documentRevision') or revision, 'scope': row.get('scope'),
+                       'documentRevision': row.get('documentRevision') or revision,
+                       'fragmentRevision': row.get('fragmentRevision'), 'scope': row.get('scope'),
                        **measurement})
     return output
 
@@ -95,7 +96,7 @@ def _scenario(root, slug, steps, *, shared_context):
         command_tokens += command_measurement['estTokens']
         command_output_bytes += command_measurement['bytes']
         for row in _sources(root, slug, payload, skill):
-            identity = (row['path'], row['documentRevision'], row['scope'], row['startLine'], row['endLine'])
+            identity = (row['path'], row.get('fragmentRevision') or row['documentRevision'], row['scope'], row['startLine'], row['endLine'])
             reused = identity in seen
             savings += row['estTokens'] if reused else 0
             source_read_tokens += row['estTokens']
@@ -165,6 +166,12 @@ def build_report(root: Path, item=None, task=None, repository=None, paths=None):
     default_total = sum(row['estTokens'] for row in default_rules)
     task_reference_total = sum(row['estTokens'] for row in task_reference_rules)
     total = default_total + task_reference_total
+    item_documents = {}
+    if item:
+        from workbench.work_items.query import WorkItemQuery
+        reader = WorkItemQuery(root, item)
+        item_documents = {row['path']: estimate_tokens(row['content']) for role in ('change', 'requirements', 'design', 'plan', 'readme')
+                          if (row := reader.document(role))}
     return {'schemaVersion':2,'tokenModel':'CJK 1 char/token; other UTF-8 bytes/4 estimate, not billed usage',
             'rules':rules,'defaultRuleEstTokens':default_total,'taskReferenceEstTokens':task_reference_total,
             'totalRuleEstTokens':total,'baselineRuleEstTokens':BASELINE,
@@ -172,6 +179,7 @@ def build_report(root: Path, item=None, task=None, repository=None, paths=None):
             'taskReferenceTokenBudget':TASK_REFERENCE_TOKEN_BUDGET,'ruleTokenBudget':RULE_TOKEN_BUDGET,
             'targetMet':default_total <= DEFAULT_RULE_TOKEN_BUDGET and task_reference_total <= TASK_REFERENCE_TOKEN_BUDGET and total <= RULE_TOKEN_BUDGET and rules[0]['estTokens'] <= 1200,'commands':commands,
             'scenarios': scenario_report(root, item, task, repository, paths),
+            'itemDocuments': item_documents, 'softBudgets': {'readme': 1500, 'taskResume': 15000},
             'limitations': '输入/输出字段分别测量声明需读取的来源和 CLI 请求/输出；不含模型生成、历史会话、测试日志、工具内部读取或实际计费。连续任务模拟同会话按路径/版本/作用范围复用，新会话重新读取。报告不落盘正文或凭据。'}
 
 

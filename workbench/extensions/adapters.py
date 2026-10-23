@@ -259,6 +259,8 @@ def _skill_bytes(manifest: ExtensionManifest, skill: str) -> bytes:
         f"- `{action.ref}`: {action.confirmation_summary or description}"
         for action in actions
     )
+    if manifest.item_outputs is not None:
+        lines += ['', 'For Item writes, resolve with --item <slug> and check itemOutputContext. Use only declared focused-v1 paths; legacy items retain their existing layout.']
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 

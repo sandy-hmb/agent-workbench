@@ -34,9 +34,9 @@ def create(root: Path, slug: str, *, title: str, repositories: list[str], summar
         raise WorkItemError('ITEM_INVALID', '重大风险需要复杂文档模式')
     if not isinstance(activity, str) or not re.fullmatch(r'[a-z][a-z0-9-]*', activity):
         raise WorkItemError('ITEM_INVALID', 'activity 必须为小写字母开头的小写字母、数字或连字符', '$.activity')
-    template = KIT_ROOT / 'templates/item' / (document_kind + '.md')
+    template = KIT_ROOT / 'templates/item/focused' / (document_kind + '.md')
     if document_kind == 'change' and activity in {'repair', 'investigate', 'takeover', 'acceptance'}:
-        template = template.parent / 'activities' / (activity + '.md')
+        template = KIT_ROOT / 'templates/item/activities' / (activity + '.md')
     try:
         content = template.read_text(encoding='utf-8')
         values = {'title': title or slug, 'summary': summary}
@@ -66,7 +66,8 @@ def create(root: Path, slug: str, *, title: str, repositories: list[str], summar
              'lifecycle': 'active', 'activity': activity, 'risk': risk, 'documentKind': document_kind,
              'iteration': 'i01', 'bindings': bindings, 'reviews': {}, 'tasks': {}, 'currentTasks': [], 'maxTaskNumber': 0,
              'verification': None, 'evidence': [], 'delivery': {}, 'externalChecks': [], 'history': [],
-             'updatedAt': stamp(), 'stateRevision': '', 'blockers': [], 'cancellation': None, 'changes': []}
+             'updatedAt': stamp(), 'stateRevision': '', 'blockers': [], 'cancellation': None, 'changes': [],
+             'documentPolicy': 'focused-v1'}
     filename = document_kind + '.md'
     atomic_write(path / filename, initial)
     state = save_state(path, state)
@@ -129,6 +130,10 @@ def review(root: Path, slug: str, *, decision: str, reason: str, expected_revisi
             if prior_role and not reader.approved_document(prior_role):
                 raise WorkItemError('REVIEW_ORDER_INVALID', f'先审阅 {prior_role}')
         tasks = reader.tasks()
+        from workbench.work_items import focused
+        if focused.enabled(state) and 'plan' in roles and decision != 'needs-review':
+            for task in tasks:
+                focused.sources(reader, task)
         old_ids = set(state['currentTasks'])
         if 'plan' in roles and decision != 'needs-review':
             for task in tasks:
@@ -217,6 +222,8 @@ def prepare_document(root: Path, slug: str, role: str, *, expected_revision: str
         if prior_role and not reader.approved_document(prior_role):
             raise WorkItemError('DOCUMENT_ORDER_INVALID', f'先批准 {prior_role} 才能生成 {role}')
         template_path = KIT_ROOT / 'templates/item' / (role + '.md')
+        if state.get('documentPolicy') == 'focused-v1':
+            template_path = template_path.parent / 'focused' / template_path.name
         try:
             template = template_path.read_text(encoding='utf-8')
         except (OSError, UnicodeError) as exc:
@@ -695,6 +702,10 @@ def cancel(root: Path, slug: str, *, reason: str, expected_revision: str) -> dic
 def render(root: Path, slug: str) -> dict:
     reader = WorkItemQuery(root, slug)
     state = reader.state
+    from workbench.work_items import focused
+    if focused.enabled(state):
+        changed = atomic_write(reader.path / 'README.md', focused.render(reader).encode())
+        return {'itemSlug': slug, 'rendered': True, 'changed': changed}
     def one(value):
         return ' '.join(str(value).splitlines()).replace('|', '\\|')
     def workflow_refs(row):

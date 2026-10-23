@@ -67,7 +67,8 @@ apply 会同时更新 `.workspace/config/workspace.json`、`.workspace/extension
 - 一个 capability 的默认绑定和单个仓级覆盖各只能指向一个 Provider。当前 Core capability 只有 `branch.naming` 和 `context.term-router`。
 - manifest v1 可以声明任意命名 Action；普通 Action 不绑定 capability，也不会生成全局 `local-*` Adapter，通过 `workspace-item-workflow` 在对应 Stage 按需读取。显式 standalone Skill-only Action 会生成受管 `local-*` Adapter，供 Skill inventory 发现；正文仍在用户实际选择后读取。旧 standalone lock 通过 preview/apply 补建，同名 Provider/Action Skill 拒绝覆盖；配置和资源根仍通过 action resolve 读取。
 - Skill-only Action 可显式声明 `standalone: true`，通过 `python3 scripts/kit.py action list --root . --json` 和 `action resolve <extension>/<action> --root . --json` 独立发现。入口只读已激活 Action 的短元数据和精确 Skill 路径，不启动命令、MCP、Provider 或 Workflow Run；实际使用时再读取 Skill。带 `command` 的 Action 不得声明 standalone，继续使用 `workspace-item-workflow`。
-- 需要输出 work item 相关文件的 Extension，在其 `SKILL.md` 声明具体位置、文件归属及重跑方式；不定义统一的扩展文档目录。只有交接需要时，需求主文档保留该产物入口链接。
+- 新 focused-v1 项的输出由 manifest.itemOutputs 按 Skill 声明 path/kind/writeMode/purpose；无输出声明 []。handoff 更新 artifacts 固定 Markdown；evidence/log 仅写 artifacts/runs/<extension>/{runId}/，真实运行追加，同次查询续接原记录。SKILL 写触发与恢复条件，不生成同义总结，不改主规格/README/.state。legacy 保持旧路径，不迁移。
+- resolve --item 或绑定 Item 的 workflow plan 校验当前声明；路径/归属冲突拒绝，未用扩展不阻塞 Item。声明不是外部执行授权或沙箱，任意脚本越界只能诊断，不能自动删除现场或重放。详情见 docs/guides/local-extensions.md。
 - 不手工修改受管 `local-*` Adapter。内容、管理标记或符号链接失配时，先运行 doctor；系统会拒绝删除或覆盖未受管路径。
 - 停用 Extension 前，若 `.workspace/config/local.json` 的 `extensions` 仍包含该 Extension 配置，preview 会拒绝。先显式移除该本地配置；系统不自动删除本地配置。
 - 不将凭据写入 manifest、desired state、workspace 配置或 lock。凭据由运行环境在需要调用 Provider 时单独提供。

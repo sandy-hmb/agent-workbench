@@ -209,8 +209,8 @@ class CliUsabilityTest(unittest.TestCase):
             'investigate': ('问题与范围', '事实证据', '结论和后续'),
             'takeover': ('当前事实', '风险与未决', '下一步验收'),
             'acceptance': ('验收标准', '证据', '未关闭事项'),
-            'develop': ('已知事实与关键假设', '验收与检查', '方案与工作项'),
-            'custom-audit': ('已知事实与关键假设', '验收与检查', '方案与工作项'),
+            'develop': ('目标与边界', '验收', '方案与工作项'),
+            'custom-audit': ('目标与边界', '验收', '方案与工作项'),
         }
         title = 'Title {summary}'
         summary = '保留 {title}、{summary} 与 {"count": 1}'
@@ -262,7 +262,7 @@ class CliUsabilityTest(unittest.TestCase):
 
     def test_missing_or_invalid_utf8_template_leaves_no_partial_item(self):
         kit_root = Path(self.fixture.temp.name) / 'template-kit'
-        template = kit_root / 'templates/item/change.md'
+        template = kit_root / 'templates/item/focused/change.md'
         with mock.patch.object(commands, 'KIT_ROOT', kit_root):
             for slug in ('missing-template', 'invalid-template'):
                 if slug == 'invalid-template':

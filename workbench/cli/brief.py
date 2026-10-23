@@ -24,6 +24,13 @@ def brief_result(root: Path, slug: str | None = None, *, task_id=None, check_cod
                                                      for row in pending[:10]]
             verification['detailsEntrypoint'] = f'kit.py brief {slug} --full --json'
             verification.pop('verificationScope', None)
+        if value.get('documentPolicy') == 'focused-v1':
+            from workbench.context_measure import _sources, estimate_tokens
+            rows = _sources(root, slug, value, 'workspace-execute-plan')
+            total = sum(row['estTokens'] for row in rows) + estimate_tokens(json.dumps(value, ensure_ascii=False))['estTokens']
+            value['contextCost'] = {'estTokens': total, 'softBudget': 15000, 'overBudget': total > 15000,
+                                    'largestSources': [{'path': r['path'], 'estTokens': r['estTokens']} for r in sorted(rows, key=lambda r: -r['estTokens'])[:3]],
+                                    'estimateOnly': True}
         return value
     if not repository or task_id or check_code:
         raise WorkItemError('CONTEXT_ARGUMENT_INVALID', '无工作项查询需要 --repo，可选 --path，不接受 --task 或 --check-code')
@@ -132,8 +139,8 @@ def brief_text(value: dict) -> str:
                   f"验收 {row.get('verificationStatus', row['status'])}；证据：{row.get('evidenceId') or '未记录'}"
                   for row in dependencies]
         for row in value.get('sources', []):
-            lines.append('依据来源：' + (f"{row['id']}；{row['path']}:{row['startLine']}-{row['endLine']}" +
-                                        ('（未定位）' if not row['located'] else '') if 'id' in row else row['reference']))
+            lines.append('依据来源：' + (f"{row.get('id', ','.join(row.get('ids', [])) or row.get('title', 'global'))}；{row['path']}:{row['startLine']}-{row['endLine']}" +
+                                        ('（未定位）' if not row['located'] else '') if 'path' in row else row['reference']))
     context = value.get('instructionContext', {})
     rules = context.get('rules', [])
     lines.append('规则来源：' + ('' if rules else '无可用规则来源'))

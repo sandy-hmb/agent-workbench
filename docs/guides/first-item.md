@@ -94,3 +94,19 @@ python3 scripts/kit.py item cancel payment-retry --reason "目标已被其他方
 取消保留任务、证据和未关闭验收，不执行回滚。取消后重新开展使用 next-iteration；resume 只恢复暂停项。工作台显示阻塞和取消原因，新操作由 Agent 通过 CLI 执行。
 
 无变化的 update、delivery 和重复摘要生成不改文件时间或状态版本。新审批、验证及阻塞处理是新事实，正常保存。任务验证只读取目标仓，整体验证检查全部涉及仓。
+
+## 2.11 新项精简策略
+
+新建项自动标记 focused-v1：普通需求默认 README + change；重大需求仍按 Requirements → Design → Plan 分阶段审阅。已有 legacy 项（含后续迭代）不自动切换、补模板或重写。
+
+规格只维护当前承诺和重要取舍，不写会话流水。范围/非目标、关键不变量、必要反例、失败处理、兼容和验收不能因篇幅省略。计划保留关键入口与重要删除/迁移，不穷举普通类。精确引用如 `R1-R3`、`D03.2`，缺失或歧义依据不能批准执行。
+
+README 自动展示简短结论、同因任务事项、未关闭验收和明确交付入口；详细任务、报告和历史按需 Inspect。已有文件优先更新，不新建阶段总结、执行补充或最终版。人类必要交付物固定在 artifacts，规范附件放 references；扩展机器证据在 `artifacts/runs/<extension>/<runId>/`，不创建空目录。
+
+```bash
+python3 scripts/kit.py item check-docs <slug> --json
+python3 scripts/kit.py action resolve <extension>/<action> --item <slug> --json
+python3 scripts/kit.py context-measure --item <slug> --task T01 --json
+```
+
+check-docs 只读报告布局、坏引用和软预算，不生成报告文件；上下文估算不代表计费。README 1,500、任务接手 15,000 估算 token 是软预算，超出不截断关键约束。新状态/扩展字段不承诺旧 Kit 可读，启用后遇错优先前向修复，不删除标记或覆盖历史以降级。

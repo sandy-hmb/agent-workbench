@@ -195,7 +195,7 @@ def validate_state(state: dict, item: Path) -> None:
                 'iteration', 'bindings', 'reviews', 'tasks', 'currentTasks', 'maxTaskNumber',
                 'verification', 'evidence', 'delivery', 'externalChecks', 'history', 'updatedAt', 'stateRevision',
                 'blockers', 'cancellation', 'changes'}
-    object_fields(state, allowed=required | {'evidenceReceipts'}, required=required)
+    object_fields(state, allowed=required | {'evidenceReceipts', 'documentPolicy'}, required=required)
     if state.get('schemaVersion') != SCHEMA_VERSION:
         raise WorkItemError('ITEM_FORMAT_UNSUPPORTED', '仅支持新版 state.json；请使用新工作区')
     if state['slug'] != item.name or not SLUG_RE.fullmatch(state['slug']):

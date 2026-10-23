@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "2.10.2",
+  "kitVersion": "2.11.0",
   "extensionActions": {
     "minimumApiVersion": 1,
     "requiredFields": [
@@ -10,6 +10,11 @@
     "migration": null
   },
   "manualSteps": [
+    {
+      "sinceVersion": "2.11.0",
+      "summary": "仅新建 WorkItem 启用精简文档与扩展输出策略；旧 Items 和后续迭代不迁移、不重渲染。自定义扩展在新项写文件前声明 itemOutputs，并检查实际报告器路径。无需刷新历史。",
+      "runbook": "docs/guides/local-extensions.md"
+    },
     {
       "sinceVersion": "2.10.0",
       "summary": "2.10 支持批量验证证据、内容等价指纹、批准 worktree、一致提测 checkout、精简 brief 和按需 Action 解析。升级保留 .workspace、历史证据、Extension 与 IDE 兼容；需要使用 taskCoverage、--full 或绑定 checkout 时按当前 runbook 使用。",

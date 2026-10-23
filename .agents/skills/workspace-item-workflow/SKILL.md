@@ -73,6 +73,6 @@ python3 scripts/kit.py workflow result --root . --workflow-run-id <workflowRunId
 
 每次只读取当前 Core Skill 和当前 Action Skill；同一计划或迭代中已授权且实际影响未变化的 Action 可连续执行和重试，阶段或 Skill 切换不触发重复确认。Action、参数、effects、目标或环境改变后重新核对实际影响。详细日志留在本地路径，Agent 只接收结构化摘要。不要手工修改 `.workspace/config/workflow.json`、`.workspace/runs/`、Extension lock 或受管 Adapter。
 
-Action 如需写 work item 相关文件，必须由自身 SKILL.md 说明精确输出位置、文件归属和重复运行时的追加或覆盖方式；不预设扩展专用目录。它不得改写需求、设计或实施计划正文，除非用户已在当前阶段确认该内容变更。Action 结果只保存到执行尝试记录，阶段状态按需生成，不追加验证 Markdown。
+Action 写 Item 文件前核对 plan.itemOutputContext：focused-v1 只用 manifest.itemOutputs 声明路径，人类交付物原地更新，机器证据放 artifacts/runs/<extension>/<runId>/；legacy 保持原 Skill 路径。触发/恢复由自身 Skill 说明。不得自行改写 R/D/Plan、README 或状态。阶段结果保存已有 attempt，不追加总结 Markdown；声明不是文件系统沙箱。
 
 本 Skill 不自动部署、不创建代码审查请求、不提交或推送业务仓；这些行为必须由使用者定义 Action 并按本轮授权执行。

@@ -149,6 +149,7 @@ class ExtensionManifest:
     config_schema: str | None
     effects: tuple[str, ...]
     root: Path
+    item_outputs: dict | None = None
 
     @property
     def providers(self) -> tuple[ProviderDeclaration, ...]:
@@ -350,7 +351,7 @@ def load_manifest(path: Path) -> ExtensionManifest:
         raise ExtensionError("schemaVersion must be 1")
     required = {"schemaVersion", "id", "version", "kitApi", "provides", "requires", "effects"}
     required = required | {"actions"}
-    allowed = required | {"configSchema"}
+    allowed = required | {"configSchema", "itemOutputs"}
     if set(raw) - allowed or required - set(raw):
         raise ExtensionError("manifest fields are invalid")
     kit_api = raw["kitApi"]
@@ -456,6 +457,10 @@ def load_manifest(path: Path) -> ExtensionManifest:
     if config_schema is not None and not _safe_relative(config_schema):
         raise ExtensionError("configSchema must be safe relative path")
     _validate_skills(root, (*providers, *actions))
+    outputs = None
+    if 'itemOutputs' in raw:
+        from workbench.extensions.item_outputs import normalize
+        outputs = normalize(raw['itemOutputs'], extension_id, {p.skill for p in (*providers, *actions)})
     return ExtensionManifest(
         schema_version,
         extension_id,
@@ -467,6 +472,7 @@ def load_manifest(path: Path) -> ExtensionManifest:
         config_schema,
         effects,
         root,
+        outputs,
     )
 
 
@@ -555,12 +561,15 @@ def normalize_extensions_lock(value: object) -> dict[str, object]:
     for item in extensions:
         fields = {"id", "version", "path", "digest", "providers", "adapters"}
         fields = fields | {"actions"}
-        if not isinstance(item, dict) or set(item) != fields:
+        if not isinstance(item, dict) or set(item) - (fields | {'itemOutputs'}) or fields - set(item):
             raise ExtensionError("locked extension fields are invalid")
         extension_id = item["id"]
         if not isinstance(extension_id, str) or not ID_RE.fullmatch(extension_id) or extension_id in seen:
             raise ExtensionError("locked extension id is invalid or duplicate")
         seen.add(extension_id)
+        if 'itemOutputs' in item:
+            from workbench.extensions.item_outputs import normalize
+            normalize(item['itemOutputs'], extension_id)
         if not isinstance(item["version"], str) or not SEMVER_RE.fullmatch(item["version"]):
             raise ExtensionError("locked extension version is invalid")
         if item["path"] != f"extensions/{extension_id}" or not isinstance(item["digest"], str) or not DIGEST_RE.fullmatch(item["digest"]):

@@ -3,6 +3,7 @@
   "id": "example-webhook-notify",
   "version": "0.1.0",
   "kitApi": 1,
+  "itemOutputs": {"notify": []},
   "provides": [],
   "actions": [
     {

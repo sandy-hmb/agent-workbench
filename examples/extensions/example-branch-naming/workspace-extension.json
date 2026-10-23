@@ -3,6 +3,7 @@
   "id": "example-branch-naming",
   "version": "0.1.0",
   "kitApi": 1,
+  "itemOutputs": {"naming": []},
   "provides": [
     {
       "capability": "branch.naming",

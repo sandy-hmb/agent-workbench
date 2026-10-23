@@ -41,6 +41,7 @@ def _metadata(root: Path, binding) -> dict[str, object]:
         "effects": list(action.effects),
         "environment": list(action.environment or ()),
         "digest": binding.digest,
+        "itemOutputs": (binding.manifest.item_outputs or {}).get(action.skill),
     }
 
 
@@ -54,7 +55,7 @@ def list_result(root: Path) -> dict[str, object]:
     return {"actions": sorted((_metadata(root, binding) for binding in _actions(root).values() if binding.action.standalone), key=lambda row: row["id"])}
 
 
-def resolve_result(root: Path, action_ref: str) -> dict[str, object]:
+def resolve_result(root: Path, action_ref: str, *, item=None) -> dict[str, object]:
     import re
     if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*', action_ref):
         raise ExtensionCommandError('ACTION_NOT_STANDALONE: Action 引用无效')
@@ -68,7 +69,9 @@ def resolve_result(root: Path, action_ref: str) -> dict[str, object]:
     if not isinstance(shared, dict) or not isinstance(local_config, dict):
         raise ExtensionCommandError("ACTION_CONFIG_INVALID: Extension 配置必须是对象")
     config = validate_manifest_config(root, binding.manifest, shared, local_config)
-    return {"action": _metadata(root, binding), "config": config}
+    from workbench.extensions.item_outputs import context
+    outputs = context(root, item, binding.manifest, binding.action.skill, binding.action.effects)
+    return {"action": _metadata(root, binding), "config": config, 'itemOutputContext': outputs}
 
 
 def build_parser():
@@ -76,6 +79,7 @@ def build_parser():
     commands = parser.add_subparsers(dest="command", required=True)
     listing = commands.add_parser("list"); listing.add_argument("--root", type=Path, default=Path.cwd()); listing.add_argument("--json", action="store_true")
     resolve = commands.add_parser("resolve"); resolve.add_argument("action_ref"); resolve.add_argument("--root", type=Path, default=Path.cwd()); resolve.add_argument("--json", action="store_true")
+    resolve.add_argument('--item')
     return parser
 
 
@@ -83,7 +87,7 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
         root = args.root.resolve()
-        result = list_result(root) if args.command == "list" else resolve_result(root, args.action_ref)
+        result = list_result(root) if args.command == "list" else resolve_result(root, args.action_ref, item=args.item)
         if args.json:
             print(json.dumps(result, ensure_ascii=False))
         else:

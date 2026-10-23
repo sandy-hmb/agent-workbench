@@ -134,7 +134,7 @@ class TaskProgressTest(ItemFixture, unittest.TestCase):
 
         actions.render(self.root, "demo")
         readme = (self.item / "README.md").read_text()
-        self.assertIn("## 任务进度", readme)
+        self.assertIn("## 进展与验证摘要", readme)
         self.assertIn("T02", readme)
         self.assertIn("待审批", readme)
 

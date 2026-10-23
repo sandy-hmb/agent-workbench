@@ -5,7 +5,7 @@ description: Classify a change and prepare concrete requirements and design for 
 
 # 需求与设计
 
-先查事实，再提出影响业务结果的关键问题。明确目标、验收、非目标及约束；无需重新询问已确定事项。目标不清或范围可能扩张时，回复中临时列出 Goal、Success Evidence、Stop Condition、Non-goals；小改不落文件。
+先查事实，仅问影响业务结果的问题；明确目标、验收、非目标和约束，不重复已定事项。目标不清或范围可能扩张时，回复中临时列出 Goal、Success Evidence、Stop Condition、Non-goals；小改不落文件。
 
 ## 选择记录强度
 
@@ -19,19 +19,21 @@ description: Classify a change and prepare concrete requirements and design for 
 
 重大需求首轮只写 Requirements，批准后才写 Design，再批准后才写 Plan。后续模板使用 `item prepare <slug> --role design|plan --state-revision <revision>`；不覆盖正文。Kit 约束生成入口，直接 Markdown 编辑仍须遵循阶段规则。
 
-按对应模板写内容：Requirements 维护完整业务规格、稳定 R 编号、角色条件、触发、可观察结果和反例；Design 维护完整技术方案、稳定 D 决策、选择理由、复用与新增职责、数据和接口、兼容回退及验证。
+按 prepare 选定模板写当前规格：Requirements 写范围/非目标、不变量、稳定 R、可观察验收和反例；Design 写稳定 D、关键职责/流程、取舍、失败/兼容/回退与验证。完整指承诺无遗漏，不指复制调查历史、普通字段和实现清单。
 
-验收选主要观察入口，复用已有覆盖；其他层只补独有风险，不按文件配测试。只记影响方案的假设、依据和失败影响。涉及 fallback、adapter、provider、兼容或删旧路径时说明处置，其他任务不加治理段落。
+验收复用主要入口，其他层只补独有风险；只记影响方案的假设与依据。涉及 fallback、adapter、provider、兼容或删旧时说明处置，其他任务不加治理段。
 
-主设计保留方案与结论，长字段字典/样例按需放 references/ 并引用 D；文件组织无需额外确认。前端交接用 workspace-api-contract。
+长字典/样例按需放 references 并引用 D，主设计保留结论。前端交接用 workspace-api-contract。
 
-自审覆盖、矛盾、验收和过度设计，包括重复测试与设施成本。额外抽象、配置、依赖或兼容须说明必要性，不为未来或测试扩展生产能力。保留安全、数据完整性、兼容和必要验证。结论就近写，不另加报告或审批。展示后等用户批准，用最新 brief revision 记录：
+focused-v1 新项优先更新原章节/文件，不另写阶段总结、接手或日期版；规范细节在 references 受审，交付链接集中登记。legacy 不补模板或搬迁。
+
+自审覆盖、矛盾、验收及测试成本。新增抽象/配置/兼容须说明必要性，不为未来或测试扩展生产能力；保留安全、完整性、兼容和验证。结论就近写，不另加报告；展示后等用户批准，用最新 revision 记录：
 
 ```bash
 python3 scripts/kit.py item approval <slug> --decision approved --reason "用户已批准实际方案" --state-revision <stateRevision> --json
 ```
 
-重大需求每次只批准一个角色，默认当前阶段；普通需求一次批准方案包。批准记录绑定实际审阅版本。
+重大需求每次批准一阶段，普通需求一次批准；记录绑定实际版本。
 
 ## 修改已批准内容
 

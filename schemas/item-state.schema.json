@@ -27,6 +27,7 @@
     "changes"
   ],
   "properties": {
+    "documentPolicy": {"const": "focused-v1"},
     "evidenceReceipts": {"type": "object"},
     "schemaVersion": {
       "const": 1

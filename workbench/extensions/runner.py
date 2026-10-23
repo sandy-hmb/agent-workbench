@@ -212,6 +212,7 @@ def _active_actions(root: Path, selected_extension: str | None = None) -> dict[s
                 or item["path"] != f"extensions/{extension_id}"
                 or extension_digest(manifest.root) != item["digest"]
                 or _action_rows(manifest) != item.get("actions")
+                or manifest.item_outputs != item.get('itemOutputs')
             )
         except ExtensionError as exc:
             raise _command("ACTION_DRIFT", str(exc)) from exc
@@ -573,6 +574,9 @@ def _plan_item(
         "fingerprint": _stage_fingerprint(stage, binding, run),
     }
     item["executionMode"] = "command" if binding.action.command is not None else "skill-only"
+    from workbench.extensions.item_outputs import context
+    item['itemOutputContext'] = context(binding.manifest.root.parents[2], run.get('itemSlug'),
+                                        binding.manifest, binding.action.skill, binding.action.effects)
     item["planHash"] = _hash(item)
     if binding.action.command is not None:
         item["requestId"] = attempts.default_request_id(str(run["id"]), stage.id, item["planHash"])

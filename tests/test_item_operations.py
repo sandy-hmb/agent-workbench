@@ -122,8 +122,8 @@ class ItemOperationsTest(ItemFixture, unittest.TestCase):
         commands.delivery(self.root, 'demo', {'externalChecks': checks}, expected_revision=self.state()['stateRevision'])
         summary = (self.item / 'README.md').read_text()
         self.assertIn('check-24', summary)
-        self.assertIn('共 25', summary)
-        self.assertIn('其余 5', summary)
+        self.assertIn('未关闭 3/25', summary)
+        self.assertNotIn('check-0；', summary)
 
     def test_delivery_can_reference_current_workflow_attempt_without_completing_acceptance(self):
         from workbench.extensions import attempts

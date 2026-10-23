@@ -235,3 +235,24 @@ python3 scripts/kit.py extension validate-extension \
 ```
 
 其余步骤（激活、preview/apply）与本文档前述流程完全一致。
+
+## 新 WorkItem 的输出边界
+
+2.11 新建项使用 `documentPolicy=focused-v1`，旧项缺省为 legacy，不迁移历史。扩展的 `itemOutputs` 按 Skill 声明；`[]` 表示不生成 Item 文件，缺失不是任意写入许可。例如：
+
+```json
+{
+  "itemOutputs": {
+    "query": [],
+    "run": [
+      {"path": "artifacts/runs/team-test/{runId}/case-results.json", "kind": "evidence", "writeMode": "append-run", "purpose": "逐 Case 验收证据"}
+    ]
+  }
+}
+```
+
+扩展 ID 为 team-test 时，evidence/log 只能在上述所属运行目录，runId 是唯一安全路径段；handoff 使用 `artifacts/` 下固定 Markdown 路径与 `update`，不使用日期/final/v2 文件。真实新执行追加，同次查询或恢复使用原记录；已归档证据不覆盖。SKILL.md 写触发条件、唯一写入者和恢复规则。源码/测试、缓存和锁仍放原本所属仓或受管目录，不复制为 Item 文档。
+
+`extension validate-extension`/preview 校验声明与归属冲突；`action resolve <ref> --item <slug> --json` 或绑定 Item 的 Workflow plan 只核对当前能力。新项的写文件 Skill 必须传目标并检查 itemOutputContext；只读无 Item 查询不必建项。声明不是外部执行授权，也不是任意脚本沙箱。扩展写入函数仍需前置路径/符号链接检查；发现越界保留现场、不自动删除或重放。
+
+不输出成功预检、阶段总结、接手摘要或验证输入副本。已有章节/同用途文件优先更新；规范细节放 `references/` 纳入审批，扩展不能改主规格、README 或 `.state/`。有持久权威原件就引用；当前 artifactRefs 仍仅支持 Item 内文件，必要最小验收 JSON 保留一份，不放宽为任意外部文件路径。

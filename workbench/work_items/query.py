@@ -625,6 +625,7 @@ class WorkItemQuery:
                   'path': str(self.path.relative_to(self.root)), 'status': self.state['lifecycle'], 'riskTier': self.state['risk'],
                   'activity': self.state['activity'], 'iteration': self.state['iteration'], 'stateRevision': self.state['stateRevision'],
                   'updatedAt': self.state['updatedAt'], 'repositoryBindings': self.state['bindings'],
+                  'documentPolicy': self.state.get('documentPolicy', 'legacy'),
                   'progress': self.progress_summary(),
                   'reviews': self.review_state(), 'verification': self.verification(check_code=check_code),
                   'documents': self.documents(), 'artifactSummary': self.artifact_summary(),
@@ -648,6 +649,9 @@ class WorkItemQuery:
                 'instructionContext': repository_context(self.root, self.roots({task['repository']})[task['repository']], task=task, repository_name=task['repository'])}
 
     def requirement_sources(self, task: dict) -> list[dict]:
+        from workbench.work_items import focused
+        if focused.enabled(self.state):
+            return focused.sources(self, task)
         identifiers = list(dict.fromkeys(re.findall(r'(?<![A-Za-z0-9])(?:R\d+(?:\.\d+)*|D\d+)(?![A-Za-z0-9])', task['basis'])))
         sources = []
         for identifier in identifiers:
@@ -723,6 +727,7 @@ class WorkItemQuery:
         overlay = _active_overlay(self.root) if workspace_file(self.root).exists() else None
         result['workflowHooks'] = {side: [s.id for s in overlay.stages if getattr(s, side) == result['currentStage']]
                                    if overlay else [] for side in ('before', 'after')}
+        result['documentPolicy'] = self.state.get('documentPolicy', 'legacy')
         return result
 
     def assert_unchanged(self) -> None:

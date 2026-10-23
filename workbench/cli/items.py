@@ -28,6 +28,7 @@ def build_parser():
     create.add_argument('--activity', default='develop'); create.add_argument('--branch')
     listing = commands.add_parser('list'); listing.add_argument('--status', choices=sorted(ITEM_STATUSES))
     resolve = commands.add_parser('resolve'); resolve.add_argument('--repo', required=True); resolve.add_argument('--branch', required=True)
+    check_docs = commands.add_parser('check-docs'); check_docs.add_argument('slug')
     storage = commands.add_parser('storage-migrate')
     storage_commands = storage.add_subparsers(dest='storage_command', required=True)
     storage_preview = storage_commands.add_parser('preview')
@@ -81,6 +82,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = actions.create(root, args.slug, title=args.title, summary=args.summary, repositories=args.repo,
                                     document_kind=args.document_kind, risk=args.risk_tier, activity=args.activity, branch=args.branch)
         elif args.command == 'list': result = list_items(root, args.status)
+        elif args.command == 'check-docs':
+            from workbench.work_items import focused
+            reader = WorkItemQuery(root, args.slug)
+            rows = focused.diagnostics(reader) if focused.enabled(reader.state) else []
+            reader.assert_unchanged()
+            result = {'itemSlug': args.slug, 'documentPolicy': reader.state.get('documentPolicy', 'legacy'),
+                      'diagnostics': rows, 'valid': not any(row['severity'] == 'error' for row in rows)}
         elif args.command == 'resolve':
             result = {'matches': [dict(slug=x.slug, path=str(x.path), status=x.status, repository=x.repository, baseBranch=x.base_branch) for x in resolve_items(root, args.repo, args.branch)]}
         elif args.command == 'approval':

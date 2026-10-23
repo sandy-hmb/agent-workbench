@@ -47,6 +47,7 @@
     "provides": {"type": "array", "items": {"$ref": "#/$defs/provider"}, "uniqueItems": true},
     "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}, "uniqueItems": true},
     "requires": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/capability"}},
+    "itemOutputs": {"type":"object","propertyNames":{"pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$"},"additionalProperties":{"type":"array","items":{"type":"object","required":["path","kind","writeMode","purpose"],"additionalProperties":false,"properties":{"path":{"type":"string","minLength":1},"kind":{"enum":["handoff","evidence","log"]},"writeMode":{"enum":["update","append-run"]},"purpose":{"type":"string","minLength":1}}}}},
     "configSchema": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\x00)(?!/)(?!.*//)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*\\s).+$"},
     "effects": {"$ref": "#/$defs/effects"}
   }
